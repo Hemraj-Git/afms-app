@@ -15,7 +15,6 @@ import {
   RoomAccessLog,
   AssetActivityLog,
   InventoryItem,
-  Department,
   Reservation,
 } from '@/types/afms'
 
@@ -89,11 +88,5 @@ export const mockDocuments: DocumentItem[] = []
 export const mockRoomAccessLogs: RoomAccessLog[] = []
 export const mockAssetActivityLogs: AssetActivityLog[] = []
 export const mockInventoryItems: InventoryItem[] = []
-export const mockDepartments: Department[] = [
-  { id: 'DEP-0001', name: 'Facility Operations', code: 'FAC', description: 'Campus facilities, utilities and premises management' },
-  { id: 'DEP-0002', name: 'Engineering & Maintenance', code: 'ENG', description: 'Technical and mechanical maintenance operations' },
-  { id: 'DEP-0003', name: 'Academic Operations', code: 'ACAD', description: 'Faculty, curriculum and simulator training blocks' },
-  { id: 'DEP-0004', name: 'Quality & Safety', code: 'QA', description: 'Quality compliance and safety inspections' },
-  { id: 'DEP-0005', name: 'Facilities & Hygiene', code: 'HYG', description: 'Sanitization and housekeeping management' },
-]
 export const mockReservations: Reservation[] = []
+// mockDepartments intentionally removed — departments sync from Supabase (see AFMSContext syncSupabase)

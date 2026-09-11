@@ -309,6 +309,76 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // 1c. Supabase Realtime — refresh key tables when another client makes changes
+  React.useEffect(() => {
+    const channel = supabase
+      .channel('afms-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, async () => {
+        const { data } = await supabase.from('assets').select('*').order('created_at', { ascending: false })
+        if (data) setAssets(data.map((a: any) => ({
+          id: a.id, assetId: a.asset_id, name: a.name, subCategoryId: a.sub_category_id,
+          roomId: a.room_id, manufacturer: a.manufacturer, modelNumber: a.model_number,
+          serialNumber: a.serial_number, price: a.price ? Number(a.price) : undefined,
+          installationDate: a.installation_date, purchaseDate: a.purchase_date,
+          warrantyTill: a.warranty_till, maintenanceBy: a.maintenance_by || 'In House',
+          status: a.status || 'Operational', imageUrl: a.image_url,
+          notes: a.notes, qrCodeUrl: a.qr_code_url || a.asset_id,
+          dynamicSpecifications: a.dynamic_specifications || {}, createdAt: a.created_at,
+        })))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests' }, async () => {
+        const { data } = await supabase.from('service_requests').select('*').order('created_at', { ascending: false })
+        if (data) setServiceRequests(data.map((sr: any) => ({
+          id: sr.id, ticketId: sr.ticket_id, title: sr.title, description: sr.description || '',
+          requestType: sr.request_type || 'Maintenance', roomId: sr.room_id, assetId: sr.asset_id,
+          requestedBy: sr.requested_by, requestedByRole: 'Staff', assignedTo: sr.assigned_to,
+          status: sr.status || 'Open', priority: sr.priority || 'Medium',
+          createdAt: sr.created_at, slaDueDate: sr.sla_due_date, photoUrls: sr.photo_urls || [],
+        })))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_orders' }, async () => {
+        const { data } = await supabase.from('work_orders').select('*').order('created_at', { ascending: false })
+        if (data) setWorkOrders(data.map((w: any) => ({
+          id: w.id, woNumber: w.wo_number, title: w.title || `${w.type} Work Order`,
+          type: w.type, assetId: w.asset_id, roomId: w.room_id, priority: w.priority,
+          source: w.source || 'Scheduled', sourceRefId: w.source_ref_id, frequency: w.frequency,
+          dueDate: w.due_date, assignedTechnicianId: w.assigned_technician_id,
+          assignedTechnicianName: w.assigned_technician_name, status: w.status,
+          checklistTemplateId: w.checklist_template_id, checklistSnapshot: w.checklist_snapshot || [],
+          checklistResponses: w.checklist_responses || {}, executedBy: w.executed_by,
+          issueLogged: w.issue_logged, solutionTaken: w.solution_taken,
+          technicianRemarks: w.technician_remarks, createdAt: w.created_at, completedAt: w.completed_at,
+        })))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inspections' }, async () => {
+        const { data } = await supabase.from('inspections').select('*').order('created_at', { ascending: false })
+        if (data) setInspections(data.map((i: any) => ({
+          id: i.id, inspectionNumber: i.inspection_number, assetId: i.asset_id,
+          templateId: i.template_id, templateVersion: i.template_version || 1,
+          assignedInspectorId: i.conducted_by_user_id || i.assigned_inspector_id,
+          assignedInspectorName: i.conducted_by || i.assigned_inspector_name,
+          dueDate: i.due_date, status: i.status || 'Scheduled', result: i.result,
+          inspectorRemarks: i.remarks, checklistSnapshot: i.checklist_snapshot || [],
+          checklistResponses: i.checklist_responses || {}, completedAt: i.conducted_at,
+          createdAt: i.created_at,
+        })))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, async () => {
+        const { data } = await supabase.from('rooms').select('*').order('room_number')
+        if (data) setRooms(data.map((r: any) => ({
+          id: r.id, buildingId: r.building_id, name: r.name, roomNumber: r.room_number,
+          type: r.type || 'General', isReservable: Boolean(r.is_reservable),
+          qrCodeKey: r.qr_code_key || `ROOM-${r.room_number}`,
+          status: r.status || 'Available', currentOccupant: r.current_occupant_id,
+        })))
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
   // 1b. Synchronize 100% with Supabase PostgreSQL & Auth Session
   React.useEffect(() => {
     let isMounted = true
@@ -339,8 +409,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // 1. Users from profiles
         const { data: profRows } = await supabase.from('profiles').select('*')
         if (isMounted && profRows && profRows.length > 0) {
-          setUsers(prev => {
-            const dbUsers: UserProfile[] = profRows.map(p => ({
+          setUsers(
+            profRows.map(p => ({
               id: p.id,
               email: p.email,
               fullName: p.full_name,
@@ -348,15 +418,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
               department: p.department || '',
               phone: p.phone || '',
             }))
-            // Merge dbUsers with mockUsers so standard demo accounts (admin, technician) are always accessible
-            const combined = [...dbUsers]
-            mockUsers.forEach(mu => {
-              if (!combined.some(u => u.email.toLowerCase() === mu.email.toLowerCase())) {
-                combined.push(mu)
-              }
-            })
-            return combined
-          })
+          )
+        } else if (isMounted) {
+          // No real profiles yet — keep mock demo accounts so login works in dev
+          setUsers(mockUsers)
         }
 
         // 2. Departments
@@ -785,6 +850,30 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       passwordLastChanged: userData.passwordLastChanged || new Date().toISOString().split('T')[0],
     }
     setUsers(prev => [...prev, newUser])
+
+    // Create Supabase Auth user then upsert their profile row
+    supabase.auth.signUp({
+      email: newUser.email,
+      password: newUser.password || 'password123',
+    }).then(({ data: authData, error: authError }) => {
+      if (authError) {
+        console.error('Supabase auth user creation error:', authError.message)
+        return
+      }
+      if (authData?.user) {
+        supabase.from('profiles').upsert([{
+          id: authData.user.id,
+          email: newUser.email,
+          full_name: newUser.fullName,
+          role: newUser.role,
+          department: newUser.department || '',
+          phone: newUser.phone || '',
+        }]).then(({ error }) => {
+          if (error) console.error('Supabase profile upsert error:', error.message)
+        })
+      }
+    })
+
     return newUser
   }
   const updateUser = (id: string, userData: Partial<UserProfile>) => {
@@ -1758,10 +1847,21 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setServiceRequests(prev =>
       prev.map(s => (s.id === id ? { ...s, ...extraUpdates, status } : s))
     )
-    supabase.from('service_requests').update({
-      status,
-      ...extraUpdates
-    }).or(`id.eq.${id},ticket_id.eq.${id}`).then(() => {})
+    const dbUpdates: Record<string, any> = { status }
+    if (extraUpdates) {
+      if (extraUpdates.title !== undefined) dbUpdates.title = extraUpdates.title
+      if (extraUpdates.description !== undefined) dbUpdates.description = extraUpdates.description
+      if (extraUpdates.requestType !== undefined) dbUpdates.request_type = extraUpdates.requestType
+      if (extraUpdates.roomId !== undefined) dbUpdates.room_id = extraUpdates.roomId
+      if (extraUpdates.assetId !== undefined) dbUpdates.asset_id = extraUpdates.assetId
+      if (extraUpdates.assignedTo !== undefined) dbUpdates.assigned_to = extraUpdates.assignedTo
+      if (extraUpdates.priority !== undefined) dbUpdates.priority = extraUpdates.priority
+      if (extraUpdates.slaDueDate !== undefined) dbUpdates.sla_due_date = extraUpdates.slaDueDate
+      if (extraUpdates.photoUrls !== undefined) dbUpdates.photo_urls = extraUpdates.photoUrls
+    }
+    supabase.from('service_requests').update(dbUpdates).or(`id.eq.${id},ticket_id.eq.${id}`).then(({ error }) => {
+      if (error) console.error('Supabase service_request status update error:', error.message)
+    })
   }
 
   const updateServiceRequest = (id: string, updates: Partial<ServiceRequest>) => {
@@ -1800,7 +1900,22 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const updateVendor = (id: string, vendorData: Partial<Vendor>) => {
     const { id: _, ...safeData } = vendorData as any
     setVendors(prev => prev.map(v => (v.id === id ? { ...v, ...safeData } : v)))
-    supabase.from('vendors').update(safeData).eq('id', id).then(() => {})
+    const dbUpdates: Record<string, any> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.categorySupplied !== undefined) dbUpdates.category_supplied = safeData.categorySupplied
+    if (safeData.contactPerson !== undefined) dbUpdates.contact_person = safeData.contactPerson
+    if (safeData.email !== undefined) dbUpdates.email = safeData.email
+    if (safeData.phone !== undefined) dbUpdates.phone = safeData.phone
+    if (safeData.address !== undefined) dbUpdates.address = safeData.address
+    if (safeData.hasAmc !== undefined) dbUpdates.has_amc = safeData.hasAmc
+    if (safeData.amcContractNo !== undefined) dbUpdates.amc_contract_no = safeData.amcContractNo
+    if (safeData.amcStartDate !== undefined) dbUpdates.amc_start_date = safeData.amcStartDate
+    if (safeData.amcEndDate !== undefined) dbUpdates.amc_end_date = safeData.amcEndDate
+    if (Object.keys(dbUpdates).length > 0) {
+      supabase.from('vendors').update(dbUpdates).eq('id', id).then(({ error }) => {
+        if (error) console.error('Supabase vendor update error:', error.message)
+      })
+    }
   }
 
   const deleteVendor = (id: string): { success: boolean; message?: string } => {
