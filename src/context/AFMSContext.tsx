@@ -301,14 +301,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       const savedRoomTypes = localStorage.getItem('afms_room_types')
       if (savedRoomTypes) setRoomTypes(JSON.parse(savedRoomTypes))
 
-      // Clean up legacy mock data keys so they do not pollute pure Supabase mode
-      const legacyKeys = [
-        'afms_users', 'afms_departments', 'afms_campuses', 'afms_buildings',
-        'afms_rooms', 'afms_categories', 'afms_subcategories', 'afms_vendors',
-        'afms_templates', 'afms_assets', 'afms_inventory', 'afms_reservations',
-        'afms_service_requests', 'afms_work_orders', 'afms_inspections', 'afms_documents'
-      ]
-      legacyKeys.forEach(k => localStorage.removeItem(k))
+      // No localStorage restoration needed — Supabase is the source of truth
     } catch (err) {
       console.warn('AFMS initialization warning:', err)
     } finally {
@@ -1323,6 +1316,72 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
     newLogs.forEach(log => addAssetLog(log))
 
+    // Persist all bulk assets to Supabase
+    if (createdAssets.length > 0) {
+      supabase.from('assets').insert(createdAssets.map(a => ({
+        id: a.id,
+        asset_id: a.assetId,
+        name: a.name,
+        sub_category_id: a.subCategoryId || null,
+        room_id: a.roomId || null,
+        manufacturer: a.manufacturer || null,
+        model_number: a.modelNumber || null,
+        serial_number: a.serialNumber || null,
+        price: a.price || null,
+        installation_date: a.installationDate || today,
+        purchase_date: a.purchaseDate || null,
+        warranty_till: a.warrantyTill || null,
+        maintenance_by: a.maintenanceBy || 'In House',
+        purchase_vendor_id: a.purchaseVendorId || null,
+        maintenance_vendor_id: a.maintenanceVendorId || null,
+        amc_start_date: a.amcStartDate || null,
+        amc_end_date: a.amcEndDate || null,
+        assigned_to_user_id: a.assignedToUserId || null,
+        assigned_to_user_name: a.assignedToUserName || null,
+        image_url: a.imageUrl || null,
+        notes: a.notes || null,
+        status: a.status || 'Operational',
+        qr_code_url: a.qrCodeUrl,
+        dynamic_specifications: a.dynamicSpecifications || {},
+        created_at: new Date().toISOString(),
+      }))).then(({ error }) => {
+        if (error) console.error('Supabase bulk asset insert error:', error.message)
+      })
+    }
+    if (newWorkOrders.length > 0) {
+      supabase.from('work_orders').insert(newWorkOrders.map(w => ({
+        id: w.id,
+        wo_number: w.woNumber,
+        title: w.title || `Preventive Maintenance`,
+        type: w.type,
+        asset_id: w.assetId || null,
+        source: w.source || 'Scheduled',
+        frequency: w.frequency || null,
+        due_date: w.dueDate,
+        status: w.status || 'Scheduled',
+        checklist_template_id: w.checklistTemplateId || null,
+        checklist_snapshot: w.checklistSnapshot || [],
+        created_at: new Date().toISOString(),
+      }))).then(({ error }) => {
+        if (error) console.error('Supabase bulk work_orders insert error:', error.message)
+      })
+    }
+    if (newInspections.length > 0) {
+      supabase.from('inspections').insert(newInspections.map(i => ({
+        id: i.id,
+        inspection_number: i.inspectionNumber,
+        asset_id: i.assetId || null,
+        template_id: i.templateId || null,
+        template_version: i.templateVersion || 1,
+        due_date: i.dueDate,
+        status: i.status || 'Scheduled',
+        checklist_snapshot: i.checklistSnapshot || [],
+        created_at: new Date().toISOString(),
+      }))).then(({ error }) => {
+        if (error) console.error('Supabase bulk inspections insert error:', error.message)
+      })
+    }
+
     return { success: true, createdCount: createdAssets.length, createdAssets }
   }
 
@@ -1331,6 +1390,36 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setAssets(prev =>
       prev.map(a => (a.id === id ? { ...a, ...safeData } : a))
     )
+
+    const dbUpdates: Record<string, any> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.subCategoryId !== undefined) dbUpdates.sub_category_id = safeData.subCategoryId
+    if (safeData.roomId !== undefined) dbUpdates.room_id = safeData.roomId
+    if (safeData.manufacturer !== undefined) dbUpdates.manufacturer = safeData.manufacturer
+    if (safeData.modelNumber !== undefined) dbUpdates.model_number = safeData.modelNumber
+    if (safeData.serialNumber !== undefined) dbUpdates.serial_number = safeData.serialNumber
+    if (safeData.price !== undefined) dbUpdates.price = safeData.price
+    if (safeData.installationDate !== undefined) dbUpdates.installation_date = safeData.installationDate
+    if (safeData.purchaseDate !== undefined) dbUpdates.purchase_date = safeData.purchaseDate
+    if (safeData.warrantyTill !== undefined) dbUpdates.warranty_till = safeData.warrantyTill
+    if (safeData.maintenanceBy !== undefined) dbUpdates.maintenance_by = safeData.maintenanceBy
+    if (safeData.purchaseVendorId !== undefined) dbUpdates.purchase_vendor_id = safeData.purchaseVendorId
+    if (safeData.maintenanceVendorId !== undefined) dbUpdates.maintenance_vendor_id = safeData.maintenanceVendorId
+    if (safeData.amcStartDate !== undefined) dbUpdates.amc_start_date = safeData.amcStartDate
+    if (safeData.amcEndDate !== undefined) dbUpdates.amc_end_date = safeData.amcEndDate
+    if (safeData.assignedToUserId !== undefined) dbUpdates.assigned_to_user_id = safeData.assignedToUserId
+    if (safeData.assignedToUserName !== undefined) dbUpdates.assigned_to_user_name = safeData.assignedToUserName
+    if (safeData.imageUrl !== undefined) dbUpdates.image_url = safeData.imageUrl
+    if (safeData.notes !== undefined) dbUpdates.notes = safeData.notes
+    if (safeData.status !== undefined) dbUpdates.status = safeData.status
+    if (safeData.dynamicSpecifications !== undefined) dbUpdates.dynamic_specifications = safeData.dynamicSpecifications
+
+    if (Object.keys(dbUpdates).length > 0) {
+      supabase.from('assets').update(dbUpdates).eq('id', id).then(({ error }) => {
+        if (error) console.error('Supabase asset update error:', error.message)
+      })
+    }
+
     addAssetLog({
       assetId: id,
       action: 'Asset Updated',
@@ -1342,6 +1431,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const updateAssetStatus = (assetId: string, status: Asset['status']) => {
     setAssets(prev => prev.map(a => (a.id === assetId ? { ...a, status } : a)))
+    supabase.from('assets').update({ status }).eq('id', assetId).then(({ error }) => {
+      if (error) console.error('Supabase asset status update error:', error.message)
+    })
   }
 
   // 7b. Inventory Item: INV-#### (Immutable ID, No auto PM/Inspection)

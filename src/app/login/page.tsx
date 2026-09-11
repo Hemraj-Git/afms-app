@@ -161,6 +161,11 @@ function LoginFormContent() {
       passwordLastChanged: new Date().toISOString().split('T')[0],
     })
 
+    // Also update the live Supabase Auth password for the currently signed-in session
+    supabase.auth.updateUser({ password: resetNewPass.trim() }).then(({ error }) => {
+      if (error) console.warn('Supabase auth password update notice:', error.message)
+    })
+
     setForgotSuccess('Password reset successfully! You can now sign in with your new password.')
     setEmail(targetUser.email)
     setPassword(resetNewPass.trim())

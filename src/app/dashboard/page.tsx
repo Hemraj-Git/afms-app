@@ -449,7 +449,7 @@ export default function DashboardPage() {
                     strokeWidth="18"
                     strokeLinecap="round"
                     strokeDasharray={251.3}
-                    strokeDashoffset={251.3 * (1 - (complianceRate || 96) / 100)}
+                    strokeDashoffset={251.3 * (1 - complianceRate / 100)}
                     className="transition-all duration-1000 ease-out"
                   />
                 </svg>
@@ -457,17 +457,17 @@ export default function DashboardPage() {
                 {/* Center Content: 96% and Outstanding Pill */}
                 <div className="absolute inset-0 flex flex-col items-center justify-end pb-1 text-center">
                   <span className="text-4xl font-extrabold text-slate-800 tracking-tight leading-none mb-2">
-                    {complianceRate || 96}%
+                    {complianceRate}%
                   </span>
                   <span className="inline-flex items-center text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">
-                    {complianceRate >= 90 ? 'Outstanding' : complianceRate >= 75 ? 'Good' : 'Needs Action'}
+                    {completedInspections.length === 0 ? 'No Data Yet' : complianceRate >= 90 ? 'Outstanding' : complianceRate >= 75 ? 'Good' : 'Needs Action'}
                   </span>
                 </div>
               </div>
 
               {/* Bottom text */}
               <p className="text-xs text-slate-500 font-medium mt-3">
-                <span className="text-slate-700 font-bold">+2.5%</span> from previous month
+                Based on {completedInspections.length} completed inspection{completedInspections.length !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
