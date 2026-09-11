@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAFMS } from '@/context/AFMSContext'
 import {
@@ -39,6 +39,8 @@ export function Header({
 }: HeaderProps) {
   const router = useRouter()
   const { currentUser, setCurrentUser, updateUser, users, activeCheckIn, checkOutRoom, serviceRequests, isLoggedIn, logout } = useAFMS()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
   const [showRoleMenu, setShowRoleMenu] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
@@ -401,8 +403,8 @@ export function Header({
           )}
         </div>
 
-        {/* User profile avatar or Sign In */}
-        {isLoggedIn ? (
+        {/* User profile avatar or Sign In — deferred until after hydration to avoid SSR mismatch */}
+        {mounted && (isLoggedIn ? (
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -420,7 +422,7 @@ export function Header({
           >
             Sign In
           </Link>
-        )}
+        ))}
       </div>
 
       {/* MODAL: CHANGE PASSWORD (REGISTERED USERS) */}
