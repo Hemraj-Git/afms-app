@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { Asset } from '@/types/afms'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
+import { getAssetQrUrl } from '@/lib/qrUrls'
 
 export default function AssetDetailPage() {
   const params = useParams()
@@ -50,6 +51,13 @@ export default function AssetDetailPage() {
   } = useAFMS()
 
   const [activeTab, setActiveTab] = useState<'basic' | 'maintenance' | 'inspection' | 'documents' | 'activity'>('basic')
+
+  // Needed to build the real, scannable QR URL (matches the QR Codes
+  // dashboard) -- window.location.origin isn't available during SSR.
+  const [origin, setOrigin] = useState('')
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
 
   // Find target asset safely
   const asset = assets.find(a => a.id === assetIdParam || a.assetId === assetIdParam)
@@ -733,7 +741,7 @@ export default function AssetDetailPage() {
               <div className="p-6 bg-blue-50/50 rounded-2xl border border-blue-100 flex flex-col items-center justify-center space-y-3">
                 <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-2xs">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=AFMS-${asset.assetId}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(getAssetQrUrl(origin, asset.id))}`}
                     alt={`QR Code for ${asset.assetId}`}
                     className="w-40 h-40 object-contain"
                   />
@@ -743,7 +751,7 @@ export default function AssetDetailPage() {
 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <a
-                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=AFMS-${asset.assetId}`}
+                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(getAssetQrUrl(origin, asset.id))}`}
                   target="_blank"
                   rel="noreferrer"
                   download={`QR-${asset.assetId}.png`}

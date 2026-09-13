@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import {
@@ -12,7 +11,6 @@ import {
   Square,
   DoorOpen,
   Boxes,
-  ExternalLink,
   Layers,
   X,
   FileDown,
@@ -109,31 +107,6 @@ export default function QrDashboardPage() {
     setSelectedAssetIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     )
-  }
-
-  // Print execution: updates print date and opens window.print()
-  const handlePrintRooms = () => {
-    const today = new Date().toISOString().split('T')[0]
-    selectedRoomIds.forEach(id => {
-      updateRoom(id, { lastPrintedAt: today })
-    })
-    document.body.classList.add('printing-qr-modal')
-    window.print()
-    setTimeout(() => {
-      document.body.classList.remove('printing-qr-modal')
-    }, 1000)
-  }
-
-  const handlePrintAssets = () => {
-    const today = new Date().toISOString().split('T')[0]
-    selectedAssetIds.forEach(id => {
-      updateAsset(id, { lastPrintedAt: today })
-    })
-    document.body.classList.add('printing-qr-modal')
-    window.print()
-    setTimeout(() => {
-      document.body.classList.remove('printing-qr-modal')
-    }, 1000)
   }
 
   // Direct PDF Generation (guarantees 100% exact vector layout & dimensions)
@@ -423,13 +396,6 @@ export default function QrDashboardPage() {
                                 <Printer className="w-3 h-3" />
                                 <span>Print Placard</span>
                               </button>
-                              <Link
-                                href={`/qr?type=room&id=${room.id}`}
-                                className="p-1 text-slate-400 hover:text-blue-600 rounded"
-                                title="Test Scan"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </Link>
                             </div>
                           </td>
                         </tr>
@@ -573,13 +539,6 @@ export default function QrDashboardPage() {
                                 <Printer className="w-3 h-3" />
                                 <span>Print 5x5cm</span>
                               </button>
-                              <Link
-                                href={`/qr?type=asset&id=${asset.id}`}
-                                className="p-1 text-slate-400 hover:text-blue-600 rounded"
-                                title="Test Scan"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </Link>
                             </div>
                           </td>
                         </tr>
@@ -729,13 +688,6 @@ export default function QrDashboardPage() {
                     )}
                     <span>Download PDF (4 per A4)</span>
                   </button>
-                  <button
-                    onClick={handlePrintRooms}
-                    className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2"
-                  >
-                    <Printer className="w-4 h-4" />
-                    <span>Browser Print</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -852,13 +804,6 @@ export default function QrDashboardPage() {
                       <FileDown className="w-4 h-4" />
                     )}
                     <span>Download PDF (5cm × 5cm)</span>
-                  </button>
-                  <button
-                    onClick={handlePrintAssets}
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2"
-                  >
-                    <Printer className="w-4 h-4" />
-                    <span>Browser Print</span>
                   </button>
                 </div>
               </div>

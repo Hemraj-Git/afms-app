@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getRoomQrUrl } from '@/lib/qrUrls'
 import {
   DoorOpen,
   Boxes,
@@ -48,6 +49,13 @@ export default function RoomDetailPage() {
   } = useAFMS()
 
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'access_log'>('overview')
+
+  // Needed to build the real, scannable QR URL (matches the QR Codes
+  // dashboard) -- window.location.origin isn't available during SSR.
+  const [origin, setOrigin] = useState('')
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
 
   // Find room safely
   const room = rooms.find(r => r.id === roomId || r.roomNumber === roomId)
@@ -496,7 +504,7 @@ export default function RoomDetailPage() {
               <div className="bg-blue-50/40 rounded-2xl p-6 flex flex-col items-center justify-center border border-blue-100 space-y-3">
                 <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=AFMS-${room.qrCodeKey}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(getRoomQrUrl(origin, room.id))}`}
                     alt="Room QR"
                     className="w-36 h-36 object-contain"
                   />
@@ -507,13 +515,16 @@ export default function RoomDetailPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => alert(`Downloading high-resolution QR vector for ${room.name}...`)}
+                <a
+                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(getRoomQrUrl(origin, room.id))}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  download={`QR-${room.roomNumber}.png`}
                   className="py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download QR</span>
-                </button>
+                </a>
                 <button
                   onClick={() => window.print()}
                   className="py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 transition"
