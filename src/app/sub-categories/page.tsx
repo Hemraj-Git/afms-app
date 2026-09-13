@@ -235,7 +235,7 @@ export default function SubCategoriesPage() {
   }
 
   // Final Publish Handler
-  const handleFinalPublish = () => {
+  const handleFinalPublish = async () => {
     const cleanFields = metadataFields.map((f, i) => ({
       ...f,
       key: f.key || `field_${f.label.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
@@ -259,7 +259,7 @@ export default function SubCategoriesPage() {
         inspectionTemplateId: uniqueInspIds[0] || undefined,
       })
     } else {
-      addSubCategory({
+      await addSubCategory({
         categoryId: selectedCategoryId,
         name: subCategoryName.trim(),
         description: description.trim(),
@@ -279,12 +279,12 @@ export default function SubCategoriesPage() {
     const linkedAssets = assets.filter(a => a.subCategoryId === sub.id)
     if (linkedAssets.length > 0) {
       alert(
-        `Deletion Not Permitted: Sub-Category "${sub.name}" (${sub.id}) cannot be deleted because it has ${linkedAssets.length} active asset(s) linked to it. Please reassign or delete those assets first.`
+        `Deletion Not Permitted: Sub-Category "${sub.name}" (${sub.code}) cannot be deleted because it has ${linkedAssets.length} active asset(s) linked to it. Please reassign or delete those assets first.`
       )
       return
     }
 
-    if (confirm(`Are you sure you want to delete Sub-Category "${sub.name}" (${sub.id})?`)) {
+    if (confirm(`Are you sure you want to delete Sub-Category "${sub.name}" (${sub.code})?`)) {
       deleteSubCategory(sub.id)
     }
   }
@@ -292,7 +292,7 @@ export default function SubCategoriesPage() {
   const filteredSubs = subCategories.filter(s => {
     const cat = categories.find(c => c.id === s.categoryId)
     return (
-      s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cat?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.description?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -393,7 +393,7 @@ export default function SubCategoriesPage() {
                   <div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
-                        {sub.id}
+                        {sub.code}
                       </span>
                       <span className="text-[11px] font-semibold text-slate-500">
                         {cat?.name || sub.categoryId}
@@ -512,7 +512,7 @@ export default function SubCategoriesPage() {
                       >
                         {categories.map(c => (
                           <option key={c.id} value={c.id}>
-                            {c.name} ({c.id})
+                            {c.name} ({c.code || c.id})
                           </option>
                         ))}
                       </select>
@@ -843,7 +843,7 @@ export default function SubCategoriesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                         <p className="font-bold text-slate-900 text-xs">General Information</p>
-                        <p><span className="text-slate-500">Parent Category:</span> <strong>{selectedCategoryObj?.name} ({selectedCategoryObj?.id})</strong></p>
+                        <p><span className="text-slate-500">Parent Category:</span> <strong>{selectedCategoryObj?.name} ({selectedCategoryObj?.code || selectedCategoryObj?.id})</strong></p>
                         <p><span className="text-slate-500">Sub-Category Name:</span> <strong>{subCategoryName}</strong></p>
                         <p><span className="text-slate-500">Generated Sub ID:</span> <span className="font-mono font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">{previewSubCategoryId}</span></p>
                         <p><span className="text-slate-500">SLA Priority:</span> <span className="font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">{slaPriority}</span></p>

@@ -25,21 +25,15 @@ import {
   CheckCircle2,
   FolderTree,
   UserPlus,
-  Key,
-  Lock,
-  Eye,
-  EyeOff,
-  Copy,
-  RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { UserProfile, UserRole, Department } from '@/types/afms'
+import { inviteUser } from '@/app/actions/users'
 
 export default function UsersAdminPage() {
   const {
     users,
-    currentUser,
-    setCurrentUser,
-    addUser,
+    addInvitedUser,
     updateUser,
     deleteUser,
     departments,
@@ -66,14 +60,9 @@ export default function UsersAdminPage() {
   const [selectedDeptId, setSelectedDeptId] = useState('')
   const [phone, setPhone] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-
-  // Dedicated Password Reset Modal State
-  const [resetUser, setResetUser] = useState<UserProfile | null>(null)
-  const [newPassword, setNewPassword] = useState('')
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [resetSuccessMsg, setResetSuccessMsg] = useState('')
+  const [isInviting, setIsInviting] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [inviteSuccessEmail, setInviteSuccessEmail] = useState('')
 
   // Department Modal State
   const [showDeptModal, setShowDeptModal] = useState(false)
@@ -86,16 +75,6 @@ export default function UsersAdminPage() {
   // User Detail Drawer / Modal State (Assigned Assets & Check-In Logs)
   const [viewingUser, setViewingUser] = useState<UserProfile | null>(null)
 
-  // Generate Secure Random Password
-  const generateRandomPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$'
-    let result = 'Pass#'
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return result
-  }
-
   // Open User Create Modal
   const openCreateUserModal = () => {
     setEditingUser(null)
@@ -105,8 +84,8 @@ export default function UsersAdminPage() {
     setSelectedDeptId(departments[0]?.id || '')
     setPhone('+91 98201 00000')
     setAvatarUrl('')
-    setPassword('password123')
-    setShowPassword(false)
+    setInviteError('')
+    setInviteSuccessEmail('')
     setShowUserModal(true)
   }
 
@@ -121,8 +100,8 @@ export default function UsersAdminPage() {
     setSelectedDeptId(matchingDept ? matchingDept.id : departments[0]?.id || '')
     setPhone(u.phone || '')
     setAvatarUrl(u.avatarUrl || '')
-    setPassword(u.password || '')
-    setShowPassword(false)
+    setInviteError('')
+    setInviteSuccessEmail('')
     setShowUserModal(true)
   }
 
@@ -147,43 +126,54 @@ export default function UsersAdminPage() {
   }
 
   // Handle User Submit
-  const handleUserSubmit = (e: React.FormEvent) => {
+  const handleUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const targetDept = departments.find(d => d.id === selectedDeptId)
     const deptNameStr = targetDept ? targetDept.name : ''
 
-    const userPayload: any = {
-      fullName,
-      email,
-      role,
-      department: deptNameStr,
-      departmentId: selectedDeptId || undefined,
-      phone,
-      avatarUrl: avatarUrl || undefined,
-    }
-    if (password.trim()) {
-      userPayload.password = password.trim()
-      userPayload.passwordLastChanged = new Date().toISOString().split('T')[0]
-    }
-
     if (editingUser) {
-      updateUser(editingUser.id, userPayload)
-    } else {
-      userPayload.password = userPayload.password || 'password123'
-      addUser(userPayload)
+      updateUser(editingUser.id, {
+        fullName,
+        email,
+        role,
+        department: deptNameStr,
+        departmentId: selectedDeptId || undefined,
+        phone,
+        avatarUrl: avatarUrl || undefined,
+      })
+      setShowUserModal(false)
+      return
     }
-    setShowUserModal(false)
-  }
 
-  // Handle Password Reset by Admin
-  const handleResetPasswordSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!resetUser || !newPassword.trim()) return
-    updateUser(resetUser.id, {
-      password: newPassword.trim(),
-      passwordLastChanged: new Date().toISOString().split('T')[0],
-    })
-    setResetSuccessMsg(`Password for ${resetUser.fullName} was updated to: ${newPassword.trim()}`)
+    setInviteError('')
+    setIsInviting(true)
+    try {
+      const result = await inviteUser({
+        email,
+        fullName,
+        role,
+        department: deptNameStr,
+        phone,
+      })
+      if (!result.success) {
+        setInviteError(result.error)
+        return
+      }
+      addInvitedUser({
+        id: result.profile.id,
+        email: result.profile.email,
+        fullName: result.profile.fullName,
+        role: result.profile.role,
+        department: result.profile.department,
+        departmentId: selectedDeptId || undefined,
+        phone: result.profile.phone,
+      })
+      setInviteSuccessEmail(result.profile.email)
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Could not send the invite.')
+    } finally {
+      setIsInviting(false)
+    }
   }
 
   // Handle User Delete
@@ -200,7 +190,7 @@ export default function UsersAdminPage() {
   }
 
   // Handle Department Submit
-  const handleDeptSubmit = (e: React.FormEvent) => {
+  const handleDeptSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!deptName.trim()) {
       alert('Department name is required.')
@@ -215,7 +205,7 @@ export default function UsersAdminPage() {
         headOfDepartment: deptHead.trim() || undefined,
       })
     } else {
-      addDepartment({
+      await addDepartment({
         name: deptName.trim(),
         code: deptCode.trim().toUpperCase() || deptName.substring(0, 3).toUpperCase(),
         description: deptDescription.trim() || undefined,
@@ -367,14 +357,13 @@ export default function UsersAdminPage() {
                     <th className="py-3.5 px-4">Department</th>
                     <th className="py-3.5 px-4">Contact Details</th>
                     <th className="py-3.5 px-4">Assigned Assets</th>
-                    <th className="py-3.5 px-4">Password &amp; Security</th>
                     <th className="py-3.5 px-6 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
                         No personnel found matching search criteria.
                       </td>
                     </tr>
@@ -432,49 +421,9 @@ export default function UsersAdminPage() {
                             </span>
                           </td>
 
-                          {/* Password & Security Status */}
-                          <td className="py-4 px-4" onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5">
-                              <Key className="w-3.5 h-3.5 text-slate-400" />
-                              <span className="font-mono text-slate-400 text-[11px]">••••••••</span>
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                                Configured
-                              </span>
-                            </div>
-                            <p className="text-[9px] text-slate-400 mt-0.5 font-mono">
-                              Updated: {user.passwordLastChanged || '2026-02-15'}
-                            </p>
-                          </td>
-
                           {/* Actions */}
                           <td className="py-4 px-6 text-right">
                             <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                              <button
-                                onClick={() => setCurrentUser(user)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
-                                  currentUser.id === user.id
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : 'bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700'
-                                }`}
-                                title="Switch current session to this user"
-                              >
-                                {currentUser.id === user.id ? 'Active User' : 'Switch'}
-                              </button>
-
-                              <button
-                                onClick={e => {
-                                  e.stopPropagation()
-                                  setResetUser(user)
-                                  setNewPassword(generateRandomPassword())
-                                  setResetSuccessMsg('')
-                                  setShowNewPassword(true)
-                                }}
-                                className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-500 hover:text-amber-700 transition"
-                                title="Reset User Password"
-                              >
-                                <Key className="w-3.5 h-3.5" />
-                              </button>
-
                               <button
                                 onClick={e => openEditUserModal(user, e)}
                                 className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition"
@@ -642,39 +591,6 @@ export default function UsersAdminPage() {
                 </button>
               </div>
 
-              {/* Credential Security & Password Management Card */}
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-2xs shrink-0">
-                    <Key className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-amber-950">Password &amp; Security</p>
-                      <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
-                        Active
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-amber-800/80 mt-0.5">
-                      Last password update: <strong className="font-mono">{viewingUser.passwordLastChanged || '2026-02-15'}</strong>
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResetUser(viewingUser)
-                    setNewPassword(generateRandomPassword())
-                    setResetSuccessMsg('')
-                    setShowNewPassword(true)
-                  }}
-                  className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 shrink-0"
-                >
-                  <Key className="w-3.5 h-3.5" />
-                  <span>Reset User Password</span>
-                </button>
-              </div>
 
               {/* Section 1: Assigned Assets */}
               <div className="space-y-3">
@@ -701,7 +617,7 @@ export default function UsersAdminPage() {
                         className="bg-slate-50 hover:bg-blue-50/50 p-3.5 rounded-xl border border-slate-200/70 transition flex items-center justify-between"
                       >
                         <div>
-                          <span className="font-mono text-[10px] font-bold text-blue-600">{asset.id}</span>
+                          <span className="font-mono text-[10px] font-bold text-blue-600">{asset.assetId}</span>
                           <p className="font-bold text-xs text-slate-900">{asset.name}</p>
                           <p className="text-[11px] text-slate-400 mt-0.5">
                             {asset.manufacturer || 'General'} {asset.modelNumber ? `• ${asset.modelNumber}` : ''}
@@ -709,7 +625,7 @@ export default function UsersAdminPage() {
                         </div>
 
                         <Link
-                          href={`/assets/${asset.id}`}
+                          href={`/assets/${asset.assetId}`}
                           className="px-2.5 py-1.5 bg-white hover:bg-blue-600 hover:text-white text-slate-700 border border-slate-200 rounded-lg text-[11px] font-semibold shadow-2xs transition inline-flex items-center gap-1"
                         >
                           <span>Hub</span>
@@ -807,6 +723,28 @@ export default function UsersAdminPage() {
                 </button>
               </div>
 
+              {!editingUser && inviteSuccessEmail ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3 text-xs animate-in fade-in">
+                  <div className="flex items-center gap-2 text-emerald-900 font-bold">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    <span>Invite sent!</span>
+                  </div>
+                  <p className="text-emerald-800">
+                    A real Supabase Auth account was created and an invite email was sent to{' '}
+                    <strong className="font-mono">{inviteSuccessEmail}</strong>. They&apos;ll set their own
+                    password from that email before they can sign in.
+                  </p>
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowUserModal(false)}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <form onSubmit={handleUserSubmit} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Full Name *</label>
@@ -877,42 +815,19 @@ export default function UsersAdminPage() {
                   </div>
                 </div>
 
-                {/* Password Field */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-semibold text-slate-700">
-                      {editingUser ? 'Account Password (Leave blank to keep unchanged)' : 'Account Password *'}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setPassword(generateRandomPassword())}
-                      className="text-[11px] text-blue-600 hover:text-blue-800 font-bold inline-flex items-center gap-1"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Generate Password</span>
-                    </button>
+                {!editingUser && (
+                  <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl text-[11px] text-blue-900">
+                    This sends a real invite email through Supabase Auth — the person sets their own password
+                    from that email before they can sign in. No password is ever set or stored here.
                   </div>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required={!editingUser}
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder={editingUser ? '•••••••• (Preserve current password)' : 'Enter password (min 6 characters)'}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 pr-10 font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                )}
+
+                {inviteError && (
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 font-medium flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                    <span>{inviteError}</span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Registered users will sign in with this password along with their email address.
-                  </p>
-                </div>
+                )}
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                   <button
@@ -924,12 +839,15 @@ export default function UsersAdminPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition"
+                    disabled={isInviting}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-xs transition flex items-center gap-2"
                   >
-                    {editingUser ? 'Save Changes' : 'Create User'}
+                    {isInviting && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>{editingUser ? 'Save Changes' : isInviting ? 'Sending Invite...' : 'Send Invite'}</span>
                   </button>
                 </div>
               </form>
+              )}
             </div>
           </div>
         )}
@@ -1025,139 +943,6 @@ export default function UsersAdminPage() {
           </div>
         )}
 
-        {/* MODAL: ADMIN PASSWORD RESET */}
-        {resetUser && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-                    <Key className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Reset User Password</h3>
-                    <p className="text-[11px] text-slate-500">Update credentials for personnel</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setResetUser(null)
-                    setResetSuccessMsg('')
-                  }}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Target User Pill */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm">
-                  {resetUser.fullName.charAt(0)}
-                </div>
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-bold text-xs text-slate-900">{resetUser.fullName}</p>
-                    <span className="font-mono text-[10px] text-slate-400">({resetUser.id})</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500">{resetUser.email} • {resetUser.role}</p>
-                </div>
-              </div>
-
-              {resetSuccessMsg ? (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3 animate-in fade-in">
-                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Password Reset Completed!</span>
-                  </div>
-                  <div className="p-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-mono text-emerald-950 flex items-center justify-between">
-                    <span>{newPassword}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(newPassword)
-                        alert('Password copied to clipboard!')
-                      }}
-                      className="text-emerald-700 hover:text-emerald-900 font-sans text-[11px] font-semibold flex items-center gap-1"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>Copy</span>
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-emerald-800">
-                    The user can now sign in using this new password and their registered email.
-                  </p>
-                  <div className="pt-2 flex justify-end">
-                    <button
-                      onClick={() => {
-                        setResetUser(null)
-                        setResetSuccessMsg('')
-                      }}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition"
-                    >
-                      Done
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleResetPasswordSubmit} className="space-y-4 text-xs">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block font-semibold text-slate-700">New Password *</label>
-                      <button
-                        type="button"
-                        onClick={() => setNewPassword(generateRandomPassword())}
-                        className="text-[11px] text-amber-700 hover:text-amber-900 font-bold inline-flex items-center gap-1"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Generate Secure Password</span>
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type={showNewPassword ? 'text' : 'password'}
-                        required
-                        value={newPassword}
-                        onChange={e => setNewPassword(e.target.value)}
-                        placeholder="Enter new password (min 6 characters)"
-                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500/20 pr-10 font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl text-[11px] text-amber-900 space-y-1">
-                    <p className="font-semibold">Security Note:</p>
-                    <p>Changing the password will update the user's login credentials immediately.</p>
-                  </div>
-
-                  <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setResetUser(null)}
-                      className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white rounded-xl font-bold shadow-xs transition flex items-center gap-1.5"
-                    >
-                      <Key className="w-3.5 h-3.5" />
-                      <span>Set New Password</span>
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </AppLayout>
   )

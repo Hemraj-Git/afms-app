@@ -163,7 +163,7 @@ export function BulkAssetUploadModal({
         }
       })
 
-      const res = addBulkAssets(assetsToCreate)
+      const res = await addBulkAssets(assetsToCreate)
       if (res.success) {
         setImportResult({
           success: true,
@@ -242,7 +242,7 @@ export function BulkAssetUploadModal({
                       className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-xs font-mono text-emerald-300"
                     >
                       <Boxes className="h-3 w-3 text-emerald-400" />
-                      {ast.id} — {ast.name}
+                      {ast.assetId} — {ast.name}
                     </span>
                   ))}
                 </div>

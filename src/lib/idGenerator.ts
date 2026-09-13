@@ -44,6 +44,19 @@ export function formatTaxonomyIdFromName(prefix: string, name: string): string {
   return `${prefix}-${clean || 'GEN'}`
 }
 
+// Placeholder woNumber for a Preventive/Corrective maintenance record that
+// exists (for due-date tracking / the assignment queue) but isn't yet a
+// real, numbered Work Order -- that only happens once a technician is
+// assigned. work_orders.wo_number has a UNIQUE constraint, so this can't be
+// a shared literal string; it's suffixed with the row's own id to stay
+// unique across every pending row.
+export function makePendingWoNumber(rowUuid: string): string {
+  return `PENDING-${rowUuid}`
+}
+export function isPendingWorkOrder(woNumber: string | undefined | null): boolean {
+  return Boolean(woNumber && woNumber.startsWith('PENDING-'))
+}
+
 // Helpers for automatic sequential ID generator
 export function getNextSequence(existingIds: string[], prefix: string): number {
   let maxSeq = 0

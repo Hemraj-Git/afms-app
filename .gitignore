@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 *.zip
+
+# local MCP tool config (not part of the app)
+.mcp.json

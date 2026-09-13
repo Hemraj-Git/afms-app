@@ -23,8 +23,9 @@ import {
   AssetActivityLog,
   SlaConfig,
   SlaPriority,
+  AppNotification,
 } from '@/types/afms'
-import { formatId, formatYearlyId, formatCategoryId, formatSubCategoryId, formatTaxonomyIdFromName, getNextSequence, addIntervalToDate } from '@/lib/idGenerator'
+import { formatId, formatYearlyId, formatCategoryId, formatSubCategoryId, formatTaxonomyIdFromName, getNextSequence, addIntervalToDate, makePendingWoNumber, isPendingWorkOrder } from '@/lib/idGenerator'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { supabase } from '@/lib/supabase'
 import { mockUsers } from '@/data/mockData'
@@ -35,32 +36,34 @@ interface AFMSContextType {
   isLoggedIn: boolean
   setIsLoggedIn: (val: boolean) => void
   login: (user: UserProfile) => void
-  guestLogin: (guestData: { fullName?: string; email: string; phone: string }) => UserProfile
   logout: () => void
   users: UserProfile[]
-  addUser: (user: Omit<UserProfile, 'id'>) => UserProfile
+  // Adds an already-provisioned real Supabase Auth user (created via the
+  // inviteUser Server Action, which owns the actual account/profile
+  // creation) to local state so it shows up immediately without a refetch.
+  addInvitedUser: (profile: UserProfile) => void
   updateUser: (id: string, user: Partial<UserProfile>) => void
   deleteUser: (id: string) => { success: boolean; message?: string }
   
   // Department Management (DEP-####)
   departments: Department[]
-  addDepartment: (dept: Omit<Department, 'id'>) => Department
+  addDepartment: (dept: Omit<Department, 'id'>) => Promise<Department>
   updateDepartment: (id: string, dept: Partial<Department>) => void
   deleteDepartment: (id: string) => { success: boolean; message?: string }
 
   // Organization CRUD (IDs generated automatically, unchangeable)
   campuses: Campus[]
-  addCampus: (campus: Omit<Campus, 'id' | 'code'>) => Campus
+  addCampus: (campus: Omit<Campus, 'id' | 'code'>) => Promise<Campus>
   updateCampus: (id: string, campus: Partial<Campus>) => void
   deleteCampus: (id: string) => void
 
   buildings: Building[]
-  addBuilding: (building: Omit<Building, 'id' | 'code'>) => Building
+  addBuilding: (building: Omit<Building, 'id' | 'code'>) => Promise<Building>
   updateBuilding: (id: string, building: Partial<Building>) => void
   deleteBuilding: (id: string) => void
 
   rooms: Room[]
-  addRoom: (room: Omit<Room, 'id' | 'roomNumber' | 'qrCodeKey'>) => Room
+  addRoom: (room: Omit<Room, 'id' | 'roomNumber' | 'qrCodeKey'>) => Promise<Room>
   updateRoom: (id: string, room: Partial<Room>) => void
   deleteRoom: (id: string) => void
   
@@ -70,35 +73,35 @@ interface AFMSContextType {
   
   // Taxonomy CRUD (IDs generated automatically, unchangeable)
   categories: Category[]
-  addCategory: (cat: Omit<Category, 'id' | 'code'>) => Category
+  addCategory: (cat: Omit<Category, 'id' | 'code'>) => Promise<Category>
   updateCategory: (id: string, cat: Partial<Category>) => void
   deleteCategory: (id: string) => void
 
   subCategories: SubCategory[]
-  addSubCategory: (sub: Omit<SubCategory, 'id' | 'code'>) => SubCategory
+  addSubCategory: (sub: Omit<SubCategory, 'id' | 'code'>) => Promise<SubCategory>
   updateSubCategory: (id: string, sub: Partial<SubCategory>) => void
   deleteSubCategory: (id: string) => void
   
   // Assets (AST-#### automatically generated, unchangeable)
   assets: Asset[]
-  addAsset: (asset: Omit<Asset, 'id' | 'assetId' | 'createdAt'>) => Asset
+  addAsset: (asset: Omit<Asset, 'id' | 'assetId' | 'createdAt'>) => Promise<Asset>
   addBulkAssets: (
     assetsData: Array<Omit<Asset, 'id' | 'assetId' | 'createdAt'>>
-  ) => { success: boolean; createdCount: number; createdAssets: Asset[] }
+  ) => Promise<{ success: boolean; createdCount: number; createdAssets: Asset[] }>
   updateAsset: (id: string, assetData: Partial<Asset>) => void
   updateAssetStatus: (assetId: string, status: Asset['status']) => void
   
   // Inventory Hub / Spares (INV-#### automatically generated, unchangeable)
   inventoryItems: InventoryItem[]
-  addInventoryItem: (item: Omit<InventoryItem, 'id' | 'inventoryNumber' | 'createdAt'>) => InventoryItem
-  updateInventoryItem: (id: string, itemData: Partial<InventoryItem>) => void
+  addInventoryItem: (item: Omit<InventoryItem, 'id' | 'inventoryNumber' | 'createdAt'>) => Promise<InventoryItem>
+  updateInventoryItem: (id: string, itemData: Partial<InventoryItem>) => Promise<void>
   deleteInventoryItem: (id: string) => void
   convertInventoryToAsset: (
     inventoryId: string,
     roomId: string,
     installationDate?: string,
     assignedToUserId?: string
-  ) => Asset | null
+  ) => Promise<Asset | null>
 
   // Reservations (RSV-YYYY-####)
   reservations: Reservation[]
@@ -140,15 +143,16 @@ interface AFMSContextType {
   deleteChecklistTemplate: (id: string) => void
 
   vendors: Vendor[]
-  addVendor: (vendor: Omit<Vendor, 'id'>) => Vendor
+  addVendor: (vendor: Omit<Vendor, 'id' | 'code'>) => Promise<Vendor>
   updateVendor: (id: string, vendor: Partial<Vendor>) => void
   deleteVendor: (id: string) => { success: boolean; message?: string }
   documents: DocumentItem[]
-  addDocument: (doc: Omit<DocumentItem, 'id' | 'uploadedAt'>) => DocumentItem
+  addDocument: (doc: Omit<DocumentItem, 'id' | 'uploadedAt'>) => Promise<DocumentItem>
+  updateDocument: (id: string, updates: { assetId?: string | null; inventoryItemId?: string | null }) => Promise<void>
   
   // Logs
   roomAccessLogs: RoomAccessLog[]
-  checkInRoom: (roomId: string, purpose: string) => void
+  checkInRoom: (roomId: string, purpose: string) => Promise<void>
   checkOutRoom: (roomId: string) => void
   assetActivityLogs: AssetActivityLog[]
   addAssetLog: (log: Omit<AssetActivityLog, 'id' | 'timestamp'>) => void
@@ -164,6 +168,12 @@ interface AFMSContextType {
   // PWA Active Check-in status
   activeCheckIn: RoomAccessLog | null
   evaluateAutoCheckouts: () => void
+
+  // In-app notifications (server-inserted only — see Phase 4 migration)
+  notifications: AppNotification[]
+  unreadNotificationCount: number
+  markNotificationRead: (id: string) => void
+  refreshNotifications: () => void
 }
 
 const AFMSContext = createContext<AFMSContextType | undefined>(undefined)
@@ -214,24 +224,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const guestLogin = (guestData: { fullName?: string; email: string; phone: string }): UserProfile => {
-    const guestUser: UserProfile = {
-      id: `USR-GUEST-${Date.now().toString().slice(-4)}`,
-      fullName: guestData.fullName?.trim() || 'Guest Visitor',
-      email: guestData.email.trim(),
-      phone: guestData.phone.trim(),
-      role: 'Guest',
-      department: 'Visitor Services',
-    }
-    setCurrentUser(guestUser)
-    setIsLoggedIn(true)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('afms_logged_in', 'true')
-      localStorage.setItem('afms_current_user_id', guestUser.id)
-    }
-    return guestUser
-  }
-
   const logout = () => {
     setIsLoggedIn(false)
     try {
@@ -265,7 +257,69 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const [assetActivityLogs, setAssetActivityLogs] = useState<AssetActivityLog[]>([])
   
   const [activeCheckIn, setActiveCheckIn] = useState<RoomAccessLog | null>(null)
+
+  // activeCheckIn is derived, not manually set, so it can never drift out
+  // of sync with reality or leak across users. Previously it was set
+  // ad-hoc inside checkInRoom/checkOutRoom/evaluateAutoCheckouts with no
+  // user filter at all — the header's "Checked in: ..." badge showed
+  // whichever check-in happened most recently in this browser tab,
+  // regardless of which user was actually logged in (confirmed live: a
+  // Guest's check-in would show up in the Admin's own header). Deriving it
+  // here, scoped to currentUser.id, fixes that at the source — Header.tsx
+  // and the mobile PWA both just render whatever this holds.
+  useEffect(() => {
+    const ownOpenLog = roomAccessLogs.find(l => l.userId === currentUser.id && !l.checkOutTime)
+    setActiveCheckIn(ownOpenLog || null)
+  }, [roomAccessLogs, currentUser.id])
+
   const [isInitialized, setIsInitialized] = useState(false)
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+
+  const fetchNotifications = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (error) {
+      console.error('Supabase notifications fetch error:', error.message)
+      return
+    }
+    if (data) {
+      setNotifications(data.map(n => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        body: n.body || undefined,
+        refTable: n.ref_table || undefined,
+        refId: n.ref_id || undefined,
+        isRead: Boolean(n.is_read),
+        createdAt: n.created_at,
+      })))
+    }
+  }
+
+  const refreshNotifications = () => {
+    if (currentUser?.id) fetchNotifications(currentUser.id)
+  }
+
+  const markNotificationRead = (id: string) => {
+    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, isRead: true } : n)))
+    supabase.from('notifications').update({ is_read: true }).eq('id', id).then(({ error }) => {
+      if (error) console.error('Supabase notification mark-read error:', error.message)
+    })
+  }
+
+  const unreadNotificationCount = notifications.filter(n => !n.isRead).length
+
+  useEffect(() => {
+    if (isLoggedIn && currentUser?.id) {
+      fetchNotifications(currentUser.id)
+    } else {
+      setNotifications([])
+    }
+  }, [isLoggedIn, currentUser?.id])
 
   const defaultRoomTypes = [
     'Classroom',
@@ -411,7 +465,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             isReservable: Boolean(r.is_reservable),
             qrCodeKey: r.qr_code_key || `ROOM-${r.room_number}`,
             status: (r.status as Room['status']) || 'Available',
-            currentOccupant: r.current_occupant_id,
+            currentOccupant: r.current_occupant || undefined,
           })))
         }
 
@@ -454,8 +508,16 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             price: a.price ? Number(a.price) : undefined,
             installationDate: a.installation_date,
             purchaseDate: a.purchase_date,
+            lastServicedDate: a.last_serviced_date || undefined,
             warrantyTill: a.warranty_till,
             maintenanceBy: a.maintenance_by || 'In House',
+            purchaseVendorId: a.purchase_vendor_id || undefined,
+            maintenanceVendorId: a.maintenance_vendor_id || undefined,
+            amcStartDate: a.amc_start_date || undefined,
+            amcEndDate: a.amc_end_date || undefined,
+            assignedToUserId: a.assigned_to_user_id || undefined,
+            assignedToUserName: a.assigned_to_user_name || undefined,
+            lastPrintedAt: a.last_printed_at || undefined,
             status: (a.status as Asset['status']) || 'Operational',
             imageUrl: a.image_url || undefined,
             notes: a.notes || undefined,
@@ -503,17 +565,26 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             ticketId: sr.ticket_id,
             title: sr.title,
             description: sr.description || '',
-            requestType: sr.request_type || 'Maintenance',
+            requestType: sr.type || 'Maintenance',
             roomId: sr.room_id,
             assetId: sr.asset_id,
-            requestedBy: sr.requested_by,
+            requestedBy: sr.requested_by_name,
             requestedByRole: 'Staff',
+            requestedByUserId: sr.requested_by_user_id || undefined,
             assignedTo: sr.assigned_to,
+            assignedToName: sr.assigned_to_name,
             status: sr.status || 'Open',
             priority: sr.priority || 'Medium',
             createdAt: sr.created_at,
             slaDueDate: sr.sla_due_date,
             photoUrls: sr.photo_urls || [],
+            workOrderNumber: sr.work_order_number,
+            workOrderId: sr.work_order_id,
+            workOrderType: sr.work_order_type,
+            dismissalReason: sr.dismissal_reason,
+            dismissedAt: sr.dismissed_at,
+            dismissedBy: sr.dismissed_by,
+            resolutionNotes: sr.resolution_notes || undefined,
           })))
         }
 
@@ -522,6 +593,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         if (isMounted && vRows) {
           setVendors(vRows.map(v => ({
             id: v.id,
+            code: v.code || undefined,
             name: v.name,
             categorySupplied: v.category_supplied || '',
             contactPerson: v.contact_person || '',
@@ -581,7 +653,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             fileSizeKb: Math.round(((d as any).file_size_bytes || 102400) / 1024),
             uploadedBy: (d as any).uploaded_by_user_name || 'Staff',
             uploadedAt: d.uploaded_at,
-            linkedAssetIds: (d as any).asset_id ? [(d as any).asset_id] : [],
+            linkedAssetIds: [(d as any).asset_id, (d as any).inventory_item_id].filter(Boolean),
           })))
         }
 
@@ -595,11 +667,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             subCategoryId: inv.sub_category_id || '',
             manufacturer: inv.manufacturer || '',
             modelNumber: inv.model_number || '',
+            serialNumber: inv.serial_number || undefined,
             quantity: inv.quantity || 1,
             unit: 'Units',
+            minStockThreshold: inv.min_stock_level !== null && inv.min_stock_level !== undefined ? Number(inv.min_stock_level) : undefined,
+            unitPrice: inv.unit_cost !== null && inv.unit_cost !== undefined ? Number(inv.unit_cost) : undefined,
+            purchaseDate: inv.purchase_date || undefined,
+            warrantyTill: inv.warranty_till || undefined,
             storageLocation: inv.storage_location || '',
+            roomId: inv.room_id || undefined,
             purchaseVendorId: inv.vendor_id || undefined,
-            dynamicSpecifications: {},
+            dynamicSpecifications: inv.dynamic_specifications || {},
+            imageUrl: inv.image_url || undefined,
+            notes: inv.notes || undefined,
             createdAt: inv.created_at ? inv.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
           })))
         }
@@ -628,21 +708,31 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // 15. Room Access Logs
         const { data: ralRows } = await supabase.from('room_access_logs').select('*').order('check_in_time', { ascending: false })
         if (isMounted && ralRows && ralRows.length > 0) {
-          setRoomAccessLogs(ralRows.map(l => ({
-            id: l.id,
-            roomId: l.room_id,
-            roomName: l.room_id,
-            userId: l.user_id,
-            userName: l.user_name,
-            userRole: l.user_role || 'Staff',
-            checkInTime: l.check_in_time,
-            checkInDate: l.check_in_date,
-            checkInTimestamp: l.check_in_timestamp,
-            checkOutTime: l.check_out_time,
-            purpose: l.purpose || '',
-            isForceCheckout: Boolean(l.is_force_checkout),
-            autoCheckOutNote: l.auto_checkout_note,
-          })))
+          setRoomAccessLogs(ralRows.map(l => {
+            // roomName was previously just set to the raw room_id (a UUID)
+            // -- there's no room_name column on this table, so it needs to
+            // be resolved against the rooms just fetched above (step 4),
+            // not the `rooms` React state, which hasn't re-rendered with
+            // that fetch yet inside this same effect run.
+            const matchedRoom = rRows?.find(r => r.id === l.room_id)
+            const roomName = matchedRoom ? `${matchedRoom.name} (${matchedRoom.room_number || matchedRoom.id})` : l.room_id
+            return {
+              id: l.id,
+              activityNumber: l.activity_number || undefined,
+              roomId: l.room_id,
+              roomName,
+              userId: l.user_id,
+              userName: l.user_name,
+              userRole: l.user_role || 'Staff',
+              checkInTime: l.check_in_time,
+              checkInDate: l.check_in_date,
+              checkInTimestamp: l.check_in_timestamp,
+              checkOutTime: l.check_out_time,
+              purpose: l.purpose || '',
+              isForceCheckout: Boolean(l.is_force_checkout),
+              autoCheckOutNote: l.auto_checkout_note,
+            }
+          }))
         }
 
         // 16. Asset Activity Logs
@@ -668,62 +758,20 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // 2. Persist state changes to localStorage whenever state updates
+  // 2. Persist the two settings that are actually read back on init (see
+  // above). Every other entity now lives in Supabase and is reloaded from
+  // there on mount — writing it to localStorage on every state change too
+  // was pure overhead with no reader, since the init effect above deleted
+  // those same keys on every mount anyway.
   React.useEffect(() => {
     if (!isInitialized) return
     try {
       localStorage.setItem('afms_sla_config', JSON.stringify(slaConfig))
-      localStorage.setItem('afms_users', JSON.stringify(users))
-      localStorage.setItem('afms_departments', JSON.stringify(departments))
-      localStorage.setItem('afms_campuses', JSON.stringify(campuses))
-      localStorage.setItem('afms_buildings', JSON.stringify(buildings))
-      localStorage.setItem('afms_rooms', JSON.stringify(rooms))
       localStorage.setItem('afms_room_types', JSON.stringify(roomTypes))
-      localStorage.setItem('afms_categories', JSON.stringify(categories))
-      localStorage.setItem('afms_subcategories', JSON.stringify(subCategories))
-      localStorage.setItem('afms_vendors', JSON.stringify(vendors))
-      localStorage.setItem('afms_templates', JSON.stringify(checklistTemplates))
-      localStorage.setItem('afms_assets', JSON.stringify(assets))
-      localStorage.setItem('afms_inventory', JSON.stringify(inventoryItems))
-      localStorage.setItem('afms_reservations', JSON.stringify(reservations))
-      localStorage.setItem('afms_service_requests', JSON.stringify(serviceRequests))
-      localStorage.setItem('afms_work_orders', JSON.stringify(workOrders))
-      localStorage.setItem('afms_inspections', JSON.stringify(inspections))
-      localStorage.setItem('afms_documents', JSON.stringify(documents))
-      localStorage.setItem('afms_room_logs', JSON.stringify(roomAccessLogs))
-      if (activeCheckIn) {
-        localStorage.setItem('afms_active_check_in', JSON.stringify(activeCheckIn))
-      } else {
-        localStorage.removeItem('afms_active_check_in')
-      }
-      localStorage.setItem('afms_asset_logs', JSON.stringify(assetActivityLogs))
     } catch (err) {
-      console.warn('Could not persist AFMS state to local storage:', err)
+      console.warn('Could not persist AFMS settings to local storage:', err)
     }
-  }, [
-    isInitialized,
-    slaConfig,
-    users,
-    departments,
-    campuses,
-    buildings,
-    rooms,
-    roomTypes,
-    categories,
-    subCategories,
-    vendors,
-    checklistTemplates,
-    assets,
-    inventoryItems,
-    reservations,
-    serviceRequests,
-    workOrders,
-    inspections,
-    documents,
-    roomAccessLogs,
-    activeCheckIn,
-    assetActivityLogs,
-  ])
+  }, [isInitialized, slaConfig, roomTypes])
 
   const clearAllData = () => {
     setCampuses([])
@@ -782,23 +830,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 1. User: USR-#### (Immutable ID)
-  const addUser = (userData: Omit<UserProfile, 'id'>): UserProfile => {
-    const nextSeq = getNextSequence(users.map(u => u.id), 'USR')
-    const newId = formatId('USR', nextSeq)
-    const newUser: UserProfile = {
-      ...userData,
-      id: newId,
-      password: userData.password || 'password123',
-      passwordLastChanged: userData.passwordLastChanged || new Date().toISOString().split('T')[0],
-    }
-    setUsers(prev => [...prev, newUser])
-    return newUser
+  const addInvitedUser = (profile: UserProfile) => {
+    setUsers(prev => (prev.some(u => u.id === profile.id) ? prev : [...prev, profile]))
   }
   const updateUser = (id: string, userData: Partial<UserProfile>) => {
     const { id: _, ...safeData } = userData as any // Enforce immutable ID
-    if (safeData.password && !safeData.passwordLastChanged) {
-      safeData.passwordLastChanged = new Date().toISOString().split('T')[0]
-    }
     setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...safeData } : u)))
     if (currentUser.id === id) {
       setCurrentUser(prev => ({ ...prev, ...safeData }))
@@ -822,27 +858,50 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 1b. Department: DEP-#### (Immutable ID, Deletion Protected by User Linkage)
-  const addDepartment = (deptData: Omit<Department, 'id'>): Department => {
+  const addDepartment = async (deptData: Omit<Department, 'id'>): Promise<Department> => {
     const nextSeq = getNextSequence(departments.map(d => d.code || d.id), 'DEP')
     const displayCode = formatId('DEP', nextSeq)
+    const baseCode = deptData.code || displayCode
+
+    // deptData.code can come from free-text admin input or the create form's
+    // own "first 3 letters of the name" fallback — neither is checked
+    // against existing codes, so two departments (typed or name-derived)
+    // can collide against departments.code's UNIQUE constraint the same way
+    // categories/sub-categories did. Disambiguate the same way.
+    const { data: existingCodeRows } = await supabase.from('departments').select('code')
+    const knownCodes = new Set([
+      ...departments.map(d => d.code),
+      ...(existingCodeRows || []).map(r => r.code).filter(Boolean),
+    ])
+    let finalCode = baseCode
+    let suffix = 2
+    while (knownCodes.has(finalCode)) {
+      finalCode = `${baseCode}-${suffix}`
+      suffix++
+    }
+
     const newUuid = generateUUID()
     const today = new Date().toISOString().split('T')[0]
     const newDept: Department = {
       ...deptData,
       id: newUuid,
-      code: deptData.code || displayCode,
+      code: finalCode,
       createdAt: today,
     }
     setDepartments(prev => [...prev, newDept])
-    supabase.from('departments').insert([{
+    const { error } = await supabase.from('departments').insert([{
       id: newUuid,
       name: newDept.name,
       code: newDept.code,
       description: newDept.description || '',
       created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase department insert error:', error.message)
-    })
+    }])
+    if (error) {
+      console.error('Supabase department insert error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this department: ${error.message}`)
+      }
+    }
     return newDept
   }
 
@@ -880,9 +939,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 2. Campus: CAM-#### (Immutable ID)
-  // 2. Campus: CAM-#### (Immutable ID)
-  const addCampus = (campus: Omit<Campus, 'id' | 'code'>): Campus => {
-    const nextSeq = getNextSequence(campuses.map(c => c.code || c.id), 'CAM')
+  const addCampus = async (campus: Omit<Campus, 'id' | 'code'>): Promise<Campus> => {
+    // Query the DB fresh rather than trusting only local state — a stale or
+    // still-loading `campuses` array previously caused the next code to be
+    // computed from an incomplete list, silently colliding with a real
+    // existing campus's code (confirmed live: two campuses ended up sharing
+    // CAM-0001 this way). campuses.code now also has a UNIQUE constraint as
+    // a backstop, but this is the actual fix.
+    const { data: existingRows } = await supabase.from('campuses').select('code')
+    const knownCodes = [
+      ...campuses.map(c => c.code || c.id),
+      ...(existingRows || []).map(r => r.code).filter((c): c is string => Boolean(c)),
+    ]
+    const nextSeq = getNextSequence(knownCodes, 'CAM')
     const displayCode = formatId('CAM', nextSeq)
     const newUuid = generateUUID()
     const newCampus: Campus = {
@@ -907,7 +976,16 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const updateCampus = (id: string, campusData: Partial<Campus>) => {
     const { id: _, code: __, ...safeData } = campusData as any
     setCampuses(prev => prev.map(c => (c.id === id ? { ...c, ...safeData } : c)))
-    supabase.from('campuses').update(safeData).eq('id', id).then(() => {})
+
+    const dbUpdates: Record<string, unknown> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.address !== undefined) dbUpdates.address = safeData.address
+
+    if (Object.keys(dbUpdates).length > 0) {
+      supabase.from('campuses').update(dbUpdates).eq('id', id).then(({ error }) => {
+        if (error) console.error('Supabase campus update error:', error.message)
+      })
+    }
   }
   const deleteCampus = (id: string) => {
     setCampuses(prev => prev.filter(c => c.id !== id))
@@ -915,8 +993,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 3. Building: BLD-#### (Immutable ID)
-  const addBuilding = (bld: Omit<Building, 'id' | 'code'>): Building => {
-    const nextSeq = getNextSequence(buildings.map(b => b.code || b.id), 'BLD')
+  const addBuilding = async (bld: Omit<Building, 'id' | 'code'>): Promise<Building> => {
+    // See addCampus — same fix for the same live-confirmed collision bug.
+    const { data: existingRows } = await supabase.from('buildings').select('code')
+    const knownCodes = [
+      ...buildings.map(b => b.code || b.id),
+      ...(existingRows || []).map(r => r.code).filter((c): c is string => Boolean(c)),
+    ]
+    const nextSeq = getNextSequence(knownCodes, 'BLD')
     const displayCode = formatId('BLD', nextSeq)
     const newUuid = generateUUID()
     const newBld: Building = {
@@ -951,8 +1035,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 4. Room: ROM-#### (Immutable ID & QR Key)
-  const addRoom = (room: Omit<Room, 'id' | 'roomNumber' | 'qrCodeKey'>): Room => {
-    const nextSeq = getNextSequence(rooms.map(r => r.roomNumber || r.id), 'ROM')
+  const addRoom = async (room: Omit<Room, 'id' | 'roomNumber' | 'qrCodeKey'>): Promise<Room> => {
+    // roomNumber (ROM-####) is now used as the Room detail page's routing
+    // key, not just a display label -- a collision would make two rooms
+    // indistinguishable by URL. Query the DB fresh rather than trusting
+    // only local state, same fix already applied to addCampus/addBuilding/
+    // addCategory/addSubCategory/addDepartment this session, backed by a
+    // real UNIQUE constraint on rooms.room_number as a safety net.
+    const { data: existingRows } = await supabase.from('rooms').select('room_number')
+    const knownIds = [
+      ...rooms.map(r => r.roomNumber || r.id),
+      ...(existingRows || []).map(r => r.room_number).filter((n): n is string => Boolean(n)),
+    ]
+    const nextSeq = getNextSequence(knownIds, 'ROM')
     const displayId = formatId('ROM', nextSeq)
     const newUuid = generateUUID()
     const newRoom: Room = {
@@ -962,7 +1057,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       qrCodeKey: displayId,
     }
     setRooms(prev => [...prev, newRoom])
-    supabase.from('rooms').insert([{
+    const { error } = await supabase.from('rooms').insert([{
       id: newUuid,
       building_id: newRoom.buildingId || null,
       name: newRoom.name,
@@ -972,9 +1067,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       qr_code_key: newRoom.qrCodeKey,
       status: newRoom.status || 'Available',
       created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase room insert error:', error.message)
-    })
+    }])
+    if (error) {
+      console.error('Supabase room insert error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this room: ${error.message}\n\nIt will not persist after a page reload.`)
+      }
+    }
     return newRoom
   }
   const updateRoom = (id: string, roomData: Partial<Room>) => {
@@ -1000,8 +1099,25 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 5. Category: 4-letter uppercase ID derived automatically from Name e.g. "Electrical" -> "ELEC"
-  const addCategory = (cat: Omit<Category, 'id' | 'code'>): Category => {
-    const formattedCode = formatCategoryId(cat.name)
+  const addCategory = async (cat: Omit<Category, 'id' | 'code'>): Promise<Category> => {
+    const baseCode = formatCategoryId(cat.name)
+
+    // Same collision class confirmed live for sub-categories: formatCategoryId
+    // only uses the first 4 letters of the name, so e.g. "Electrical" and
+    // "Electronics" would both produce "ELEC" and silently fail against
+    // categories.code's UNIQUE constraint. Disambiguate the same way.
+    const { data: existingCodeRows } = await supabase.from('categories').select('code')
+    const knownCodes = new Set([
+      ...categories.map(c => c.code),
+      ...(existingCodeRows || []).map(r => r.code).filter(Boolean),
+    ])
+    let formattedCode = baseCode
+    let suffix = 2
+    while (knownCodes.has(formattedCode)) {
+      formattedCode = `${baseCode}-${suffix}`
+      suffix++
+    }
+
     const newUuid = generateUUID()
     const newCat: Category = {
       ...cat,
@@ -1009,15 +1125,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       code: formattedCode,
     }
     setCategories(prev => [...prev, newCat])
-    supabase.from('categories').insert([{
+    const { error } = await supabase.from('categories').insert([{
       id: newUuid,
       name: newCat.name,
       code: newCat.code,
       description: newCat.description || '',
       created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase category insert error:', error.message)
-    })
+    }])
+    if (error) {
+      console.error('Supabase category insert error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this category: ${error.message}`)
+      }
+    }
     return newCat
   }
   const updateCategory = (id: string, catData: Partial<Category>) => {
@@ -1034,10 +1154,30 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 6. SubCategory: CategoryId-SubCategoryId derived automatically e.g. "ELEC-LIGH"
-  const addSubCategory = (sub: Omit<SubCategory, 'id' | 'code'>): SubCategory => {
+  const addSubCategory = async (sub: Omit<SubCategory, 'id' | 'code'>): Promise<SubCategory> => {
     const parentCat = categories.find(c => c.id === sub.categoryId)
     const parentCode = parentCat?.code || parentCat?.id || sub.categoryId || 'GENR'
-    const formattedCode = formatSubCategoryId(parentCode, sub.name)
+    const baseCode = formatSubCategoryId(parentCode, sub.name)
+
+    // formatSubCategoryId derives the code from only the first 4 letters of
+    // the name (e.g. "Office Table" and "Office Chair" both produce
+    // "FURN-OFFI" under the same parent) — confirmed live: this collided
+    // against sub_categories.code's UNIQUE constraint and the insert was
+    // silently rejected while the UI still showed it as created. Disambiguate
+    // by appending -2, -3, etc. against both local state and a fresh DB
+    // check (existing codes may not be loaded yet in local state).
+    const { data: existingCodeRows } = await supabase.from('sub_categories').select('code')
+    const knownCodes = new Set([
+      ...subCategories.map(s => s.code),
+      ...(existingCodeRows || []).map(r => r.code).filter(Boolean),
+    ])
+    let formattedCode = baseCode
+    let suffix = 2
+    while (knownCodes.has(formattedCode)) {
+      formattedCode = `${baseCode}-${suffix}`
+      suffix++
+    }
+
     const newUuid = generateUUID()
     const newSub: SubCategory = {
       ...sub,
@@ -1045,7 +1185,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       code: formattedCode,
     }
     setSubCategories(prev => [...prev, newSub])
-    supabase.from('sub_categories').insert([{
+    const { error } = await supabase.from('sub_categories').insert([{
       id: newUuid,
       category_id: newSub.categoryId || null,
       name: newSub.name,
@@ -1055,9 +1195,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       pm_template_ids: Array.from(new Set(newSub.pmTemplateIds || (newSub.pmTemplateId ? [newSub.pmTemplateId] : []))),
       inspection_template_ids: Array.from(new Set(newSub.inspectionTemplateIds || (newSub.inspectionTemplateId ? [newSub.inspectionTemplateId] : []))),
       created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase subcategory insert error:', error.message)
-    })
+    }])
+    if (error) {
+      console.error('Supabase subcategory insert error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this sub-category: ${error.message}`)
+      }
+    }
     return newSub
   }
   const updateSubCategory = (id: string, subData: Partial<SubCategory>) => {
@@ -1086,12 +1230,12 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 7. Asset: AST-#### (Immutable ID)
-  const addAsset = (assetData: Omit<Asset, 'id' | 'assetId' | 'createdAt'>): Asset => {
+  const addAsset = async (assetData: Omit<Asset, 'id' | 'assetId' | 'createdAt'>): Promise<Asset> => {
     const nextSeq = getNextSequence(assets.map(a => a.assetId || a.id), 'AST')
     const newId = formatId('AST', nextSeq)
     const newUuid = generateUUID()
     const today = new Date().toISOString().split('T')[0]
-    
+
     const createdAsset: Asset = {
       ...assetData,
       id: newUuid,
@@ -1100,9 +1244,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AFMS-${newId}`,
       createdAt: today,
     }
-    
+
     setAssets(prev => [createdAsset, ...prev])
-    supabase.from('assets').insert([{
+
+    // Awaited deliberately: work_orders/inspections/documents/asset_activity_logs
+    // all carry a foreign key on asset_id. Firing them concurrently with this
+    // insert (the previous behavior) meant they frequently reached the
+    // database before this row had actually committed, and were rejected
+    // outright with a foreign-key violation — confirmed live via Postgres
+    // logs (every PM work order insert failed this way, and most
+    // inspections). Nothing that depends on this asset existing may fire
+    // until this specific insert has actually succeeded.
+    const { error: assetInsertError } = await supabase.from('assets').insert([{
       id: newUuid,
       asset_id: newId,
       name: createdAsset.name,
@@ -1113,6 +1266,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       serial_number: createdAsset.serialNumber || null,
       price: createdAsset.price || null,
       installation_date: createdAsset.installationDate || today,
+      last_serviced_date: createdAsset.lastServicedDate || null,
       purchase_date: createdAsset.purchaseDate || null,
       warranty_till: createdAsset.warrantyTill || null,
       maintenance_by: createdAsset.maintenanceBy || 'In House',
@@ -1128,26 +1282,41 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       qr_code_url: createdAsset.qrCodeUrl,
       dynamic_specifications: createdAsset.dynamicSpecifications || {},
       created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase asset insert error:', error.message)
-    })
+    }])
+
+    if (assetInsertError) {
+      console.error('Supabase asset insert error:', assetInsertError.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this asset: ${assetInsertError.message}\n\nIt will not persist after a page reload.`)
+      }
+      return createdAsset
+    }
 
     const sub = subCategories.find(s => s.id === assetData.subCategoryId)
     if (sub) {
-      const installDate = assetData.installationDate || today
+      // Anchor the first PM/inspection cycle to Last Serviced Date (for a
+      // legacy asset installed long ago but only entered into the system
+      // now) or to today — never to a backdated Installation Date, which
+      // would make the first cycle appear already overdue.
+      const installDate = assetData.lastServicedDate || today
 
+      // woNumber is a unique 'PENDING-<uuid>' placeholder here, not a
+      // minted WO-PM-#### number -- a real number is only minted once a
+      // technician is assigned (see updateWorkOrderStatus), so this
+      // scheduled-but-unassigned record doesn't count as a real Work
+      // Order until then.
       const pmIds = Array.from(new Set(sub.pmTemplateIds && sub.pmTemplateIds.length > 0 ? sub.pmTemplateIds : (sub.pmTemplateId ? [sub.pmTemplateId] : []))).filter(Boolean)
-      pmIds.forEach((pmTmplId, idx) => {
+      pmIds.forEach((pmTmplId) => {
         const tmpl = checklistTemplates.find(t => t.id === pmTmplId)
         const interval = tmpl?.interval || 'Quarterly'
         const nextPmDueDate = addIntervalToDate(installDate, interval)
         const pmWoUuid = generateUUID()
-        const woNumber = `WO-PM-${new Date().getFullYear()}-${String(workOrders.length + 1 + idx).padStart(4, '0')}`
+        const pendingWoNumber = makePendingWoNumber(pmWoUuid)
         const woTitle = tmpl ? `${tmpl.title} (${interval})` : `${assetData.name} ${interval} PM`
 
         const newPmWO: WorkOrder = {
           id: pmWoUuid,
-          woNumber,
+          woNumber: pendingWoNumber,
           title: woTitle,
           type: 'Preventive',
           assetId: newUuid,
@@ -1163,7 +1332,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         supabase.from('work_orders').insert([{
           id: pmWoUuid,
-          wo_number: woNumber,
+          wo_number: pendingWoNumber,
           title: woTitle,
           type: 'Preventive',
           asset_id: newUuid,
@@ -1179,12 +1348,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       })
 
       const inspIds = Array.from(new Set(sub.inspectionTemplateIds && sub.inspectionTemplateIds.length > 0 ? sub.inspectionTemplateIds : (sub.inspectionTemplateId ? [sub.inspectionTemplateId] : []))).filter(Boolean)
-      inspIds.forEach((inspTmplId, idx) => {
+      let inspSeq = getNextSequence(inspections.map(i => i.inspectionNumber), 'INSP')
+      inspIds.forEach((inspTmplId) => {
         const tmpl = checklistTemplates.find(t => t.id === inspTmplId)
         const interval = tmpl?.interval || 'Quarterly'
         const nextInspDueDate = addIntervalToDate(installDate, interval)
         const inspUuid = generateUUID()
-        const inspNumber = `INSP-${new Date().getFullYear()}-${String(inspections.length + 1 + idx).padStart(4, '0')}`
+        const inspNumber = formatYearlyId('INSP', inspSeq++)
 
         const newInsp: Inspection = {
           id: inspUuid,
@@ -1215,8 +1385,17 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
+    // Must use the real UUID (createdAsset.id), not the formatted display
+    // code (newId) -- asset_activity_logs.asset_id has a live FK to
+    // assets(id). addAssetLog() tries to resolve a formatted code back to
+    // a UUID by searching the `assets` array, but that array is a stale
+    // closure here (this component hasn't re-rendered since setAssets()
+    // was called a few lines up), so the lookup always misses for a
+    // brand-new asset and the resulting insert was silently rejected by
+    // the FK constraint -- confirmed live: zero "Asset Created" rows ever
+    // persisted, for any asset.
     addAssetLog({
-      assetId: newId,
+      assetId: createdAsset.id,
       action: 'Asset Created',
       byUser: currentUser.fullName,
       source: 'Manual',
@@ -1226,52 +1405,87 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     return createdAsset
   }
 
-  const addBulkAssets = (
+  const addBulkAssets = async (
     assetsData: Array<Omit<Asset, 'id' | 'assetId' | 'createdAt'>>
-  ): { success: boolean; createdCount: number; createdAssets: Asset[] } => {
+  ): Promise<{ success: boolean; createdCount: number; createdAssets: Asset[] }> => {
     if (!assetsData || assetsData.length === 0) {
       return { success: false, createdCount: 0, createdAssets: [] }
     }
 
     const today = new Date().toISOString().split('T')[0]
-    let currentSeq = getNextSequence(assets.map(a => a.id), 'AST')
+    // NOTE: previously scanned a.id (a UUID) against the 'AST-####' pattern,
+    // which never matched anything -- every bulk import silently restarted
+    // numbering at AST-0001 regardless of how many assets already existed.
+    let currentSeq = getNextSequence(assets.map(a => a.assetId || a.id), 'AST')
     const createdAssets: Asset[] = []
     const newWorkOrders: WorkOrder[] = []
     const newInspections: Inspection[] = []
     const newLogs: Omit<AssetActivityLog, 'id' | 'timestamp'>[] = []
 
-    let woCurrentCount = workOrders.length
-    let inspCurrentCount = inspections.length
+    let inspSeq = getNextSequence(inspections.map(i => i.inspectionNumber), 'INSP')
+
+    const assetInsertRows: Record<string, unknown>[] = []
+    const woInsertRows: Record<string, unknown>[] = []
+    const inspInsertRows: Record<string, unknown>[] = []
 
     for (const item of assetsData) {
-      const newId = formatId('AST', currentSeq++)
+      const displayId = formatId('AST', currentSeq++)
+      const newUuid = generateUUID()
       const createdAsset: Asset = {
         ...item,
-        id: newId,
-        assetId: newId,
+        id: newUuid,
+        assetId: displayId,
         imageUrl: item.imageUrl || '/images/asset-placeholder.png',
-        qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AFMS-${newId}`,
+        qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AFMS-${displayId}`,
         createdAt: today,
       }
       createdAssets.push(createdAsset)
 
+      assetInsertRows.push({
+        id: newUuid,
+        asset_id: displayId,
+        name: createdAsset.name,
+        sub_category_id: createdAsset.subCategoryId || null,
+        room_id: createdAsset.roomId || null,
+        manufacturer: createdAsset.manufacturer || null,
+        model_number: createdAsset.modelNumber || null,
+        serial_number: createdAsset.serialNumber || null,
+        price: createdAsset.price || null,
+        installation_date: createdAsset.installationDate || today,
+        last_serviced_date: createdAsset.lastServicedDate || null,
+        purchase_date: createdAsset.purchaseDate || null,
+        warranty_till: createdAsset.warrantyTill || null,
+        maintenance_by: createdAsset.maintenanceBy || 'In House',
+        purchase_vendor_id: createdAsset.purchaseVendorId || null,
+        maintenance_vendor_id: createdAsset.maintenanceVendorId || null,
+        image_url: createdAsset.imageUrl || null,
+        notes: createdAsset.notes || null,
+        status: createdAsset.status || 'Operational',
+        qr_code_url: createdAsset.qrCodeUrl,
+        dynamic_specifications: createdAsset.dynamicSpecifications || {},
+        created_at: new Date().toISOString(),
+      })
+
       const sub = subCategories.find(s => s.id === item.subCategoryId)
       if (sub) {
-        const installDate = item.installationDate || today
+        // Same anchor rule as addAsset: Last Serviced Date, else today —
+        // never a backdated Installation Date.
+        const installDate = item.lastServicedDate || today
 
         const pmIds = sub.pmTemplateIds || (sub.pmTemplateId ? [sub.pmTemplateId] : [])
         pmIds.forEach((pmTmplId) => {
-          woCurrentCount++
           const tmpl = checklistTemplates.find(t => t.id === pmTmplId)
           const interval = tmpl?.interval || 'Quarterly'
           const nextPmDueDate = addIntervalToDate(installDate, interval)
+          const woUuid = generateUUID()
+          const woNumber = makePendingWoNumber(woUuid)
 
           const newPmWO: WorkOrder = {
-            id: `WO-PM-${new Date().getFullYear()}-${String(woCurrentCount).padStart(4, '0')}`,
-            woNumber: `WO-PM-${new Date().getFullYear()}-${String(woCurrentCount).padStart(4, '0')}`,
+            id: woUuid,
+            woNumber,
             title: tmpl ? `${tmpl.title} (${interval})` : `${item.name} ${interval} PM`,
             type: 'Preventive',
-            assetId: newId,
+            assetId: newUuid,
             source: 'Scheduled',
             frequency: interval,
             dueDate: nextPmDueDate,
@@ -1281,19 +1495,34 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             createdAt: today,
           }
           newWorkOrders.push(newPmWO)
+          woInsertRows.push({
+            id: woUuid,
+            wo_number: woNumber,
+            title: newPmWO.title,
+            type: 'Preventive',
+            asset_id: newUuid,
+            source: 'Scheduled',
+            frequency: interval,
+            due_date: nextPmDueDate,
+            status: 'Scheduled',
+            checklist_template_id: pmTmplId || null,
+            checklist_snapshot: tmpl?.items || [],
+            created_at: new Date().toISOString(),
+          })
         })
 
         const inspIds = sub.inspectionTemplateIds || (sub.inspectionTemplateId ? [sub.inspectionTemplateId] : [])
         inspIds.forEach((inspTmplId) => {
-          inspCurrentCount++
           const tmpl = checklistTemplates.find(t => t.id === inspTmplId)
           const interval = tmpl?.interval || 'Quarterly'
           const nextInspDueDate = addIntervalToDate(installDate, interval)
+          const inspUuid = generateUUID()
+          const inspNumber = formatYearlyId('INSP', inspSeq++)
 
           const newInsp: Inspection = {
-            id: `INSP-${new Date().getFullYear()}-${String(inspCurrentCount).padStart(4, '0')}`,
-            inspectionNumber: `INSP-${new Date().getFullYear()}-${String(inspCurrentCount).padStart(4, '0')}`,
-            assetId: newId,
+            id: inspUuid,
+            inspectionNumber: inspNumber,
+            assetId: newUuid,
             templateId: inspTmplId,
             templateVersion: 1,
             dueDate: nextInspDueDate,
@@ -1302,15 +1531,28 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             createdAt: today,
           }
           newInspections.push(newInsp)
+          inspInsertRows.push({
+            id: inspUuid,
+            inspection_number: inspNumber,
+            asset_id: newUuid,
+            template_id: inspTmplId || null,
+            template_version: 1,
+            due_date: nextInspDueDate,
+            status: 'Scheduled',
+            checklist_snapshot: tmpl?.items || [],
+            created_at: new Date().toISOString(),
+          })
         })
       }
 
       newLogs.push({
-        assetId: newId,
+        // Real UUID, not the formatted display code -- same reasoning as
+        // addAsset() above.
+        assetId: newUuid,
         action: 'Asset Created',
         byUser: currentUser.fullName,
         source: 'Bulk Import',
-        remarks: `Asset ${createdAsset.name} registered via bulk upload under ID ${newId}.`,
+        remarks: `Asset ${createdAsset.name} registered via bulk upload under ID ${displayId}.`,
       })
     }
 
@@ -1323,11 +1565,43 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
     newLogs.forEach(log => addAssetLog(log))
 
+    // Previously this function never persisted anything to Supabase --
+    // bulk-imported assets and their auto-generated PM/inspection
+    // schedules only ever existed in local React state and vanished on
+    // reload. Mirrors the same insert shape addAsset() already uses.
+    //
+    // Awaited deliberately, same reasoning as addAsset(): work_orders and
+    // inspections carry a foreign key on asset_id, so they must not fire
+    // until the assets themselves have actually committed — confirmed live
+    // that firing them concurrently causes every dependent row to be
+    // rejected with a foreign-key violation.
+    const { error: bulkAssetError } = await supabase.from('assets').insert(assetInsertRows)
+    if (bulkAssetError) {
+      console.error('Supabase bulk asset insert error:', bulkAssetError.message)
+      return { success: false, createdCount: 0, createdAssets: [] }
+    }
+
+    if (woInsertRows.length > 0) {
+      supabase.from('work_orders').insert(woInsertRows).then(({ error }) => {
+        if (error) console.error('Supabase bulk PM work order insert error:', error.message)
+      })
+    }
+    if (inspInsertRows.length > 0) {
+      supabase.from('inspections').insert(inspInsertRows).then(({ error }) => {
+        if (error) console.error('Supabase bulk inspection insert error:', error.message)
+      })
+    }
+
     return { success: true, createdCount: createdAssets.length, createdAssets }
   }
 
   const updateAsset = (id: string, assetData: Partial<Asset>) => {
-    const { id: _, assetId: __, createdAt: ___, ...safeData } = assetData as any // Ensure immutable IDs
+    // Installation Date anchors the PM/Inspection schedule generated once
+    // at creation time — allowing it to be edited later would silently
+    // desync already-generated due dates from what the UI shows, so it's
+    // stripped here as a defense-in-depth guard (the wizard also disables
+    // the field in edit mode).
+    const { id: _, assetId: __, createdAt: ___, installationDate: ____, ...safeData } = assetData as any
     setAssets(prev =>
       prev.map(a => (a.id === id ? { ...a, ...safeData } : a))
     )
@@ -1338,15 +1612,60 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       source: 'Manual',
       remarks: `Asset specification and profile updated.`,
     })
+
+    const dbUpdates: Record<string, unknown> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.subCategoryId !== undefined) dbUpdates.sub_category_id = safeData.subCategoryId
+    if (safeData.roomId !== undefined) dbUpdates.room_id = safeData.roomId
+    if (safeData.manufacturer !== undefined) dbUpdates.manufacturer = safeData.manufacturer
+    if (safeData.modelNumber !== undefined) dbUpdates.model_number = safeData.modelNumber
+    if (safeData.serialNumber !== undefined) dbUpdates.serial_number = safeData.serialNumber
+    if (safeData.price !== undefined) dbUpdates.price = safeData.price
+    if (safeData.purchaseDate !== undefined) dbUpdates.purchase_date = safeData.purchaseDate
+    if (safeData.lastServicedDate !== undefined) dbUpdates.last_serviced_date = safeData.lastServicedDate
+    if (safeData.warrantyTill !== undefined) dbUpdates.warranty_till = safeData.warrantyTill
+    if (safeData.maintenanceBy !== undefined) dbUpdates.maintenance_by = safeData.maintenanceBy
+    if (safeData.maintenanceVendorId !== undefined) dbUpdates.maintenance_vendor_id = safeData.maintenanceVendorId
+    if (safeData.amcStartDate !== undefined) dbUpdates.amc_start_date = safeData.amcStartDate
+    if (safeData.amcEndDate !== undefined) dbUpdates.amc_end_date = safeData.amcEndDate
+    if (safeData.purchaseVendorId !== undefined) dbUpdates.purchase_vendor_id = safeData.purchaseVendorId
+    if (safeData.assignedToUserId !== undefined) dbUpdates.assigned_to_user_id = safeData.assignedToUserId
+    if (safeData.assignedToUserName !== undefined) dbUpdates.assigned_to_user_name = safeData.assignedToUserName
+    if (safeData.dynamicSpecifications !== undefined) dbUpdates.dynamic_specifications = safeData.dynamicSpecifications
+    if (safeData.imageUrl !== undefined) dbUpdates.image_url = safeData.imageUrl
+    if (safeData.notes !== undefined) dbUpdates.notes = safeData.notes
+    if (safeData.status !== undefined) dbUpdates.status = safeData.status
+    if (safeData.qrCodeUrl !== undefined) dbUpdates.qr_code_url = safeData.qrCodeUrl
+    if (safeData.lastPrintedAt !== undefined) dbUpdates.last_printed_at = safeData.lastPrintedAt
+
+    if (Object.keys(dbUpdates).length > 0) {
+      supabase.from('assets').update(dbUpdates).eq('id', id).then(({ error }) => {
+        if (error) console.error('Supabase asset update error:', error.message)
+      })
+    }
   }
 
   const updateAssetStatus = (assetId: string, status: Asset['status']) => {
     setAssets(prev => prev.map(a => (a.id === assetId ? { ...a, status } : a)))
+    supabase.from('assets').update({ status }).eq('id', assetId).then(({ error }) => {
+      if (error) console.error('Supabase asset status update error:', error.message)
+    })
   }
 
   // 7b. Inventory Item: INV-#### (Immutable ID, No auto PM/Inspection)
-  const addInventoryItem = (itemData: Omit<InventoryItem, 'id' | 'inventoryNumber' | 'createdAt'>): InventoryItem => {
-    const nextSeq = getNextSequence(inventoryItems.map(i => i.id), 'INV')
+  const addInventoryItem = async (itemData: Omit<InventoryItem, 'id' | 'inventoryNumber' | 'createdAt'>): Promise<InventoryItem> => {
+    // `id` is a real client-generated UUID (not a formatted INV-#### string),
+    // so computing the next sequence from it never matched the regex and
+    // silently produced INV-0001 for every item, colliding with the real
+    // unique constraint on inventory_number. Use inventoryNumber (the actual
+    // formatted id) and also check the DB fresh, matching the same fix
+    // already applied to addCampus/addBuilding/addCategory/etc.
+    const { data: existingRows } = await supabase.from('inventory_items').select('inventory_number')
+    const knownIds = [
+      ...inventoryItems.map(i => i.inventoryNumber || i.id),
+      ...(existingRows || []).map(r => r.inventory_number).filter((n): n is string => Boolean(n)),
+    ]
+    const nextSeq = getNextSequence(knownIds, 'INV')
     const newId = formatId('INV', nextSeq)
     const today = new Date().toISOString().split('T')[0]
     const newUuid = generateUUID()
@@ -1360,43 +1679,75 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
     setInventoryItems(prev => [newItem, ...prev])
 
-    supabase.from('inventory_items').insert([{
+    // Previously this insert only wrote 7 of the ~15 real fields — unit
+    // price, image, custom fields, warranty/purchase dates, serial number,
+    // storeroom, and notes all looked saved in the UI but silently never
+    // reached the database, vanishing on the next reload (confirmed live:
+    // several of these columns didn't even exist on inventory_items until
+    // migration 0010).
+    const { error } = await supabase.from('inventory_items').insert([{
       id: newUuid,
       inventory_number: newId,
       name: newItem.name,
       sub_category_id: newItem.subCategoryId || null,
       manufacturer: newItem.manufacturer || null,
       model_number: newItem.modelNumber || null,
+      serial_number: newItem.serialNumber || null,
       quantity: newItem.quantity || 1,
+      min_stock_level: newItem.minStockThreshold ?? null,
+      unit_cost: newItem.unitPrice ?? null,
       vendor_id: newItem.purchaseVendorId || null,
       storage_location: newItem.storageLocation || null,
+      room_id: newItem.roomId || null,
+      purchase_date: newItem.purchaseDate || null,
+      warranty_till: newItem.warrantyTill || null,
+      dynamic_specifications: newItem.dynamicSpecifications || {},
+      image_url: newItem.imageUrl || null,
+      notes: newItem.notes || null,
       created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase inventory insert error:', error.message)
-    })
+    }])
+    if (error) {
+      console.error('Supabase inventory insert error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this spare part: ${error.message}\n\nIt will not persist after a page reload.`)
+      }
+    }
 
     return newItem
   }
 
-  const updateInventoryItem = (id: string, itemData: Partial<InventoryItem>) => {
+  const updateInventoryItem = async (id: string, itemData: Partial<InventoryItem>) => {
     const { id: _, inventoryNumber: __, createdAt: ___, ...safeData } = itemData as any
     setInventoryItems(prev =>
       prev.map(item => (item.id === id || item.inventoryNumber === id ? { ...item, ...safeData } : item))
     )
 
-    const dbUpdates: Record<string, any> = {}
+    const dbUpdates: Record<string, unknown> = {}
     if (safeData.name !== undefined) dbUpdates.name = safeData.name
     if (safeData.subCategoryId !== undefined) dbUpdates.sub_category_id = safeData.subCategoryId
     if (safeData.manufacturer !== undefined) dbUpdates.manufacturer = safeData.manufacturer
     if (safeData.modelNumber !== undefined) dbUpdates.model_number = safeData.modelNumber
+    if (safeData.serialNumber !== undefined) dbUpdates.serial_number = safeData.serialNumber
     if (safeData.quantity !== undefined) dbUpdates.quantity = safeData.quantity
+    if (safeData.minStockThreshold !== undefined) dbUpdates.min_stock_level = safeData.minStockThreshold
+    if (safeData.unitPrice !== undefined) dbUpdates.unit_cost = safeData.unitPrice
     if (safeData.purchaseVendorId !== undefined) dbUpdates.vendor_id = safeData.purchaseVendorId
     if (safeData.storageLocation !== undefined) dbUpdates.storage_location = safeData.storageLocation
+    if (safeData.roomId !== undefined) dbUpdates.room_id = safeData.roomId
+    if (safeData.purchaseDate !== undefined) dbUpdates.purchase_date = safeData.purchaseDate
+    if (safeData.warrantyTill !== undefined) dbUpdates.warranty_till = safeData.warrantyTill
+    if (safeData.dynamicSpecifications !== undefined) dbUpdates.dynamic_specifications = safeData.dynamicSpecifications
+    if (safeData.imageUrl !== undefined) dbUpdates.image_url = safeData.imageUrl
+    if (safeData.notes !== undefined) dbUpdates.notes = safeData.notes
 
     if (Object.keys(dbUpdates).length > 0) {
-      supabase.from('inventory_items').update(dbUpdates).or(`id.eq.${id},inventory_number.eq.${id}`).then(({ error }) => {
-        if (error) console.error('Supabase inventory update error:', error.message)
-      })
+      const { error } = await supabase.from('inventory_items').update(dbUpdates).or(`id.eq.${id},inventory_number.eq.${id}`)
+      if (error) {
+        console.error('Supabase inventory update error:', error.message)
+        if (typeof window !== 'undefined') {
+          alert(`Could not save changes to this spare part: ${error.message}`)
+        }
+      }
     }
   }
 
@@ -1407,19 +1758,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
-  const convertInventoryToAsset = (
+  const convertInventoryToAsset = async (
     inventoryId: string,
     roomId: string,
     installationDate?: string,
     assignedToUserId?: string
-  ): Asset | null => {
+  ): Promise<Asset | null> => {
     const item = inventoryItems.find(i => i.id === inventoryId || i.inventoryNumber === inventoryId)
     if (!item) return null
 
     const assignedUser = assignedToUserId ? users.find(u => u.id === assignedToUserId) : undefined
 
     // Create standard operational asset (which triggers PM/Inspection)
-    const newAsset = addAsset({
+    const newAsset = await addAsset({
       name: item.name,
       subCategoryId: item.subCategoryId,
       roomId,
@@ -1433,11 +1784,21 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       maintenanceBy: 'In House',
       purchaseVendorId: item.purchaseVendorId,
       dynamicSpecifications: item.dynamicSpecifications || {},
+      imageUrl: item.imageUrl,
       notes: `Deployed from Inventory Hub (${item.inventoryNumber}). ${item.notes || ''}`.trim(),
       status: 'Operational',
       assignedToUserId: assignedToUserId || undefined,
       assignedToUserName: assignedUser ? assignedUser.fullName : undefined,
     })
+
+    // Re-point any documents that were attached to the source spare part
+    // (e.g. its invoice/warranty PDF) to the newly deployed asset instead
+    // of leaving them orphaned on an inventory item that's about to be
+    // deleted or decremented.
+    const linkedDocs = documents.filter(
+      d => d.linkedAssetIds?.includes(item.id) || d.linkedAssetIds?.includes(item.inventoryNumber)
+    )
+    await Promise.all(linkedDocs.map(d => updateDocument(d.id, { assetId: newAsset.id, inventoryItemId: null })))
 
     // Reduce stock quantity or delete if 1
     if (item.quantity > 1) {
@@ -1626,6 +1987,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       id: newUuid,
       ticketId,
       createdAt: new Date().toLocaleString(),
+      // Stamped from the real session, not the caller — this is what the
+      // RLS "own service_requests" policies key off, so it must always be
+      // the actual signed-in user regardless of what a caller passes in.
+      requestedByUserId: currentUser.id,
     }
     setServiceRequests(prev => [newSr, ...prev])
     supabase.from('service_requests').insert([{
@@ -1633,11 +1998,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       ticket_id: ticketId,
       title: newSr.title,
       description: newSr.description || '',
-      request_type: newSr.requestType || 'Maintenance',
+      type: newSr.requestType || 'Maintenance',
       room_id: newSr.roomId || null,
       asset_id: newSr.assetId || null,
       status: newSr.status || 'Open',
       priority: newSr.priority || 'Medium',
+      requested_by_name: newSr.requestedBy,
+      requested_by_user_id: currentUser.id,
       sla_due_date: newSr.slaDueDate || null,
       photo_urls: newSr.photoUrls || [],
       created_at: new Date().toISOString(),
@@ -1658,36 +2025,93 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     return newSr
   }
 
+  // Maps camelCase ServiceRequest fields to their snake_case DB columns.
+  // Spreading the raw camelCase object into .update() previously failed
+  // silently for any multi-word field (e.g. dismissalReason, workOrderNumber)
+  // since Postgrest rejects unknown column names outright. Column names below
+  // are verified against the live `service_requests` table (see
+  // supabase/migrations/0002_service_requests_fix.sql for the columns that
+  // had to be added before this mapping could be correct).
+  const mapServiceRequestUpdatesToDb = (updates: Partial<ServiceRequest>): Record<string, unknown> => {
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.title !== undefined) dbUpdates.title = updates.title
+    if (updates.description !== undefined) dbUpdates.description = updates.description
+    if (updates.requestType !== undefined) dbUpdates.type = updates.requestType
+    if (updates.roomId !== undefined) dbUpdates.room_id = updates.roomId
+    if (updates.assetId !== undefined) dbUpdates.asset_id = updates.assetId
+    if (updates.status !== undefined) dbUpdates.status = updates.status
+    if (updates.priority !== undefined) dbUpdates.priority = updates.priority
+    if (updates.requestedBy !== undefined) dbUpdates.requested_by_name = updates.requestedBy
+    if (updates.assignedTo !== undefined) dbUpdates.assigned_to = updates.assignedTo
+    if (updates.assignedToName !== undefined) dbUpdates.assigned_to_name = updates.assignedToName
+    if (updates.slaDueDate !== undefined) dbUpdates.sla_due_date = updates.slaDueDate
+    if (updates.photoUrls !== undefined) dbUpdates.photo_urls = updates.photoUrls
+    if (updates.workOrderNumber !== undefined) dbUpdates.work_order_number = updates.workOrderNumber
+    if (updates.workOrderId !== undefined) dbUpdates.work_order_id = updates.workOrderId
+    if (updates.workOrderType !== undefined) dbUpdates.work_order_type = updates.workOrderType
+    if (updates.dismissalReason !== undefined) dbUpdates.dismissal_reason = updates.dismissalReason
+    if (updates.resolutionNotes !== undefined) dbUpdates.resolution_notes = updates.resolutionNotes
+    if (updates.dismissedAt !== undefined) dbUpdates.dismissed_at = updates.dismissedAt
+    if (updates.dismissedBy !== undefined) dbUpdates.dismissed_by = updates.dismissedBy
+    return dbUpdates
+  }
+
   const updateServiceRequestStatus = (
     id: string,
     status: ServiceRequest['status'],
     extraUpdates?: Partial<Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>>
   ) => {
+    // Matches by ticketId too, not just id -- callers like the Work Order
+    // completion handshake only know the ticket's sourceRefId (its
+    // formatted ticketId, e.g. "SR-2026-0001"), never its raw UUID.
     setServiceRequests(prev =>
-      prev.map(s => (s.id === id ? { ...s, ...extraUpdates, status } : s))
+      prev.map(s => (s.id === id || s.ticketId === id ? { ...s, ...extraUpdates, status } : s))
     )
-    supabase.from('service_requests').update({
-      status,
-      ...extraUpdates
-    }).or(`id.eq.${id},ticket_id.eq.${id}`).then(() => {})
+    const dbUpdates = { ...mapServiceRequestUpdatesToDb(extraUpdates || {}), status }
+    supabase.from('service_requests').update(dbUpdates).or(`id.eq.${id},ticket_id.eq.${id}`).then(({ error }) => {
+      if (error) console.error('Supabase service_request status update error:', error.message)
+    })
   }
 
   const updateServiceRequest = (id: string, updates: Partial<ServiceRequest>) => {
     setServiceRequests(prev =>
       prev.map(s => (s.id === id ? { ...s, ...updates } : s))
     )
-    supabase.from('service_requests').update(updates).or(`id.eq.${id},ticket_id.eq.${id}`).then(() => {})
+    const dbUpdates = mapServiceRequestUpdatesToDb(updates)
+    if (Object.keys(dbUpdates).length > 0) {
+      supabase.from('service_requests').update(dbUpdates).or(`id.eq.${id},ticket_id.eq.${id}`).then(({ error }) => {
+        if (error) console.error('Supabase service_request update error:', error.message)
+      })
+    }
   }
 
   // 9. Vendor: VND-#### (Immutable ID)
-  const addVendor = (v: Omit<Vendor, 'id'>): Vendor => {
-    const nextSeq = getNextSequence(vendors.map(vnd => vnd.id), 'VND')
+  const addVendor = async (v: Omit<Vendor, 'id' | 'code'>): Promise<Vendor> => {
+    // Previously this scanned vendors.map(vnd => vnd.id) -- vendor `id` is a
+    // UUID, not a "VND-####" string, so the sequence regex never matched
+    // and the computed code (which also was never persisted or returned)
+    // would always have evaluated to "VND-0001". Fixed the same way as
+    // addCampus/addCategory/etc: derive from the real code field, checked
+    // fresh against the DB too.
+    const { data: existingCodeRows } = await supabase.from('vendors').select('code')
+    const knownCodes = [
+      ...vendors.map(vnd => vnd.code || vnd.id),
+      ...(existingCodeRows || []).map(r => r.code).filter((c): c is string => Boolean(c)),
+    ]
+    const nextSeq = getNextSequence(knownCodes, 'VND')
     const newCode = formatId('VND', nextSeq)
     const newUuid = generateUUID()
-    const newVendor: Vendor = { ...v, id: newUuid }
+    const newVendor: Vendor = { ...v, id: newUuid, code: newCode }
     setVendors(prev => [...prev, newVendor])
-    supabase.from('vendors').insert([{
+    // Awaited: assets.purchase_vendor_id/maintenance_vendor_id and
+    // inventory_items.vendor_id are real foreign keys to vendors.id. Both
+    // asset creation and inventory creation let you add a new vendor inline
+    // mid-wizard and then reference it a few steps later — the same
+    // FK-race shape already confirmed live for work_orders/inspections/
+    // documents, just against vendors this time.
+    const { error } = await supabase.from('vendors').insert([{
       id: newUuid,
+      code: newVendor.code,
       name: newVendor.name,
       category_supplied: newVendor.categorySupplied || '',
       contact_person: newVendor.contactPerson || '',
@@ -1699,16 +2123,37 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       amc_start_date: newVendor.amcStartDate || null,
       amc_end_date: newVendor.amcEndDate || null,
       created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase vendor insert error:', error.message)
-    })
+    }])
+    if (error) {
+      console.error('Supabase vendor insert error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this vendor: ${error.message}\n\nIt will not persist after a page reload.`)
+      }
+    }
     return newVendor
   }
 
   const updateVendor = (id: string, vendorData: Partial<Vendor>) => {
     const { id: _, ...safeData } = vendorData as any
     setVendors(prev => prev.map(v => (v.id === id ? { ...v, ...safeData } : v)))
-    supabase.from('vendors').update(safeData).eq('id', id).then(() => {})
+
+    const dbUpdates: Record<string, unknown> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.categorySupplied !== undefined) dbUpdates.category_supplied = safeData.categorySupplied
+    if (safeData.contactPerson !== undefined) dbUpdates.contact_person = safeData.contactPerson
+    if (safeData.email !== undefined) dbUpdates.email = safeData.email
+    if (safeData.phone !== undefined) dbUpdates.phone = safeData.phone
+    if (safeData.address !== undefined) dbUpdates.address = safeData.address
+    if (safeData.hasAmc !== undefined) dbUpdates.has_amc = safeData.hasAmc
+    if (safeData.amcContractNo !== undefined) dbUpdates.amc_contract_no = safeData.amcContractNo
+    if (safeData.amcStartDate !== undefined) dbUpdates.amc_start_date = safeData.amcStartDate
+    if (safeData.amcEndDate !== undefined) dbUpdates.amc_end_date = safeData.amcEndDate
+
+    if (Object.keys(dbUpdates).length > 0) {
+      supabase.from('vendors').update(dbUpdates).eq('id', id).then(({ error }) => {
+        if (error) console.error('Supabase vendor update error:', error.message)
+      })
+    }
   }
 
   const deleteVendor = (id: string): { success: boolean; message?: string } => {
@@ -1728,7 +2173,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 10. Document: DOC-YYYY-#### (Immutable ID)
-  const addDocument = (doc: Omit<DocumentItem, 'id' | 'uploadedAt'>): DocumentItem => {
+  const addDocument = async (doc: Omit<DocumentItem, 'id' | 'uploadedAt'>): Promise<DocumentItem> => {
     const nextSeq = getNextSequence(documents.map(d => d.id), 'DOC')
     const displayId = formatYearlyId('DOC', nextSeq)
     const newUuid = generateUUID()
@@ -1739,7 +2184,22 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       uploadedAt: today,
     }
     setDocuments(prev => [newDoc, ...prev])
-    supabase.from('documents').insert([{
+
+    // Resolve the first linked id against assets first, then inventory
+    // items — linkedAssetIds is a single flat list used for both, since
+    // the wizard UI doesn't distinguish which kind of item it's attaching
+    // a document to.
+    const linkId = doc.linkedAssetIds?.[0]
+    const linkedAsset = linkId ? assets.find(a => a.id === linkId || a.assetId === linkId) : undefined
+    const linkedInventoryItem = !linkedAsset && linkId
+      ? inventoryItems.find(i => i.id === linkId || i.inventoryNumber === linkId)
+      : undefined
+
+    // Awaited so callers that immediately link this document to something
+    // else (e.g. the asset-creation wizard's "attach to this asset" step)
+    // can be sure the row actually exists first, rather than racing an
+    // UPDATE against an insert that hasn't committed yet.
+    const { error } = await supabase.from('documents').insert([{
       id: newUuid,
       title: newDoc.title,
       category: 'General',
@@ -1749,10 +2209,31 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       file_url: newDoc.fileUrl,
       uploaded_by_user_name: newDoc.uploadedBy || 'Staff',
       uploaded_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase document insert error:', error.message)
-    })
+      asset_id: linkedAsset?.id || null,
+      inventory_item_id: linkedInventoryItem?.id || null,
+    }])
+    if (error) {
+      console.error('Supabase document insert error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this document: ${error.message}\n\nIt will not persist after a page reload.`)
+      }
+    }
     return newDoc
+  }
+
+  const updateDocument = async (id: string, updates: { assetId?: string | null; inventoryItemId?: string | null }) => {
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.assetId !== undefined) dbUpdates.asset_id = updates.assetId
+    if (updates.inventoryItemId !== undefined) dbUpdates.inventory_item_id = updates.inventoryItemId
+    const { error } = await supabase.from('documents').update(dbUpdates).eq('id', id)
+    if (error) {
+      console.error('Supabase document link update error:', error.message)
+      if (typeof window !== 'undefined') alert(`Could not update this document's link: ${error.message}`)
+    }
+    setDocuments(prev => prev.map(d => d.id === id
+      ? { ...d, linkedAssetIds: [updates.assetId, updates.inventoryItemId].filter(Boolean) as string[] }
+      : d
+    ))
   }
 
   // Checklist Templates CRUD
@@ -1764,7 +2245,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       id: newUuid,
       updatedAt: today,
     }
-    setChecklistTemplates(prev => [...prev, newTmpl])
+    setChecklistTemplates(prev => [newTmpl, ...prev])
     supabase.from('checklist_templates').insert([{
       id: newUuid,
       title: newTmpl.title,
@@ -1813,12 +2294,35 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const addWorkOrder = (wo: Omit<WorkOrder, 'id' | 'createdAt'>) => {
     const newUuid = generateUUID()
     const today = new Date().toISOString().split('T')[0]
+    // Callers that want a not-yet-assigned Corrective/Preventive record
+    // pass the literal sentinel 'PENDING' (they can't know this row's UUID
+    // ahead of time) — work_orders.wo_number has a UNIQUE constraint, so
+    // it's resolved here into a real per-row placeholder.
+    const woNumber = wo.woNumber === 'PENDING' ? makePendingWoNumber(newUuid) : wo.woNumber
     const newWo: WorkOrder = {
       ...wo,
       id: newUuid,
+      woNumber,
       createdAt: today,
     }
     setWorkOrders(prev => [newWo, ...prev])
+
+    // The PM/Inspection work orders auto-created inside addAsset bypass
+    // this function entirely (their own direct insert) — "Asset Created"
+    // already covers that moment, so this only logs manually-raised work
+    // orders. Gated on assetId so room-only Housekeeping orders don't spam
+    // unrelated asset timelines.
+    if (newWo.assetId) {
+      addAssetLog({
+        assetId: newWo.assetId,
+        action: `${newWo.type} Work Order Raised`,
+        byUser: currentUser.fullName,
+        source: newWo.source === 'Scheduled' ? 'System' : 'Manual',
+        referenceId: newWo.woNumber,
+        remarks: newWo.issueLogged || newWo.title || `${newWo.type} work order raised.`,
+      })
+    }
+
     supabase.from('work_orders').insert([{
       id: newUuid,
       wo_number: newWo.woNumber || newWo.id,
@@ -1864,9 +2368,25 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Detect "first assignment": a Preventive/Corrective record that was
+    // created as a PENDING placeholder (no real WO number yet, per the
+    // deferred-creation design) is now getting a technician for the first
+    // time. That's the moment it becomes a real, numbered Work Order.
+    const targetWoForMint = workOrders.find(w => w.id === id || w.woNumber === id)
+    const isFirstAssignment = Boolean(
+      targetWoForMint &&
+      (targetWoForMint.type === 'Preventive' || targetWoForMint.type === 'Corrective') &&
+      isPendingWorkOrder(targetWoForMint.woNumber) &&
+      extraUpdates?.assignedTechnicianId
+    )
+    const mintedWoNumber = isFirstAssignment && targetWoForMint
+      ? formatYearlyId(targetWoForMint.type === 'Preventive' ? 'WO-PM' : 'WO-CR', getNextSequence(workOrders.map(w => w.woNumber), targetWoForMint.type === 'Preventive' ? 'WO-PM' : 'WO-CR'))
+      : undefined
+
     const dbUpdates: Record<string, any> = {
       status,
     }
+    if (mintedWoNumber) dbUpdates.wo_number = mintedWoNumber
     if (remarks !== undefined) dbUpdates.technician_remarks = remarks
     if (status === 'Completed') {
       dbUpdates.completed_at = new Date().toISOString().split('T')[0]
@@ -1892,6 +2412,21 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       if (error) console.error('Supabase work_order update error:', error.message)
     })
 
+    // If a Corrective WO is being minted for the first time (i.e. just
+    // assigned), the asset goes 'Under Maintenance' immediately -- it
+    // doesn't wait for a separate "start work" step. Preventive's existing
+    // behavior (only flips when explicitly started) is unchanged.
+    if (isFirstAssignment && targetWoForMint?.type === 'Corrective' && targetWoForMint.assetId) {
+      updateAssetStatus(targetWoForMint.assetId, 'Under Maintenance')
+    }
+
+    // If this Corrective WO was raised from a Service Request, the ticket
+    // was stamped with the PENDING placeholder at raise time -- now that a
+    // real number exists, carry it over onto the ticket too.
+    if (isFirstAssignment && mintedWoNumber && targetWoForMint?.source === 'Service Request' && targetWoForMint.sourceRefId) {
+      updateServiceRequestStatus(targetWoForMint.sourceRefId, 'In Progress', { workOrderNumber: mintedWoNumber })
+    }
+
     setWorkOrders(prev => {
       let nextRecurringPmWo: WorkOrder | null = null
 
@@ -1901,6 +2436,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             ...w,
             ...extraUpdates,
             status,
+            woNumber: mintedWoNumber || w.woNumber,
             technicianRemarks: remarks || w.technicianRemarks,
           }
           if (status === 'Completed') {
@@ -1908,35 +2444,37 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             updated.completedAt = completedDateIso
             if (w.assetId) {
               updateAssetStatus(w.assetId, 'Operational')
+              const completionLabel =
+                w.type === 'Preventive' ? 'Preventive Maintenance Completed' :
+                w.type === 'Corrective' ? 'Corrective Maintenance Completed' :
+                'Housekeeping Completed'
               addAssetLog({
                 assetId: w.assetId,
-                action: 'Maintenance Done',
+                action: completionLabel,
                 byUser: currentUser.fullName,
                 source: 'Manual',
-                referenceId: w.woNumber,
+                referenceId: updated.woNumber,
                 remarks: remarks || 'Work Order completed successfully.',
               })
             }
 
-            // If this Work Order was triggered by a Service Request, auto-resolve the ticket
+            // If this Work Order was triggered by a Service Request, auto-resolve
+            // the ticket -- persisted via updateServiceRequestStatus (previously
+            // this only updated local React state and was silently lost on reload).
             if (w.source === 'Service Request' && w.sourceRefId) {
-              setServiceRequests(srs =>
-                srs.map(sr =>
-                  sr.ticketId === w.sourceRefId || sr.id === w.sourceRefId
-                    ? { ...sr, status: 'Resolved' }
-                    : sr
-                )
-              )
+              updateServiceRequestStatus(w.sourceRefId, 'Resolved')
             }
 
-            // If this was a Preventive Maintenance Work Order, auto-schedule next interval
+            // If this was a Preventive Maintenance Work Order, auto-schedule next
+            // interval -- anchored on the date it was ACTUALLY completed, never
+            // the original due date (a PM finished late shouldn't push every
+            // future cycle later forever).
             if (w.type === 'Preventive') {
               const interval = w.frequency || 'Quarterly'
-              const baseDate = w.dueDate || completedDateIso
+              const baseDate = completedDateIso
               const nextDueDate = addIntervalToDate(baseDate, interval)
-              const nextSeq = prev.length + 1
-              const nextWoNumber = `WO-PM-${new Date().getFullYear()}-${String(nextSeq).padStart(4, '0')}`
               const nextWoUuid = generateUUID()
+              const nextWoNumber = makePendingWoNumber(nextWoUuid)
 
               nextRecurringPmWo = {
                 id: nextWoUuid,
@@ -1981,7 +2519,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
                 action: 'Under Maintenance',
                 byUser: currentUser.fullName,
                 source: 'System',
-                referenceId: w.woNumber,
+                referenceId: updated.woNumber,
               })
             }
           }
@@ -2094,8 +2632,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           const interval = tmpl?.interval || 'Quarterly'
           const baseDate = ins.dueDate || completedDateIso
           const nextDueDate = addIntervalToDate(baseDate, interval)
-          const nextSeq = prev.length + 1
-          const nextInspNumber = `INSP-${new Date().getFullYear()}-${String(nextSeq).padStart(4, '0')}`
+          const nextSeq = getNextSequence(prev.map(x => x.inspectionNumber), 'INSP')
+          const nextInspNumber = formatYearlyId('INSP', nextSeq)
           const nextInspUuid = generateUUID()
 
           // Auto-schedule next inspection cycle
@@ -2126,9 +2664,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           })
 
           if (result === 'Fail') {
-            updateAssetStatus(ins.assetId, 'Under Maintenance')
-            const correctiveWoNumber = `WO-CR-${new Date().getFullYear()}-${String(workOrders.length + 1).padStart(4, '0')}`
+            // Asset status intentionally does NOT flip to 'Under Maintenance'
+            // here anymore -- this Corrective record is unassigned (PENDING)
+            // until a technician picks it up, matching the same
+            // create-vs-assign split used for Service-Request-triggered
+            // Corrective Maintenance. It flips at first assignment instead
+            // (see updateWorkOrderStatus).
             const correctiveWoUuid = generateUUID()
+            const correctiveWoNumber = makePendingWoNumber(correctiveWoUuid)
             const newCorrectiveWo: WorkOrder = {
               id: correctiveWoUuid,
               woNumber: correctiveWoNumber,
@@ -2165,7 +2708,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
               byUser: currentUser.fullName,
               source: 'Manual',
               referenceId: ins.inspectionNumber,
-              remarks: `Inspection failed. Triggered Corrective Work Order ${correctiveWoNumber}.`,
+              remarks: `Inspection failed. A corrective maintenance task has been raised, pending technician assignment.`,
             })
           } else {
             updateAssetStatus(ins.assetId, 'Operational')
@@ -2192,15 +2735,38 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // Room Access Logs & Check-In/Out
-  const checkInRoom = (roomId: string, purpose: string) => {
+  const checkInRoom = async (roomId: string, purpose: string) => {
     const room = rooms.find(r => r.id === roomId || r.roomNumber === roomId)
     const resolvedRoomId = room ? room.id : roomId
     const now = new Date()
     const checkInTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     const checkInDate = now.toISOString().split('T')[0]
     const newUuid = generateUUID()
+
+    // AL-A#### is a real human-readable id (like assets.asset_id,
+    // rooms.room_number, etc) instead of the raw UUID. Checked fresh
+    // against the DB, same collision-safe pattern used for every other
+    // entity's code this session.
+    const { data: existingCodeRows } = await supabase.from('room_access_logs').select('activity_number')
+    const knownCodes = new Set([
+      ...roomAccessLogs.map(l => l.activityNumber).filter(Boolean),
+      ...(existingCodeRows || []).map(r => r.activity_number).filter(Boolean),
+    ] as string[])
+    let maxSeq = 0
+    knownCodes.forEach(code => {
+      const match = code.match(/^AL-A(\d+)$/)
+      if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10))
+    })
+    let seq = maxSeq + 1
+    let activityNumber = `AL-A${String(seq).padStart(4, '0')}`
+    while (knownCodes.has(activityNumber)) {
+      seq++
+      activityNumber = `AL-A${String(seq).padStart(4, '0')}`
+    }
+
     const log: RoomAccessLog = {
       id: newUuid,
+      activityNumber,
       roomId: resolvedRoomId,
       roomName: room ? `${room.name} (${room.roomNumber || room.id})` : 'Room',
       userId: currentUser.id,
@@ -2212,12 +2778,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       purpose,
       isForceCheckout: false,
     }
-    setActiveCheckIn(log)
+    // activeCheckIn is derived elsewhere (see the useEffect keyed on
+    // roomAccessLogs/currentUser.id below) — no need to set it here.
     setRoomAccessLogs(prev => [log, ...prev])
     setRooms(prev => prev.map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Occupied', currentOccupant: currentUser.fullName } : r)))
 
-    supabase.from('room_access_logs').insert([{
+    const { error } = await supabase.from('room_access_logs').insert([{
       id: newUuid,
+      activity_number: activityNumber,
       room_id: resolvedRoomId,
       user_id: currentUser.id,
       user_name: currentUser.fullName,
@@ -2227,8 +2795,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       check_in_timestamp: now.getTime(),
       purpose,
       is_force_checkout: false,
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase room_access_logs insert error:', error.message)
+    }])
+    if (error) {
+      console.error('Supabase room_access_logs insert error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this check-in: ${error.message}`)
+      }
+    }
+    // Previously this only updated local state — the "Occupied" indicator
+    // never survived a reload or showed up for any other browser session
+    // viewing the same room.
+    supabase.from('rooms').update({ status: 'Occupied', current_occupant: currentUser.fullName }).eq('id', resolvedRoomId).then(({ error }) => {
+      if (error) console.error('Supabase room status update error:', error.message)
     })
   }
 
@@ -2236,14 +2814,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const room = rooms.find(r => r.id === roomId || r.roomNumber === roomId)
     const resolvedRoomId = room ? room.id : roomId
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    // Scoped to the caller's own open log only — previously this matched
+    // by room alone, so checking out could close a DIFFERENT user's still-
+    // open session in a shared room.
     setRoomAccessLogs(prev =>
-      prev.map(l => ((l.roomId === resolvedRoomId || l.roomId === roomId) && !l.checkOutTime ? { ...l, checkOutTime: now } : l))
+      prev.map(l => ((l.roomId === resolvedRoomId || l.roomId === roomId) && l.userId === currentUser.id && !l.checkOutTime ? { ...l, checkOutTime: now } : l))
     )
-    setActiveCheckIn(null)
     setRooms(prev => prev.map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Available', currentOccupant: undefined } : r)))
 
-    supabase.from('room_access_logs').update({ check_out_time: now }).eq('room_id', resolvedRoomId).is('check_out_time', null).then(({ error }) => {
+    supabase.from('room_access_logs').update({ check_out_time: now }).eq('room_id', resolvedRoomId).eq('user_id', currentUser.id).is('check_out_time', null).then(({ error }) => {
       if (error) console.error('Supabase room_access_logs checkout update error:', error.message)
+    })
+    supabase.from('rooms').update({ status: 'Available', current_occupant: null }).eq('id', resolvedRoomId).then(({ error }) => {
+      if (error) console.error('Supabase room status update error:', error.message)
     })
   }
 
@@ -2257,6 +2840,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setRoomAccessLogs(prevLogs => {
       let hasChanges = false
       const updatedRoomsToFree = new Set<string>()
+      const newlyCheckedOutIds: string[] = []
 
       const newLogs = prevLogs.map(log => {
         if (log.checkOutTime) return log
@@ -2268,6 +2852,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         if (isPastLogDate || isSameDayPastCutoff) {
           hasChanges = true
           updatedRoomsToFree.add(log.roomId)
+          newlyCheckedOutIds.push(log.id)
           return {
             ...log,
             checkOutTime: '11:59 PM',
@@ -2279,6 +2864,21 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (hasChanges) {
+        // Persist each forced checkout — this previously only ever updated
+        // local state, so the DB row (and the Phase 4 auto-checkout
+        // notification trigger, which fires on this exact UPDATE) never
+        // actually ran. RLS restricts this to the caller's own rows (or
+        // Admin), which matches "each browser force-checks-out its own
+        // stale session" — the only case this ever legitimately applies to.
+        newlyCheckedOutIds.forEach(logId => {
+          supabase.from('room_access_logs').update({
+            check_out_time: '11:59 PM',
+            is_force_checkout: true,
+            auto_checkout_note: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
+          }).eq('id', logId).then(({ error }) => {
+            if (error) console.error('Supabase auto-checkout persist error:', error.message)
+          })
+        })
         setRooms(prevRooms =>
           prevRooms.map(r =>
             updatedRoomsToFree.has(r.id)
@@ -2286,14 +2886,17 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
               : r
           )
         )
-        setActiveCheckIn(prevActive => {
-          if (!prevActive) return null
-          const activeDateStr = prevActive.checkInDate || currentDateStr
-          if (activeDateStr < currentDateStr || (activeDateStr === currentDateStr && isPast1159Today)) {
-            return null
-          }
-          return prevActive
+        // Persist the freed status/occupant to Supabase too — previously
+        // only local state was updated here, same gap as checkInRoom/
+        // checkOutRoom.
+        updatedRoomsToFree.forEach(freedRoomId => {
+          supabase.from('rooms').update({ status: 'Available', current_occupant: null }).eq('id', freedRoomId).then(({ error }) => {
+            if (error) console.error('Supabase auto-checkout room status update error:', error.message)
+          })
         })
+        // activeCheckIn is derived elsewhere (see the useEffect keyed on
+        // roomAccessLogs/currentUser.id) — it will automatically clear
+        // once the corresponding log above gets its checkOutTime set.
         return newLogs
       }
 
@@ -2362,10 +2965,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         isLoggedIn,
         setIsLoggedIn,
         login,
-        guestLogin,
         logout,
         users,
-        addUser,
+        addInvitedUser,
         updateUser,
         deleteUser,
         departments,
@@ -2430,6 +3032,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         deleteVendor,
         documents,
         addDocument,
+        updateDocument,
         roomAccessLogs,
         checkInRoom,
         checkOutRoom,
@@ -2441,6 +3044,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         clearOperationalData,
         activeCheckIn,
         evaluateAutoCheckouts,
+        notifications,
+        unreadNotificationCount,
+        markNotificationRead,
+        refreshNotifications,
       }}
     >
       {children}

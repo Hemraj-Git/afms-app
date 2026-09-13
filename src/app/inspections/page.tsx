@@ -253,7 +253,7 @@ export default function InspectionsPage() {
                               title={`Inspection execution window opens on ${windowStatus.unlockDate} (${windowStatus.windowDescription})`}
                             >
                               <Lock className="w-3.5 h-3.5 text-amber-500" />
-                              <span>Opens ${windowStatus.unlockDate}</span>
+                              <span>Opens {windowStatus.unlockDate}</span>
                             </span>
                           ) : (
                             <button

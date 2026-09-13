@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { WorkOrder } from '@/types/afms'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
+import { getNextSequence, formatYearlyId, isPendingWorkOrder } from '@/lib/idGenerator'
 
 export default function WorkOrdersHubPage() {
   const {
@@ -64,12 +65,19 @@ export default function WorkOrdersHubPage() {
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0])
   const [issueLogged, setIssueLogged] = useState('')
 
+  // A Preventive/Corrective record with no technician assigned yet is a
+  // PENDING placeholder (see makePendingWoNumber in idGenerator.ts) -- it
+  // still exists for due-date tracking and shows up in the dedicated
+  // Preventive/Corrective assignment queues, but it isn't a real, numbered
+  // Work Order yet, so this hub (and its KPIs) excludes it until assigned.
+  const realWorkOrders = workOrders.filter(w => !isPendingWorkOrder(w.woNumber))
+
   // KPI Calculations
-  const totalCount = workOrders.length
-  const pmCount = workOrders.filter(w => w.type === 'Preventive').length
-  const crCount = workOrders.filter(w => w.type === 'Corrective').length
-  const hkCount = workOrders.filter(w => w.type === 'Housekeeping').length
-  const inProgressCount = workOrders.filter(w => w.status === 'In Progress').length
+  const totalCount = realWorkOrders.length
+  const pmCount = realWorkOrders.filter(w => w.type === 'Preventive').length
+  const crCount = realWorkOrders.filter(w => w.type === 'Corrective').length
+  const hkCount = realWorkOrders.filter(w => w.type === 'Housekeeping').length
+  const inProgressCount = realWorkOrders.filter(w => w.status === 'In Progress').length
 
   // Dynamic Work Order Overdue Check (Time-based on dueDate)
   const isWorkOrderOverdue = (wo: WorkOrder) => {
@@ -78,10 +86,10 @@ export default function WorkOrdersHubPage() {
     const todayStr = new Date().toISOString().split('T')[0]
     return wo.dueDate < todayStr
   }
-  const overdueWoCount = workOrders.filter(isWorkOrderOverdue).length
+  const overdueWoCount = realWorkOrders.filter(isWorkOrderOverdue).length
 
   // Filtered List
-  const filteredWorkOrders = workOrders.filter(wo => {
+  const filteredWorkOrders = realWorkOrders.filter(wo => {
     const matchesTab = activeTab === 'All' || wo.type === activeTab
     const matchesStatus =
       statusFilter === 'All'
@@ -114,7 +122,7 @@ export default function WorkOrdersHubPage() {
     e.preventDefault()
     const tech = users.find(u => u.id === assignedTechnicianId)
     const prefix = type === 'Preventive' ? 'WO-PM' : type === 'Corrective' ? 'WO-CR' : 'WO-HK'
-    const woNum = `${prefix}-${new Date().getFullYear()}-${String(workOrders.length + 1).padStart(4, '0')}`
+    const woNum = formatYearlyId(prefix, getNextSequence(workOrders.map(w => w.woNumber), prefix))
 
     addWorkOrder({
       woNumber: woNum,
@@ -367,12 +375,12 @@ export default function WorkOrdersHubPage() {
                           {asset ? (
                             <div>
                               <p className="font-bold text-slate-900">{asset.name}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">{asset.id} • {room?.name || 'Main Campus'}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">{asset.assetId || asset.id} • {room?.name || 'Main Campus'}</p>
                             </div>
                           ) : room ? (
                             <div>
                               <p className="font-bold text-slate-900">{room.name}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">{room.id}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">{room.roomNumber || room.id}</p>
                             </div>
                           ) : (
                             <span className="text-slate-400">General Facility</span>
@@ -537,7 +545,7 @@ export default function WorkOrdersHubPage() {
                     >
                       {assets.map(a => (
                         <option key={a.id} value={a.id}>
-                          {a.name} ({a.id})
+                          {a.name} ({a.assetId || a.id})
                         </option>
                       ))}
                     </select>
@@ -553,7 +561,7 @@ export default function WorkOrdersHubPage() {
                   >
                     {rooms.map(r => (
                       <option key={r.id} value={r.id}>
-                        {r.name} ({r.id})
+                        {r.name} ({r.roomNumber || r.id})
                       </option>
                     ))}
                   </select>

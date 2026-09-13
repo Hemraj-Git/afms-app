@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
@@ -29,6 +29,7 @@ import {
   Lock,
 } from 'lucide-react'
 import { ServiceRequest, SlaPriority } from '@/types/afms'
+import { getNextSequence, formatYearlyId } from '@/lib/idGenerator'
 
 export default function ServiceRequestsPage() {
   const router = useRouter()
@@ -61,17 +62,28 @@ export default function ServiceRequestsPage() {
   const [newAssetId, setNewAssetId] = useState(assets[0]?.id || '')
   const [newPriority, setNewPriority] = useState<SlaPriority>('Medium')
 
-  // Auto-calculate SLA Priority when target asset changes
   const handleAssetSelect = (assetId: string) => {
     setNewAssetId(assetId)
-    const selectedAsset = assets.find(a => a.id === assetId)
-    if (selectedAsset) {
-      const sub = subCategories.find(s => s.id === selectedAsset.subCategoryId)
-      if (sub?.slaPriority) {
-        setNewPriority(sub.slaPriority)
-      }
-    }
   }
+
+  // The sub-category tied to the currently-selected asset, and whether it
+  // has a configured SLA priority -- when it does, the user isn't asked to
+  // set one manually at all (see the Priority field below).
+  const selectedAssetSub = subCategories.find(
+    s => s.id === assets.find(a => a.id === newAssetId)?.subCategoryId
+  )
+  const isPriorityAutoSet = newType === 'Maintenance' && Boolean(selectedAssetSub?.slaPriority)
+
+  // Auto-calculate SLA Priority whenever the target asset (or request type)
+  // changes -- previously this only ran on the asset dropdown's onChange,
+  // so the default-selected asset's priority was never reflected until the
+  // user touched the dropdown (the submit-time recompute masked this, but
+  // the displayed value was wrong until then).
+  useEffect(() => {
+    if (isPriorityAutoSet && selectedAssetSub?.slaPriority) {
+      setNewPriority(selectedAssetSub.slaPriority)
+    }
+  }, [isPriorityAutoSet, selectedAssetSub?.slaPriority])
 
   // Dynamic SLA Overdue Check (Time-based, doesn't break lifecycle status)
   const isTicketOverdue = (req: ServiceRequest) => {
@@ -132,13 +144,17 @@ export default function ServiceRequestsPage() {
     setNewDesc('')
   }
 
-  // Convert Service Request to Corrective Maintenance
+  // Convert Service Request to Corrective Maintenance. This no longer mints
+  // a real WO-CR-#### number here -- it creates a "PENDING" placeholder
+  // work order (still visible in the Corrective Maintenance queue as
+  // "Pending Assignment", still driving due-date tracking) and only
+  // becomes a real, numbered Work Order once a technician is actually
+  // assigned (see updateWorkOrderStatus in AFMSContext.tsx).
   const handleCreateCorrective = (ticket: ServiceRequest) => {
     const targetAsset = assets.find(a => a.id === ticket.assetId)
-    const woNum = `WO-CR-${new Date().getFullYear()}-${String(workOrders.length + 1).padStart(4, '0')}`
 
     addWorkOrder({
-      woNumber: woNum,
+      woNumber: 'PENDING',
       type: 'Corrective',
       title: ticket.title || 'Corrective Breakdown Repair',
       assetId: ticket.assetId,
@@ -152,20 +168,20 @@ export default function ServiceRequestsPage() {
     })
 
     updateServiceRequestStatus(ticket.id, 'In Progress', {
-      workOrderNumber: woNum,
+      workOrderNumber: 'PENDING',
       workOrderType: 'Corrective',
     })
     setSelectedTicket(prev => prev && prev.id === ticket.id ? {
       ...prev,
       status: 'In Progress',
-      workOrderNumber: woNum,
+      workOrderNumber: 'PENDING',
       workOrderType: 'Corrective',
     } : null)
   }
 
   // Convert Service Request to Housekeeping Work Order directly
   const handleAssignHousekeeping = (ticket: ServiceRequest) => {
-    const woNum = `WO-HK-${new Date().getFullYear()}-${String(workOrders.length + 1).padStart(4, '0')}`
+    const woNum = formatYearlyId('WO-HK', getNextSequence(workOrders.map(w => w.woNumber), 'WO-HK'))
 
     addWorkOrder({
       woNumber: woNum,
@@ -408,7 +424,7 @@ export default function ServiceRequestsPage() {
                       <td className="py-4 px-4">
                         <p className="font-bold text-slate-900">{req.title}</p>
                         <p className="text-[11px] text-slate-500 font-medium">
-                          {asset?.name ? `${asset.name} (${asset.id})` : req.requestType}
+                          {asset?.name ? `${asset.name} (${asset.assetId || asset.id})` : req.requestType}
                         </p>
                       </td>
                       <td className="py-4 px-4">
@@ -564,7 +580,9 @@ export default function ServiceRequestsPage() {
                         <div>
                           <p className="text-[10px] text-slate-500 font-medium">Work Order Number:</p>
                           <p className="font-mono font-bold text-sm text-blue-700">
-                            {linkedWo?.woNumber || currentTicket.workOrderNumber}
+                            {(linkedWo?.woNumber || currentTicket.workOrderNumber) === 'PENDING'
+                              ? 'Pending Assignment'
+                              : (linkedWo?.woNumber || currentTicket.workOrderNumber)}
                           </p>
                           {linkedWo?.assignedTechnicianName && (
                             <p className="text-[10px] text-slate-500 mt-0.5">
@@ -624,8 +642,12 @@ export default function ServiceRequestsPage() {
                     )}
                   </div>
 
-                  {/* Button 1: Create Corrective Maintenance / Housekeeping Work Order */}
-                  {currentTicket.requestType === 'Cleaning' ? (
+                  {/* Button 1: Create Corrective Maintenance / Housekeeping Work Order —
+                      routed by requestType. Previously this only special-cased 'Cleaning',
+                      so a 'Housekeeping' request fell into the Corrective-Maintenance
+                      branch by accident. 'IT Support'/'General' have no natural fit in
+                      either bucket, so neither action is shown for them. */}
+                  {(currentTicket.requestType === 'Cleaning' || currentTicket.requestType === 'Housekeeping') ? (
                     <button
                       type="button"
                       disabled={isActionTaken}
@@ -645,7 +667,7 @@ export default function ServiceRequestsPage() {
                       </span>
                       {!isActionTaken && <ArrowRight className="w-4 h-4" />}
                     </button>
-                  ) : (
+                  ) : currentTicket.requestType === 'Maintenance' ? (
                     <button
                       type="button"
                       disabled={isActionTaken}
@@ -655,16 +677,26 @@ export default function ServiceRequestsPage() {
                           ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                           : 'bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white'
                       }`}
-                      title={isActionTaken ? `Corrective order ${linkedWo?.woNumber || currentTicket.workOrderNumber || ''} already processed` : 'Create Corrective Maintenance'}
+                      title={isActionTaken ? (
+                        (linkedWo?.woNumber || currentTicket.workOrderNumber) === 'PENDING'
+                          ? 'Corrective maintenance raised — pending technician assignment'
+                          : `Corrective order ${linkedWo?.woNumber || currentTicket.workOrderNumber || ''} already processed`
+                      ) : 'Create Corrective Maintenance'}
                     >
                       <Wrench className="w-4 h-4" />
                       <span>
                         {isActionTaken && (linkedWo || currentTicket.workOrderNumber)
-                          ? `Corrective Maintenance Created (${linkedWo?.woNumber || currentTicket.workOrderNumber})`
+                          ? ((linkedWo?.woNumber || currentTicket.workOrderNumber) === 'PENDING'
+                              ? 'Corrective Maintenance Raised (Pending Assignment)'
+                              : `Corrective Maintenance Created (${linkedWo?.woNumber || currentTicket.workOrderNumber})`)
                           : 'Create Corrective Maintenance'}
                       </span>
                       {!isActionTaken && <ArrowRight className="w-4 h-4" />}
                     </button>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 text-center py-1.5">
+                      No maintenance or housekeeping action applies to this request type — use the status controls below.
+                    </p>
                   )}
 
                   {/* Button 2: Dismiss */}
@@ -807,16 +839,25 @@ export default function ServiceRequestsPage() {
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">SLA Priority Level</label>
-                    <select
-                      value={newPriority}
-                      onChange={e => setNewPriority(e.target.value as any)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 font-semibold"
-                    >
-                      <option value="Critical">Critical ({slaConfig.Critical}h SLA)</option>
-                      <option value="High">High ({slaConfig.High}h SLA)</option>
-                      <option value="Medium">Medium ({slaConfig.Medium}h SLA)</option>
-                      <option value="Low">Low ({slaConfig.Low}h SLA)</option>
-                    </select>
+                    {isPriorityAutoSet ? (
+                      <div className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 font-semibold text-slate-700 flex items-center justify-between">
+                        <span>{newPriority} ({slaConfig[newPriority]}h SLA)</span>
+                        <span className="text-[10px] font-medium text-slate-400 normal-case">
+                          Auto-set from {selectedAssetSub?.name}'s SLA policy
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        value={newPriority}
+                        onChange={e => setNewPriority(e.target.value as any)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 font-semibold"
+                      >
+                        <option value="Critical">Critical ({slaConfig.Critical}h SLA)</option>
+                        <option value="High">High ({slaConfig.High}h SLA)</option>
+                        <option value="Medium">Medium ({slaConfig.Medium}h SLA)</option>
+                        <option value="Low">Low ({slaConfig.Low}h SLA)</option>
+                      </select>
+                    )}
                   </div>
                 </div>
 

@@ -338,7 +338,7 @@ export default function AssetsListPage() {
                   <option value="All">All Categories</option>
                   {categories.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.id})
+                      {c.name} ({c.code || c.id})
                     </option>
                   ))}
                 </select>
@@ -357,7 +357,7 @@ export default function AssetsListPage() {
                   <option value="All">All Sub-Categories</option>
                   {availableSubCategories.map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.name} ({s.id})
+                      {s.name} ({s.code || s.id})
                     </option>
                   ))}
                 </select>
@@ -429,7 +429,7 @@ export default function AssetsListPage() {
                   <option value="All">All Buildings</option>
                   {availableBuildings.map(b => (
                     <option key={b.id} value={b.id}>
-                      {b.name} ({b.id})
+                      {b.name} ({b.code || b.id})
                     </option>
                   ))}
                 </select>
@@ -521,7 +521,7 @@ export default function AssetsListPage() {
                     return (
                       <tr key={asset.id} className="hover:bg-slate-50/60 transition group cursor-pointer">
                         <td className="py-4 px-6">
-                          <Link href={`/assets/${asset.id}`} className="flex items-center gap-3">
+                          <Link href={`/assets/${asset.assetId || asset.id}`} className="flex items-center gap-3">
                             <img
                               src={asset.imageUrl || '/images/asset-placeholder.png'}
                               alt={asset.name}
@@ -558,7 +558,7 @@ export default function AssetsListPage() {
                         </td>
                         <td className="py-4 px-6 text-right">
                           <Link
-                            href={`/assets/${asset.id}`}
+                            href={`/assets/${asset.assetId || asset.id}`}
                             className="p-1.5 px-3 rounded-lg border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition inline-flex items-center gap-1 text-xs font-semibold"
                           >
                             <Eye className="w-3.5 h-3.5" />

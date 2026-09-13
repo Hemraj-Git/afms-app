@@ -31,6 +31,7 @@ import {
   Plus,
 } from 'lucide-react'
 import { Asset } from '@/types/afms'
+import { isPendingWorkOrder } from '@/lib/idGenerator'
 
 export default function AssetDetailPage() {
   const params = useParams()
@@ -41,9 +42,6 @@ export default function AssetDetailPage() {
     assets,
     categories,
     subCategories,
-    rooms,
-    buildings,
-    campuses,
     workOrders,
     inspections,
     documents,
@@ -57,9 +55,6 @@ export default function AssetDetailPage() {
   const asset = assets.find(a => a.id === assetIdParam || a.assetId === assetIdParam)
   const subCategory = asset ? subCategories.find(s => s.id === asset.subCategoryId) : undefined
   const category = subCategory ? categories.find(c => c.id === subCategory.categoryId) : undefined
-  const room = asset ? rooms.find(r => r.id === asset.roomId) : undefined
-  const building = room ? buildings.find(b => b.id === room.buildingId) : undefined
-  const campus = building ? campuses.find(c => c.id === building.campusId) : undefined
   const purchaseVendor = asset ? vendors.find(v => v.id === asset.purchaseVendorId) : undefined
   const maintVendor = asset ? vendors.find(v => v.id === asset.maintenanceVendorId) : undefined
 
@@ -167,7 +162,7 @@ export default function AssetDetailPage() {
   }
 
   return (
-    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Assets', href: '/assets' }, { label: `${asset.id} - ${asset.name}` }]}>
+    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Assets', href: '/assets' }, { label: `${asset.assetId} - ${asset.name}` }]}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
         {/* Top Header with Asset ID, Name, Datetime, and Edit Button */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -177,7 +172,7 @@ export default function AssetDetailPage() {
                 <ArrowLeft className="w-5 h-5" />
               </Link>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                {asset.id} - {asset.name}
+                {asset.assetId} - {asset.name}
               </h1>
             </div>
             <p className="text-xs text-slate-500 mt-1 pl-7">
@@ -187,7 +182,7 @@ export default function AssetDetailPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push(`/assets/create?edit=${asset.id}`)}
+              onClick={() => router.push(`/assets/create?edit=${asset.assetId}`)}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
             >
               <Pencil className="w-3.5 h-3.5" />
@@ -344,7 +339,7 @@ export default function AssetDetailPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-2 gap-y-4 gap-x-8 text-xs">
                     <div>
                       <p className="text-slate-400 font-medium">Asset Id</p>
-                      <p className="text-sm font-bold font-mono text-slate-900 mt-0.5">{asset.id}</p>
+                      <p className="text-sm font-bold font-mono text-slate-900 mt-0.5">{asset.assetId}</p>
                     </div>
 
                     <div>
@@ -496,7 +491,7 @@ export default function AssetDetailPage() {
                       {assetWorkOrders.length > 0 ? (
                         assetWorkOrders.map((wo, idx) => (
                           <tr key={wo.id} className="hover:bg-slate-50/60 transition">
-                            <td className="py-3 pr-4 font-mono font-bold text-slate-800">{wo.woNumber || wo.id}</td>
+                            <td className="py-3 pr-4 font-mono font-bold text-slate-800">{isPendingWorkOrder(wo.woNumber) ? 'Pending Assignment' : (wo.woNumber || wo.id)}</td>
                             <td className="py-3 px-3 text-slate-700 font-medium">{wo.title || 'Preventive Maintenance'}</td>
                             <td className="py-3 px-3">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${wo.type === 'Preventive' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
@@ -650,7 +645,7 @@ export default function AssetDetailPage() {
                           onClick={() => {
                             // Generate mock downloadable file blob
                             const element = document.createElement('a')
-                            const fileContent = `AFMS Official Compliance Document\nDocument ID: ${doc.id}\nTitle: ${doc.title}\nType: ${doc.fileType}\nAsset: ${asset.id} - ${asset.name}\nUploaded By: ${doc.uploadedBy}\nDate: ${doc.uploadedAt}`
+                            const fileContent = `AFMS Official Compliance Document\nDocument ID: ${doc.id}\nTitle: ${doc.title}\nType: ${doc.fileType}\nAsset: ${asset.assetId} - ${asset.name}\nUploaded By: ${doc.uploadedBy}\nDate: ${doc.uploadedAt}`
                             const file = new Blob([fileContent], { type: 'text/plain;charset=utf-8' })
                             element.href = URL.createObjectURL(file)
                             element.download = `${doc.title.replace(/[^a-z0-9]/gi, '_')}.txt`
@@ -684,60 +679,9 @@ export default function AssetDetailPage() {
                 </div>
 
                 {assetTimeline.length === 0 ? (
-                  <div className="space-y-6 pl-4 sm:pl-6 border-l-2 border-blue-200 my-4">
-                    {/* Visual Activity Trail Timeline Node 1 */}
-                    <div className="relative pl-6 group">
-                      <div className="absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full bg-blue-600 ring-4 ring-blue-100 group-hover:scale-110 transition"></div>
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-1.5 hover:border-blue-300 transition shadow-2xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <span className="font-bold text-xs text-slate-900">Asset Registered &amp; Assigned to Location</span>
-                          <span className="text-[10px] font-mono text-slate-400 font-medium">Ref: #AST-INIT</span>
-                        </div>
-                        <p className="text-xs text-slate-600">
-                          Asset onboarding completed, assigned to {room?.name || 'Assigned Room'} ({room?.id || 'ROM-0001'}) in {building?.name || 'Building'}.
-                        </p>
-                        <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="font-semibold text-slate-700">By System Administrator</span>
-                          <span>{asset.installationDate || 'Installation Date'} • 10:00 AM</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Visual Activity Trail Timeline Node 2 */}
-                    <div className="relative pl-6 group">
-                      <div className="absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100 group-hover:scale-110 transition"></div>
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-1.5 hover:border-emerald-300 transition shadow-2xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <span className="font-bold text-xs text-slate-900">Status Verification: Operational</span>
-                          <span className="text-[10px] font-mono text-slate-400 font-medium">Ref: #VER-001</span>
-                        </div>
-                        <p className="text-xs text-slate-600">
-                          Initial functional telemetry &amp; electrical testing passed with zero non-conformities.
-                        </p>
-                        <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="font-semibold text-slate-700">By Lead Field Technician</span>
-                          <span>{asset.installationDate || 'Installation Date'} • 11:30 AM</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Visual Activity Trail Timeline Node 3 */}
-                    <div className="relative pl-6 group">
-                      <div className="absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full bg-purple-500 ring-4 ring-purple-100 group-hover:scale-110 transition"></div>
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-1.5 hover:border-purple-300 transition shadow-2xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <span className="font-bold text-xs text-slate-900">Compliance SOP Schedules Generated</span>
-                          <span className="text-[10px] font-mono text-slate-400 font-medium">Ref: #SCH-AUTO</span>
-                        </div>
-                        <p className="text-xs text-slate-600">
-                          Automatic recurring Preventive Maintenance &amp; Statutory Inspection work orders dispatched.
-                        </p>
-                        <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="font-semibold text-slate-700">By System Automation Engine</span>
-                          <span>System Generated</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="text-center py-10 text-slate-400 border border-dashed border-slate-200 rounded-2xl my-4">
+                    <p className="text-xs font-semibold text-slate-500">No activity recorded yet for this asset</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Lifecycle events (installation, maintenance, inspections) will appear here as they occur.</p>
                   </div>
                 ) : (
                   <div className="space-y-6 pl-4 sm:pl-6 border-l-2 border-blue-200 my-4">
@@ -789,20 +733,20 @@ export default function AssetDetailPage() {
               <div className="p-6 bg-blue-50/50 rounded-2xl border border-blue-100 flex flex-col items-center justify-center space-y-3">
                 <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-2xs">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=AFMS-${asset.id}`}
-                    alt={`QR Code for ${asset.id}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=AFMS-${asset.assetId}`}
+                    alt={`QR Code for ${asset.assetId}`}
                     className="w-40 h-40 object-contain"
                   />
                 </div>
-                <p className="font-bold text-xs text-slate-900 tracking-tight font-mono">{asset.id} - {asset.name}</p>
+                <p className="font-bold text-xs text-slate-900 tracking-tight font-mono">{asset.assetId} - {asset.name}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <a
-                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=AFMS-${asset.id}`}
+                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=AFMS-${asset.assetId}`}
                   target="_blank"
                   rel="noreferrer"
-                  download={`QR-${asset.id}.png`}
+                  download={`QR-${asset.assetId}.png`}
                   className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />

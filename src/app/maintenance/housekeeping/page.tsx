@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getNextSequence, formatYearlyId } from '@/lib/idGenerator'
 import {
   Sparkles,
   Search,
@@ -49,7 +50,7 @@ export default function HousekeepingPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const tech = users.find(u => u.id === assignedTechnicianId)
-    const woNum = `WO-HK-${new Date().getFullYear()}-${String(workOrders.length + 1).padStart(4, '0')}`
+    const woNum = formatYearlyId('WO-HK', getNextSequence(workOrders.map(w => w.woNumber), 'WO-HK'))
 
     addWorkOrder({
       woNumber: woNum,
@@ -151,7 +152,7 @@ export default function HousekeepingPage() {
                     <h3 className="font-bold text-sm text-slate-900 mt-1">{wo.title}</h3>
                     <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                       <DoorOpen className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{room?.name || 'Classroom / Area'} ({wo.roomId})</span>
+                      <span>{room?.name || 'Classroom / Area'} ({room?.roomNumber || wo.roomId})</span>
                     </p>
                     {wo.issueLogged && (
                       <p className="text-xs text-slate-400 mt-2 bg-slate-50 p-2 rounded-lg">{wo.issueLogged}</p>
@@ -228,7 +229,7 @@ export default function HousekeepingPage() {
                   >
                     {rooms.map(r => (
                       <option key={r.id} value={r.id}>
-                        {r.name} ({r.id})
+                        {r.name} ({r.roomNumber || r.id})
                       </option>
                     ))}
                   </select>

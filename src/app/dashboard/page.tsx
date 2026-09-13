@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { isPendingWorkOrder } from '@/lib/idGenerator'
 import {
   Boxes,
   MessageSquare,
@@ -206,7 +207,7 @@ export default function DashboardPage() {
                         {sr.requestedBy} ({sr.requestedByRole})
                       </p>
                       <p className="text-[10px] text-slate-400">
-                        Room: {sr.roomId} • {new Date(sr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        Room: {rooms.find(r => r.id === sr.roomId)?.roomNumber || sr.roomId} • {new Date(sr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
 
@@ -509,7 +510,7 @@ export default function DashboardPage() {
                       return (
                         <tr key={wo.id} className="hover:bg-slate-50/60 transition">
                           <td className="py-3">
-                            <p className="font-bold text-slate-900 font-mono text-blue-600">{wo.woNumber}</p>
+                            <p className="font-bold text-slate-900 font-mono text-blue-600">{isPendingWorkOrder(wo.woNumber) ? 'Pending Assignment' : wo.woNumber}</p>
                             <p className="text-[11px] text-slate-400">{asset?.name || 'Asset'}</p>
                           </td>
                           <td className="py-3 text-slate-600 font-medium">{wo.dueDate}</td>

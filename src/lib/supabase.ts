@@ -1,6 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key'
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Re-exports the cookie-based browser client (see src/lib/supabase/client.ts)
+// so the session is visible to proxy.ts and Server Components/Actions, not
+// just to this browser tab's localStorage. Existing `import { supabase } from
+// '@/lib/supabase'` call sites across the app keep working unchanged.
+export const supabase = createClient()

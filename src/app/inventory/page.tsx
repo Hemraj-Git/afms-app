@@ -123,14 +123,14 @@ export default function InventoryDashboardPage() {
   }
 
   // Handle Deploy to Active Asset
-  const handleConfirmDeploy = (e: React.FormEvent) => {
+  const handleConfirmDeploy = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!deployItem || !deployRoomId) {
       alert('Please select a target Room / Area for deployment.')
       return
     }
 
-    const created = convertInventoryToAsset(
+    const created = await convertInventoryToAsset(
       deployItem.id,
       deployRoomId,
       deployInstallDate,
@@ -139,7 +139,7 @@ export default function InventoryDashboardPage() {
     if (created) {
       setDeployItem(null)
       setDeployUserId('')
-      router.push(`/assets/${created.id}`)
+      router.push(`/assets/${created.assetId}`)
     }
   }
 

@@ -54,6 +54,7 @@ function AddInventoryForm() {
     addVendor,
     documents,
     addDocument,
+    updateDocument,
     currentUser,
   } = useAFMS()
 
@@ -63,8 +64,17 @@ function AddInventoryForm() {
   const [currentStep, setCurrentStep] = useState(1)
 
   // Step 1 Form States: Item & Stock & Image
-  const nextInvId = formatId('INV', getNextSequence(inventoryItems.map(i => i.id), 'INV'))
-  const [inventoryId, setInventoryId] = useState(nextInvId)
+  // Starts empty and is computed once `inventoryItems` has actually loaded
+  // (below) -- a useState initializer here would run before that fetch
+  // resolves and always see an empty array, showing "INV-0001" for every
+  // new spare regardless of how many already exist. Also uses
+  // inventoryNumber (the real formatted id), not the raw UUID `id`.
+  const [inventoryId, setInventoryId] = useState('')
+
+  useEffect(() => {
+    if (isEditMode) return
+    setInventoryId(formatId('INV', getNextSequence(inventoryItems.map(i => i.inventoryNumber || i.id), 'INV')))
+  }, [inventoryItems, isEditMode])
   const [name, setName] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState('')
@@ -175,14 +185,14 @@ function AddInventoryForm() {
   }
 
   // Handle Quick Add Vendor
-  const handleSaveNewVendor = (e: React.FormEvent) => {
+  const handleSaveNewVendor = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVendorName.trim()) {
       alert('Vendor Name is required.')
       return
     }
 
-    const createdVendor = addVendor({
+    const createdVendor = await addVendor({
       name: newVendorName.trim(),
       categorySupplied: activeCategory?.name || 'General Spares',
       contactPerson: newVendorContact,
@@ -197,14 +207,14 @@ function AddInventoryForm() {
   }
 
   // Handle In-Wizard Document Upload & Auto-link
-  const handleSaveNewDocument = (e: React.FormEvent) => {
+  const handleSaveNewDocument = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newDocTitle.trim()) {
       alert('Please provide a document title.')
       return
     }
 
-    const newDoc = addDocument({
+    const newDoc = await addDocument({
       title: newDocTitle.trim(),
       fileType: newDocType,
       fileUrl: '/mock-documents/spec-sheet.pdf',
@@ -272,9 +282,9 @@ function AddInventoryForm() {
     if (currentStep > 1) setCurrentStep(currentStep - 1)
   }
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
     if (isEditMode && existingItem) {
-      updateInventoryItem(existingItem.id, {
+      await updateInventoryItem(existingItem.id, {
         name,
         subCategoryId: selectedSubCategoryId,
         manufacturer,
@@ -294,23 +304,24 @@ function AddInventoryForm() {
         notes: notes || undefined,
       })
 
-      // Update document links
-      documents.forEach(doc => {
+      // Update document links — actually persisted via updateDocument now,
+      // rather than the old bare `doc.linkedAssetIds = [...]` mutation
+      // which never reached the database and vanished on reload.
+      await Promise.all(documents.map(doc => {
         const isLinkedNow = selectedDocIds.includes(doc.id)
         const hasId = doc.linkedAssetIds?.includes(existingItem.id) || doc.linkedAssetIds?.includes(existingItem.inventoryNumber)
 
         if (isLinkedNow && !hasId) {
-          doc.linkedAssetIds = [...(doc.linkedAssetIds || []), existingItem.id, existingItem.inventoryNumber]
+          return updateDocument(doc.id, { inventoryItemId: existingItem.id })
         } else if (!isLinkedNow && hasId) {
-          doc.linkedAssetIds = (doc.linkedAssetIds || []).filter(
-            id => id !== existingItem.id && id !== existingItem.inventoryNumber
-          )
+          return updateDocument(doc.id, { inventoryItemId: null })
         }
-      })
+        return Promise.resolve()
+      }))
 
       router.push(`/inventory/${existingItem.id}`)
     } else {
-      const createdItem = addInventoryItem({
+      const createdItem = await addInventoryItem({
         name,
         subCategoryId: selectedSubCategoryId,
         manufacturer,
@@ -330,13 +341,9 @@ function AddInventoryForm() {
         notes: notes || undefined,
       })
 
-      // Link selected documents to this new spare
+      // Link selected documents to this newly created spare
       if (selectedDocIds.length > 0) {
-        documents.forEach(doc => {
-          if (selectedDocIds.includes(doc.id)) {
-            doc.linkedAssetIds = [...(doc.linkedAssetIds || []), createdItem.id, createdItem.inventoryNumber]
-          }
-        })
+        await Promise.all(selectedDocIds.map(docId => updateDocument(docId, { inventoryItemId: createdItem.id })))
       }
 
       router.push('/inventory')
@@ -651,7 +658,7 @@ function AddInventoryForm() {
                   <option value="">Select Vendor (Optional)</option>
                   {vendors.map(v => (
                     <option key={v.id} value={v.id}>
-                      {v.name} ({v.id}) {v.contactPerson ? `• ${v.contactPerson}` : ''}
+                      {v.name} ({v.code || v.id}) {v.contactPerson ? `• ${v.contactPerson}` : ''}
                     </option>
                   ))}
                 </select>

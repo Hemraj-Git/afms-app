@@ -18,8 +18,6 @@ export interface UserProfile {
   departmentId?: string
   phone?: string
   avatarUrl?: string
-  password?: string
-  passwordLastChanged?: string
 }
 
 export interface Campus {
@@ -111,6 +109,7 @@ export interface SubCategory {
 
 export interface Vendor {
   id: string
+  code?: string
   name: string
   categorySupplied: string
   contactPerson: string
@@ -155,6 +154,7 @@ export interface Asset {
   price?: number
   purchaseDate?: string
   installationDate: string
+  lastServicedDate?: string
   warrantyTill?: string
   maintenanceBy: 'In House' | 'Vendor'
   maintenanceVendorId?: string
@@ -216,9 +216,10 @@ export interface ServiceRequest {
   assetId?: string
   requestedBy: string
   requestedByRole: string
+  requestedByUserId?: string
   assignedTo?: string
   assignedToName?: string
-  status: 'Open' | 'In Progress' | 'Resolved' | 'Closed'
+  status: 'Open' | 'In Progress' | 'Resolved' | 'Closed' | 'Escalated'
   priority: 'Low' | 'Medium' | 'High' | 'Critical'
   createdAt: string
   slaDueDate: string
@@ -229,6 +230,7 @@ export interface ServiceRequest {
   dismissalReason?: string
   dismissedAt?: string
   dismissedBy?: string
+  resolutionNotes?: string
 }
 
 export interface WorkOrderPartItem {
@@ -292,8 +294,20 @@ export interface Inspection {
   createdAt: string
 }
 
+export interface AppNotification {
+  id: string
+  type: 'wo_assigned' | 'inspection_assigned' | 'auto_checkout'
+  title: string
+  body?: string
+  refTable?: string
+  refId?: string
+  isRead: boolean
+  createdAt: string
+}
+
 export interface RoomAccessLog {
   id: string
+  activityNumber?: string
   roomId: string
   roomName: string
   userId: string

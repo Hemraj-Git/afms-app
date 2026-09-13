@@ -50,7 +50,7 @@ export default function RoomDetailPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'access_log'>('overview')
 
   // Find room safely
-  const room = rooms.find(r => r.id === roomId)
+  const room = rooms.find(r => r.id === roomId || r.roomNumber === roomId)
   const building = room ? buildings.find(b => b.id === room.buildingId) : undefined
   const campus = building ? campuses.find(c => c.id === building.campusId) : undefined
 
@@ -73,14 +73,48 @@ export default function RoomDetailPage() {
 
   // Access Logs for this room
   const roomLogs = room ? roomAccessLogs.filter(l => l.roomId === room.id) : []
-  const mockExtendedLogs = [
-    { id: 'EVT020', date: '03.08.2026', time: '02:30 PM', user: 'Capt. John Snow', role: 'Instructor', purpose: 'Training - Radar Simulator', type: 'Check Out' },
-    { id: 'EVT021', date: '03.08.2026', time: '10:30 AM', user: 'Capt. John Snow', role: 'Instructor', purpose: 'Training - Navigation Charting', type: 'Check In' },
-    { id: 'EVT023', date: '02.08.2026', time: '03:30 PM', user: 'Capt. Peter Parker', role: 'Instructor', purpose: 'Training - Bridge Sim Batch 42', type: 'Check Out' },
-    { id: 'EVT024', date: '02.08.2026', time: '11:00 AM', user: 'Capt. Peter Parker', role: 'Instructor', purpose: 'Training - ECDIS Setup', type: 'Check In' },
-    { id: 'EVT025', date: '01.08.2026', time: '06:00 PM', user: 'Tom Holland', role: 'Technician', purpose: 'Maintenance - AC and Monitor testing', type: 'Check Out' },
-    { id: 'EVT026', date: '01.08.2026', time: '04:00 PM', user: 'Tom Holland', role: 'Technician', purpose: 'Maintenance - Display calibration', type: 'Check In' },
-  ]
+
+  // Each session (one row in roomAccessLogs) is split into its own Check In
+  // and Check Out entries for display, rather than one combined row — a
+  // completed visit should read as two distinct log lines, one per event.
+  const roomLogEvents = roomLogs.flatMap(log => {
+    const activityId = log.activityNumber || log.id
+    const events: Array<{
+      key: string
+      activityId: string
+      type: 'Check In' | 'Check Out'
+      date?: string
+      time: string
+      userName: string
+      userRole?: string
+      purpose?: string
+      isActive: boolean
+    }> = [{
+      key: `${log.id}-in`,
+      activityId,
+      type: 'Check In',
+      date: log.checkInDate,
+      time: log.checkInTime,
+      userName: log.userName,
+      userRole: log.userRole,
+      purpose: log.purpose,
+      isActive: !log.checkOutTime,
+    }]
+    if (log.checkOutTime) {
+      events.push({
+        key: `${log.id}-out`,
+        activityId,
+        type: 'Check Out',
+        date: log.checkInDate,
+        time: log.checkOutTime,
+        userName: log.userName,
+        userRole: log.userRole,
+        purpose: log.purpose,
+        isActive: false,
+      })
+    }
+    return events
+  })
 
   // Dynamic Reservations for today (from centralized reservation state)
   const todayStr = new Date().toISOString().split('T')[0]
@@ -136,19 +170,19 @@ export default function RoomDetailPage() {
   }
 
   return (
-    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Rooms/Areas', href: '/organization/rooms' }, { label: `${room.id} - ${room.name}` }]}>
+    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Rooms/Areas', href: '/organization/rooms' }, { label: `${room.roomNumber} - ${room.name}` }]}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
         {/* Top Room Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                {room.id}
+                {room.roomNumber}
               </span>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{room.name}</h1>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              {building?.name || 'Simulator Block'} • {campus?.name || 'Main Campus'} • Room Tag: {room.qrCodeKey || room.id}
+              {building?.name || 'Simulator Block'} • {campus?.name || 'Main Campus'} • Room Tag: {room.qrCodeKey || room.roomNumber}
             </p>
           </div>
 
@@ -264,7 +298,7 @@ export default function RoomDetailPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-2 gap-6 text-xs">
                     <div>
                       <p className="text-slate-400 font-semibold text-[11px]">Room/Area ID</p>
-                      <p className="text-sm font-bold font-mono text-slate-900 mt-0.5">{room.id}</p>
+                      <p className="text-sm font-bold font-mono text-slate-900 mt-0.5">{room.roomNumber}</p>
                     </div>
 
                     <div>
@@ -342,7 +376,7 @@ export default function RoomDetailPage() {
                             return (
                               <tr key={ast.id} className="hover:bg-slate-50/60 transition group">
                                 <td className="py-3 px-4">
-                                  <Link href={`/assets/${ast.id}`} className="flex items-center gap-3">
+                                  <Link href={`/assets/${ast.assetId}`} className="flex items-center gap-3">
                                      <img
                                        src={ast.imageUrl || '/images/asset-placeholder.png'}
                                        alt={ast.name}
@@ -367,7 +401,7 @@ export default function RoomDetailPage() {
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                   <Link
-                                    href={`/assets/${ast.id}`}
+                                    href={`/assets/${ast.assetId}`}
                                     className="p-1.5 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition inline-flex items-center gap-1 text-[11px] font-semibold"
                                     title="Open Asset Hub"
                                   >
@@ -400,36 +434,46 @@ export default function RoomDetailPage() {
                       <thead>
                         <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
                           <th className="py-3 px-4">Activity ID</th>
+                          <th className="py-3 px-4">Type</th>
                           <th className="py-3 px-4">Date &amp; Time</th>
                           <th className="py-3 px-4">Access By</th>
                           <th className="py-3 px-4">Purpose</th>
-                          <th className="py-3 px-4 text-right">Activity</th>
+                          <th className="py-3 px-4 text-right">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {roomLogs.length === 0 ? (
+                        {roomLogEvents.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="py-8 text-center text-slate-400">
+                            <td colSpan={6} className="py-8 text-center text-slate-400">
                               No access logs recorded for this space yet.
                             </td>
                           </tr>
                         ) : (
-                          roomLogs.map(log => (
-                            <tr key={log.id} className="hover:bg-slate-50/60 transition">
-                              <td className="py-3 px-4 font-mono font-semibold text-slate-700">{log.id}</td>
-                              <td className="py-3 px-4 text-slate-500 font-medium">{log.checkInTime}</td>
+                          roomLogEvents.map(event => (
+                            <tr key={event.key} className="hover:bg-slate-50/60 transition">
+                              <td className="py-3 px-4 font-mono font-semibold text-slate-700">{event.activityId}</td>
                               <td className="py-3 px-4">
-                                <p className="font-bold text-slate-900">{log.userName}</p>
-                                <p className="text-[10px] text-slate-400">{log.userRole}</p>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  event.type === 'Check In'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                }`}>
+                                  {event.type}
+                                </span>
                               </td>
-                              <td className="py-3 px-4 text-slate-600">{log.purpose}</td>
+                              <td className="py-3 px-4 text-slate-500 font-medium">{event.date ? `${event.date} ` : ''}{event.time}</td>
+                              <td className="py-3 px-4">
+                                <p className="font-bold text-slate-900">{event.userName}</p>
+                                <p className="text-[10px] text-slate-400">{event.userRole}</p>
+                              </td>
+                              <td className="py-3 px-4 text-slate-600">{event.purpose}</td>
                               <td className="py-3 px-4 text-right">
                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  !log.checkOutTime
+                                  event.isActive
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : 'bg-slate-100 text-slate-600 border border-slate-200'
                                 }`}>
-                                  {!log.checkOutTime ? 'Active In Room' : 'Checked Out'}
+                                  {event.isActive ? 'Active In Room' : 'Completed'}
                                 </span>
                               </td>
                             </tr>
@@ -458,7 +502,7 @@ export default function RoomDetailPage() {
                   />
                 </div>
                 <p className="font-extrabold text-xs text-slate-900 tracking-tight">
-                  {room.id} - {room.name}
+                  {room.roomNumber} - {room.name}
                 </p>
               </div>
 
@@ -480,41 +524,43 @@ export default function RoomDetailPage() {
               </div>
             </div>
 
-            {/* Card 2: Today's Reservation Timeline (Figma Right Panel) */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900">Today's Reservation</h3>
-                <span className="text-xs font-bold text-slate-600">{bookedHours}h / {totalHours}h</span>
-              </div>
+            {/* Card 2: Today's Reservation Timeline (Figma Right Panel) — only for rooms actually set up for reservations */}
+            {room.isReservable && (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-900">Today's Reservation</h3>
+                  <span className="text-xs font-bold text-slate-600">{bookedHours}h / {totalHours}h</span>
+                </div>
 
-              {/* Capacity Progress Bar */}
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-blue-600 h-full rounded-full transition-all"
-                  style={{ width: `${(bookedHours / totalHours) * 100}%` }}
-                ></div>
-              </div>
+                {/* Capacity Progress Bar */}
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-blue-600 h-full rounded-full transition-all"
+                    style={{ width: `${(bookedHours / totalHours) * 100}%` }}
+                  ></div>
+                </div>
 
-              {/* Slot Items */}
-              <div className="space-y-3 pt-2">
-                {reservationSlots.map((slot, index) => {
-                  const isBooked = slot.status === 'Booked'
-                  return (
-                    <div key={index} className="flex items-start gap-2.5 text-xs">
-                      <Clock className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${isBooked ? 'text-amber-500' : 'text-emerald-500'}`} />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800">{slot.time}</span>
-                          <span className={`text-[10px] font-semibold ${isBooked ? 'text-slate-600' : 'text-emerald-600'}`}>
-                            {isBooked ? slot.by : '• Available'}
-                          </span>
+                {/* Slot Items */}
+                <div className="space-y-3 pt-2">
+                  {reservationSlots.map((slot, index) => {
+                    const isBooked = slot.status === 'Booked'
+                    return (
+                      <div key={index} className="flex items-start gap-2.5 text-xs">
+                        <Clock className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${isBooked ? 'text-amber-500' : 'text-emerald-500'}`} />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-800">{slot.time}</span>
+                            <span className={`text-[10px] font-semibold ${isBooked ? 'text-slate-600' : 'text-emerald-600'}`}>
+                              {isBooked ? slot.by : '• Available'}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

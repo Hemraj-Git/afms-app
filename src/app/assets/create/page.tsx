@@ -72,8 +72,16 @@ function AddAssetForm() {
   const existingAsset = editAssetId ? assets.find(a => a.id === editAssetId || a.assetId === editAssetId) : undefined
 
   // Step 1: Basic Information (Clear placeholders, empty defaults or existing asset)
-  const nextAssetId = formatId('AST', getNextSequence(assets.map(a => a.id), 'AST'))
-  const [assetId, setAssetId] = useState(nextAssetId)
+  // Starts empty and is computed once `assets` has actually loaded from
+  // Supabase (below) — a useState initializer here would run before that
+  // fetch resolves and always see an empty array, showing "AST0001" for
+  // every new asset regardless of how many already exist.
+  const [assetId, setAssetId] = useState('')
+
+  useEffect(() => {
+    if (isEditMode) return
+    setAssetId(formatId('AST', getNextSequence(assets.map(a => a.assetId || a.id), 'AST')))
+  }, [assets, isEditMode])
   const [assetName, setAssetName] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState('')
@@ -86,6 +94,7 @@ function AddAssetForm() {
   const [assetPrice, setAssetPrice] = useState('') // optional
   const [purchaseDate, setPurchaseDate] = useState('')
   const [installationDate, setInstallationDate] = useState('')
+  const [lastServicedDate, setLastServicedDate] = useState('')
   const [warrantyTill, setWarrantyTill] = useState('')
   const [maintenanceBy, setMaintenanceBy] = useState<'In House' | 'Vendor'>('In House')
   const [purchasedFromId, setPurchasedFromId] = useState('')
@@ -124,7 +133,7 @@ function AddAssetForm() {
   useEffect(() => {
     if (!existingAsset) return
 
-    setAssetId(existingAsset.id)
+    setAssetId(existingAsset.assetId)
     setAssetName(existingAsset.name || '')
     
     // Find subCategory and its parent category
@@ -140,6 +149,7 @@ function AddAssetForm() {
     setAssetPrice(existingAsset.price ? String(existingAsset.price) : '')
     setPurchaseDate(existingAsset.purchaseDate || '')
     setInstallationDate(existingAsset.installationDate || '')
+    setLastServicedDate(existingAsset.lastServicedDate || '')
     setWarrantyTill(existingAsset.warrantyTill || '')
     setMaintenanceBy(existingAsset.maintenanceBy || 'In House')
     setPurchasedFromId(existingAsset.purchaseVendorId || '')
@@ -311,14 +321,14 @@ function AddAssetForm() {
   }
 
   // Handle Inline New Vendor Submission
-  const handleSaveNewVendor = (e: React.FormEvent) => {
+  const handleSaveNewVendor = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVendorName.trim()) {
       alert('Vendor Name is required.')
       return
     }
 
-    const createdVendor = addVendor({
+    const createdVendor = await addVendor({
       name: newVendorName.trim(),
       categorySupplied: newVendorCategory || 'General Supply',
       contactPerson: newVendorContact,
@@ -359,7 +369,7 @@ function AddAssetForm() {
       setIsUploadingDoc(false)
     }
 
-    const createdDoc = addDocument({
+    const createdDoc = await addDocument({
       title: newDocTitle.trim(),
       fileType: newDocType,
       fileUrl: finalFileUrl,
@@ -406,8 +416,20 @@ function AddAssetForm() {
         alert('Please select Installation Date.')
         return false
       }
+      if (installationDate < purchaseDate) {
+        alert('Installation Date cannot be before Purchase Date.')
+        return false
+      }
+      if (lastServicedDate && lastServicedDate < purchaseDate) {
+        alert('Last Serviced Date cannot be before Purchase Date.')
+        return false
+      }
       if (!warrantyTill) {
         alert('Please select Warranty Expiry Date.')
+        return false
+      }
+      if (warrantyTill < purchaseDate) {
+        alert('Warranty Till date cannot be before Purchase Date.')
         return false
       }
       if (!purchasedFromId) {
@@ -425,6 +447,10 @@ function AddAssetForm() {
         }
         if (!amcEndDate) {
           alert('Please select AMC End Date.')
+          return false
+        }
+        if (amcEndDate < amcStartDate) {
+          alert('AMC End Date cannot be before AMC Start Date.')
           return false
         }
       }
@@ -466,7 +492,7 @@ function AddAssetForm() {
     if (currentStep > 1) setCurrentStep(currentStep - 1)
   }
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
     const finalImageUrl = imageUrl.trim() || DEFAULT_ASSET_PLACEHOLDER_IMAGE
 
     if (isEditMode && existingAsset) {
@@ -480,6 +506,7 @@ function AddAssetForm() {
         price: assetPrice ? parseFloat(assetPrice) : undefined,
         purchaseDate,
         installationDate,
+        lastServicedDate: lastServicedDate || undefined,
         warrantyTill,
         maintenanceBy,
         maintenanceVendorId: maintenanceBy === 'Vendor' ? amcVendorId : undefined,
@@ -492,9 +519,9 @@ function AddAssetForm() {
         imageUrl: finalImageUrl,
         notes: note || undefined,
       })
-      router.push(`/assets/${existingAsset.id}`)
+      router.push(`/assets/${existingAsset.assetId}`)
     } else {
-      const created = addAsset({
+      const created = await addAsset({
         name: assetName,
         subCategoryId: selectedSubCategoryId,
         roomId: selectedRoomId,
@@ -504,6 +531,7 @@ function AddAssetForm() {
         price: assetPrice ? parseFloat(assetPrice) : undefined,
         purchaseDate,
         installationDate,
+        lastServicedDate: lastServicedDate || undefined,
         warrantyTill,
         maintenanceBy,
         maintenanceVendorId: maintenanceBy === 'Vendor' ? amcVendorId : undefined,
@@ -519,8 +547,13 @@ function AddAssetForm() {
       })
 
       if (selectedDocIds.length > 0 && created?.id) {
-        selectedDocIds.forEach(docId => {
-          supabase.from('documents').update({ asset_id: created.id }).eq('id', docId).then(() => {})
+        const results = await Promise.all(
+          selectedDocIds.map(docId =>
+            supabase.from('documents').update({ asset_id: created.id }).eq('id', docId)
+          )
+        )
+        results.forEach(({ error }, i) => {
+          if (error) console.error(`Supabase document link error (${selectedDocIds[i]}):`, error.message)
         })
       }
 
@@ -621,7 +654,7 @@ function AddAssetForm() {
                   >
                     <option value="">Select Category</option>
                     {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+                      <option key={c.id} value={c.id}>{c.name} ({c.code || c.id})</option>
                     ))}
                   </select>
                 </div>
@@ -638,7 +671,7 @@ function AddAssetForm() {
                       {!selectedCategoryId ? 'Select Category First' : 'Select Sub-Category'}
                     </option>
                     {availableSubCategories.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
+                      <option key={s.id} value={s.id}>{s.name} ({s.code || s.id})</option>
                     ))}
                   </select>
                   {selectedCategoryId && availableSubCategories.length === 0 && (
@@ -702,7 +735,16 @@ function AddAssetForm() {
                   <input
                     type="date"
                     value={purchaseDate}
-                    onChange={e => setPurchaseDate(e.target.value)}
+                    onChange={e => {
+                      const v = e.target.value
+                      setPurchaseDate(v)
+                      // Downstream dates anchored to purchase date are no
+                      // longer valid once it changes — clear them rather
+                      // than silently leaving a now-impossible ordering.
+                      if (installationDate && v && installationDate < v) setInstallationDate('')
+                      if (lastServicedDate && v && lastServicedDate < v) setLastServicedDate('')
+                      if (warrantyTill && v && warrantyTill < v) setWarrantyTill('')
+                    }}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
@@ -712,9 +754,30 @@ function AddAssetForm() {
                   <input
                     type="date"
                     value={installationDate}
+                    min={purchaseDate || undefined}
+                    disabled={isEditMode}
                     onChange={e => setInstallationDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                  />
+                  {isEditMode && (
+                    <p className="text-[10px] text-slate-400 mt-1">Locked after creation — used to schedule PM/Inspection cycles.</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Last Serviced Date <span className="text-slate-400 font-normal">(Optional — for legacy/backdated assets)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={lastServicedDate}
+                    min={purchaseDate || undefined}
+                    onChange={e => setLastServicedDate(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    If this asset was already installed and serviced before being entered here, set this so the first PM/Inspection cycle is scheduled from this date instead of today.
+                  </p>
                 </div>
 
                 {/* Row 6: Warranty Till & Maintenance By */}
@@ -723,6 +786,7 @@ function AddAssetForm() {
                   <input
                     type="date"
                     value={warrantyTill}
+                    min={purchaseDate || undefined}
                     onChange={e => setWarrantyTill(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
                   />
@@ -759,8 +823,11 @@ function AddAssetForm() {
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
                   >
                     <option value="">Select Vendor</option>
+                    {purchasedFromId && !vendors.some(v => v.id === purchasedFromId) && (
+                      <option value={purchasedFromId}>Loading vendor…</option>
+                    )}
                     {vendors.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
+                      <option key={v.id} value={v.id}>{v.name} ({v.code || v.id})</option>
                     ))}
                     <option value="__ADD_NEW_VENDOR__">+ Add New Vendor...</option>
                   </select>
@@ -850,16 +917,11 @@ function AddAssetForm() {
                   </div>
                 </div>
 
-                {/* Row 8: Functional Asset Image Upload Card with Default Placeholder */}
+                {/* Row 8: Asset Image Upload Card */}
                 <div className="md:col-span-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Asset Image <span className="text-slate-400 font-normal">(Optional)</span>
-                    </label>
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {imageUrl ? 'Custom image uploaded' : 'Default placeholder image active'}
-                    </span>
-                  </div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Asset Image <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -876,31 +938,15 @@ function AddAssetForm() {
                           alt="Asset Preview"
                           className="w-14 h-14 rounded-xl object-cover border border-blue-200 shrink-0 bg-white shadow-2xs"
                         />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-bold text-slate-800">Custom Photo Attached</p>
-                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Custom</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5">Ready for upload with this asset record</p>
-                        </div>
+                        <p className="text-xs font-bold text-slate-800">Image Attached</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-3 py-1.5 text-xs font-semibold text-blue-600 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition cursor-pointer shadow-2xs"
-                        >
-                          Change Photo
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setImageUrl('')}
-                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 bg-white border border-rose-200 rounded-xl hover:bg-rose-50 transition cursor-pointer shadow-2xs"
-                          title="Revert to default placeholder"
-                        >
-                          Use Placeholder
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 text-xs font-semibold text-blue-600 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition cursor-pointer shadow-2xs"
+                      >
+                        Change Photo
+                      </button>
                     </div>
                   ) : (
                     <div className="border border-slate-200 rounded-2xl p-3.5 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xs">
@@ -912,15 +958,7 @@ function AddAssetForm() {
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-bold text-slate-800">Standard Placeholder Active</p>
-                            <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">Default</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5 max-w-md">
-                            No custom photo uploaded. The standard equipment placeholder will be assigned automatically upon asset creation.
-                          </p>
-                        </div>
+                        <p className="text-xs font-bold text-slate-800">No image uploaded</p>
                       </div>
 
                       <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
@@ -930,7 +968,7 @@ function AddAssetForm() {
                           className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-xl transition cursor-pointer shadow-2xs"
                         >
                           <UploadCloud className="w-4 h-4 text-blue-600" />
-                          <span>Upload Custom Photo</span>
+                          <span>Upload Image</span>
                         </button>
                       </div>
                     </div>
@@ -964,8 +1002,11 @@ function AddAssetForm() {
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
                       >
                         <option value="">Select AMC Vendor</option>
+                        {amcVendorId && !vendors.some(v => v.id === amcVendorId) && (
+                          <option value={amcVendorId}>Loading vendor…</option>
+                        )}
                         {vendors.map(v => (
-                          <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
+                          <option key={v.id} value={v.id}>{v.name} ({v.code || v.id})</option>
                         ))}
                         <option value="__ADD_NEW_VENDOR__">+ Add New Vendor...</option>
                       </select>
@@ -976,7 +1017,11 @@ function AddAssetForm() {
                       <input
                         type="date"
                         value={amcStartDate}
-                        onChange={e => setAmcStartDate(e.target.value)}
+                        onChange={e => {
+                          const v = e.target.value
+                          setAmcStartDate(v)
+                          if (amcEndDate && v && amcEndDate < v) setAmcEndDate('')
+                        }}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
                       />
                     </div>
@@ -986,6 +1031,7 @@ function AddAssetForm() {
                       <input
                         type="date"
                         value={amcEndDate}
+                        min={amcStartDate || undefined}
                         onChange={e => setAmcEndDate(e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
                       />
@@ -1027,7 +1073,7 @@ function AddAssetForm() {
                   >
                     <option value="">Select Campus</option>
                     {campuses.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+                      <option key={c.id} value={c.id}>{c.name} ({c.code || c.id})</option>
                     ))}
                   </select>
                 </div>
@@ -1044,7 +1090,7 @@ function AddAssetForm() {
                       {!selectedCampusId ? 'Select Campus First' : 'Select Building'}
                     </option>
                     {availableBuildings.map(b => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.id})</option>
+                      <option key={b.id} value={b.id}>{b.name} ({b.code || b.id})</option>
                     ))}
                   </select>
                   {selectedCampusId && availableBuildings.length === 0 && (
@@ -1064,7 +1110,7 @@ function AddAssetForm() {
                       {!selectedBuildingId ? 'Select Building First' : 'Select Room'}
                     </option>
                     {availableRooms.map(r => (
-                      <option key={r.id} value={r.id}>{r.name} ({r.id})</option>
+                      <option key={r.id} value={r.id}>{r.name} ({r.roomNumber || r.id})</option>
                     ))}
                   </select>
                   {selectedBuildingId && availableRooms.length === 0 && (
@@ -1081,7 +1127,7 @@ function AddAssetForm() {
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h2 className="text-base font-bold text-slate-900">Dynamic Specifications</h2>
                 <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2.5 py-1 rounded-full">
-                  Configured from {activeSubCategory?.name || 'Subcategory'} ({activeSubCategory?.id})
+                  Configured from {activeSubCategory?.name || 'Subcategory'} ({activeSubCategory?.code || activeSubCategory?.id})
                 </span>
               </div>
 
@@ -1232,7 +1278,7 @@ function AddAssetForm() {
             <div className="space-y-6">
               <h2 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100">Review & Confirmation</h2>
 
-              {/* Asset Visual & Photo Status Preview */}
+              {/* Asset Visual Preview */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row items-center gap-4 shadow-2xs">
                 <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white shrink-0 shadow-2xs flex items-center justify-center">
                   <img
@@ -1242,25 +1288,9 @@ function AddAssetForm() {
                   />
                 </div>
                 <div className="text-center sm:text-left flex-1">
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                    <span className="text-sm font-bold text-slate-900">{assetName || 'New Facility Asset'}</span>
-                    <span
-                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                        imageUrl
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-slate-200/80 text-slate-700 border-slate-300'
-                      }`}
-                    >
-                      {imageUrl ? 'Custom Photo Attached' : 'Default Placeholder Active'}
-                    </span>
-                  </div>
+                  <span className="text-sm font-bold text-slate-900">{assetName || 'New Facility Asset'}</span>
                   <p className="text-xs text-slate-500 font-mono mt-1">
                     {assetId} • {manufacturer || 'Manufacturer'} ({modelNumber || 'Model'})
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {imageUrl
-                      ? 'The custom uploaded photo above will be registered with this asset.'
-                      : 'No custom photo provided. The official asset placeholder image above will be set automatically.'}
                   </p>
                 </div>
               </div>
@@ -1270,12 +1300,18 @@ function AddAssetForm() {
                   <p className="font-bold text-slate-900">General Overview</p>
                   <p><span className="text-slate-500">Asset ID:</span> <strong className="text-blue-600 font-mono">{assetId}</strong></p>
                   <p><span className="text-slate-500">Asset Name:</span> {assetName}</p>
-                  <p><span className="text-slate-500">Category:</span> {activeCategory?.name} ({activeCategory?.id})</p>
-                  <p><span className="text-slate-500">Sub-Category:</span> {activeSubCategory?.name} ({activeSubCategory?.id})</p>
+                  <p><span className="text-slate-500">Category:</span> {activeCategory?.name} ({activeCategory?.code || activeCategory?.id})</p>
+                  <p><span className="text-slate-500">Sub-Category:</span> {activeSubCategory?.name} ({activeSubCategory?.code || activeSubCategory?.id})</p>
                   <p><span className="text-slate-500">Manufacturer / Model:</span> {manufacturer} ({modelNumber})</p>
                   {serialNumber && <p><span className="text-slate-500">Serial No:</span> {serialNumber}</p>}
                   {assetPrice && <p><span className="text-slate-500">Price:</span> ₹{assetPrice}</p>}
                   <p><span className="text-slate-500">Installation Date:</span> {installationDate}</p>
+                  {lastServicedDate && <p><span className="text-slate-500">Last Serviced Date:</span> {lastServicedDate}</p>}
+                  {!isEditMode && (
+                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-1">
+                      Installation Date cannot be changed after this asset is created — it is used to schedule the first Preventive Maintenance and Inspection due dates. Please double-check it before submitting.
+                    </p>
+                  )}
                   <p><span className="text-slate-500">Maintenance By:</span> {maintenanceBy}</p>
                   {maintenanceBy === 'Vendor' && (
                     <p><span className="text-slate-500">AMC Period:</span> {amcStartDate} to {amcEndDate}</p>

@@ -1,11 +1,17 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/Sidebar'
 import { Header } from '@/components/Header'
-import { useAFMS } from '@/context/AFMSContext'
 
+// Auth/role gating for every route this layout wraps happens server-side in
+// proxy.ts (redirects unauthenticated requests to /login, non-Admin roles
+// to /mobile, before any client code here ever runs) — this component does
+// not re-check it. An earlier version did a client-only `isLoggedIn` check
+// and returned a spinner in its place, which is exactly the anti-pattern
+// Next's own auth guide warns against (a layout "return null" gate doesn't
+// stop nested routes or Server Actions from executing) and, once proxy.ts
+// existed, was also fully redundant with it.
 export function AppLayout({
   children,
   breadcrumbs = [{ label: 'Home', href: '/dashboard' }],
@@ -13,20 +19,9 @@ export function AppLayout({
   children: React.ReactNode
   breadcrumbs?: { label: string; href?: string }[]
 }) {
-  const router = useRouter()
-  const { isLoggedIn } = useAFMS()
-  const [mounted, setMounted] = useState(false)
-
   // Sidebar collapsed state with localStorage persistence
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    if (!isLoggedIn) {
-      router.push('/login')
-    }
-  }, [isLoggedIn, router])
 
   useEffect(() => {
     try {
@@ -53,17 +48,6 @@ export function AppLayout({
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(prev => !prev)
-  }
-
-  if (mounted && !isLoggedIn) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-slate-50">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-xs text-slate-500 font-medium">Redirecting to login...</p>
-        </div>
-      </div>
-    )
   }
 
   return (

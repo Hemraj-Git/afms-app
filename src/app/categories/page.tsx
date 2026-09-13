@@ -40,7 +40,7 @@ export default function CategoriesPage() {
     setShowModal(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
       alert('Please enter a Category Name.')
@@ -53,7 +53,7 @@ export default function CategoriesPage() {
         description: description.trim(),
       })
     } else {
-      addCategory({
+      await addCategory({
         name: name.trim(),
         description: description.trim(),
       })
@@ -64,17 +64,17 @@ export default function CategoriesPage() {
   const handleDelete = (cat: Category) => {
     const subs = subCategories.filter(s => s.categoryId === cat.id)
     if (subs.length > 0) {
-      alert(`Deletion not permitted: Category "${cat.name}" (${cat.id}) has ${subs.length} linked Sub-Categories (${subs.map(s => s.name).join(', ')}). Please delete or reassign those subcategories first.`)
+      alert(`Deletion not permitted: Category "${cat.name}" (${cat.code}) has ${subs.length} linked Sub-Categories (${subs.map(s => s.name).join(', ')}). Please delete or reassign those subcategories first.`)
       return
     }
-    if (confirm(`Are you sure you want to delete category "${cat.name}" (${cat.id})?`)) {
+    if (confirm(`Are you sure you want to delete category "${cat.name}" (${cat.code})?`)) {
       deleteCategory(cat.id)
     }
   }
 
   const filteredCategories = categories.filter(
     c =>
-      c.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.description?.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -159,7 +159,7 @@ export default function CategoriesPage() {
 
                     <div>
                       <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
-                        {c.id}
+                        {c.code}
                       </span>
                       <h3 className="font-bold text-sm text-slate-900 mt-2">{c.name}</h3>
                       <p className="text-xs text-slate-500 mt-1">{c.description || 'No description provided.'}</p>
@@ -186,7 +186,7 @@ export default function CategoriesPage() {
                     {editingCategory ? 'Edit Category' : 'Add New Category'}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {editingCategory ? `ID: ${editingCategory.id}` : `Auto-assigned 4-Letter ID: ${previewCategoryId}`}
+                    {editingCategory ? `ID: ${editingCategory.code}` : `Auto-assigned 4-Letter ID: ${previewCategoryId}`}
                   </p>
                 </div>
                 <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">

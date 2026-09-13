@@ -203,7 +203,7 @@ export default function BuildingPage() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20"
                   >
                     {campuses.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+                      <option key={c.id} value={c.id}>{c.name} ({c.code || c.id})</option>
                     ))}
                   </select>
                 </div>

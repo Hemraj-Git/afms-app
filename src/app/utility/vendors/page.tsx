@@ -47,7 +47,7 @@ export default function VendorsPage() {
     const q = searchQuery.toLowerCase()
     return (
       v.name.toLowerCase().includes(q) ||
-      v.id.toLowerCase().includes(q) ||
+      (v.code || v.id).toLowerCase().includes(q) ||
       v.email?.toLowerCase().includes(q) ||
       v.phone?.toLowerCase().includes(q) ||
       v.contactPerson?.toLowerCase().includes(q) ||
@@ -216,7 +216,7 @@ export default function VendorsPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                              {v.id}
+                              {v.code || v.id}
                             </span>
                             {isLinked && (
                               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
@@ -312,7 +312,7 @@ export default function VendorsPage() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-slate-900">
-                      {editingVendor ? `Edit Vendor (${editingVendor.id})` : 'Add New Vendor'}
+                      {editingVendor ? `Edit Vendor (${editingVendor.code || editingVendor.id})` : 'Add New Vendor'}
                     </h3>
                     <p className="text-xs text-slate-500">Configure vendor contact and support personnel</p>
                   </div>
@@ -421,7 +421,7 @@ export default function VendorsPage() {
               <div className="text-center space-y-1">
                 <h3 className="text-base font-bold text-slate-900">Delete Vendor Profile?</h3>
                 <p className="text-xs text-slate-500">
-                  Are you sure you want to remove <strong className="text-slate-800">{vendorToDelete.name}</strong> ({vendorToDelete.id})?
+                  Are you sure you want to remove <strong className="text-slate-800">{vendorToDelete.name}</strong> ({vendorToDelete.code || vendorToDelete.id})?
                 </p>
               </div>
 

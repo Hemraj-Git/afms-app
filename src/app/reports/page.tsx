@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { isPendingWorkOrder } from '@/lib/idGenerator'
 import {
   BarChart3,
   FileSpreadsheet,
@@ -387,7 +388,7 @@ export default function ReportsHubPage() {
         return true
       })
       .map(l => ({
-        logId: l.id,
+        logId: l.activityNumber || l.id,
         roomName: l.roomName,
         userName: l.userName,
         userRole: l.userRole,
@@ -448,10 +449,12 @@ export default function ReportsHubPage() {
       })
   }, [assets, vendors, users, assetFilter, userFilter, searchQuery])
 
-  // 6. Preventive Maintenance (PM) Report
+  // 6. Preventive Maintenance (PM) Report — excludes unassigned PENDING
+  // records (not yet real Work Orders; those still show in the dedicated
+  // Preventive Maintenance queue as "Pending Assignment").
   const pmData = useMemo(() => {
     return workOrders
-      .filter(w => w.type === 'Preventive')
+      .filter(w => w.type === 'Preventive' && !isPendingWorkOrder(w.woNumber))
       .filter(w => {
         if (!isWithinDateRange(w.dueDate || w.createdAt)) return false
         if (statusFilter !== 'ALL' && w.status !== statusFilter) return false
@@ -493,10 +496,10 @@ export default function ReportsHubPage() {
       })
   }, [workOrders, assets, rooms, users, startDate, endDate, datePreset, statusFilter, assetFilter, userFilter, searchQuery])
 
-  // 7. Corrective Maintenance Report
+  // 7. Corrective Maintenance Report — same PENDING exclusion as PM above.
   const correctiveData = useMemo(() => {
     return workOrders
-      .filter(w => w.type === 'Corrective')
+      .filter(w => w.type === 'Corrective' && !isPendingWorkOrder(w.woNumber))
       .filter(w => {
         if (!isWithinDateRange(w.createdAt || w.dueDate)) return false
         if (statusFilter !== 'ALL' && w.status !== statusFilter) return false
@@ -1137,7 +1140,7 @@ export default function ReportsHubPage() {
                     assetMasterData.map(row => (
                       <tr key={row.id} className="hover:bg-slate-50/60 transition">
                         <td className="py-3.5 px-6 font-mono font-bold text-blue-600">
-                          <Link href={`/assets/${row.id}`} className="hover:underline">
+                          <Link href={`/assets/${row.assetId}`} className="hover:underline">
                             {row.assetId}
                           </Link>
                         </td>
@@ -1236,8 +1239,8 @@ export default function ReportsHubPage() {
                     roomWiseData.map(row => (
                       <tr key={row.roomId} className="hover:bg-slate-50/60 transition">
                         <td className="py-3.5 px-6 font-mono font-bold text-blue-600">
-                          <Link href={`/organization/rooms/${row.roomId}`} className="hover:underline">
-                            {row.roomId}
+                          <Link href={`/organization/rooms/${row.roomNumber}`} className="hover:underline">
+                            {row.roomNumber}
                           </Link>
                         </td>
                         <td className="py-3.5 px-4 font-bold text-slate-900">

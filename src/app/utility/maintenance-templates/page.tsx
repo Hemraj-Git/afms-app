@@ -141,10 +141,12 @@ export default function MaintenanceTemplatesPage() {
 
   // Deletion Protection: Check if linked to any SubCategory or active Assets
   const handleDelete = (id: string, name: string) => {
-    const linkedSubCategories = subCategories.filter(s => s.pmTemplateId === id)
+    const linkedSubCategories = subCategories.filter(
+      s => s.pmTemplateId === id || (s.pmTemplateIds && s.pmTemplateIds.includes(id))
+    )
     const linkedAssets = assets.filter(a => {
       const sub = subCategories.find(s => s.id === a.subCategoryId)
-      return sub?.pmTemplateId === id
+      return Boolean(sub && (sub.pmTemplateId === id || (sub.pmTemplateIds && sub.pmTemplateIds.includes(id))))
     })
 
     if (linkedSubCategories.length > 0 || linkedAssets.length > 0) {

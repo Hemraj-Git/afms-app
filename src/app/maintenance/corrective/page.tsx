@@ -27,11 +27,17 @@ import {
   Trash2,
 } from 'lucide-react'
 import { WorkOrder, WorkOrderPartItem } from '@/types/afms'
+import { isPendingWorkOrder } from '@/lib/idGenerator'
+
+// A not-yet-assigned Corrective record has a 'PENDING-<uuid>' placeholder
+// woNumber (see makePendingWoNumber) -- show something readable instead of
+// that raw internal string until it's minted into a real WO-CR-#### number.
+const displayWoNumber = (woNumber: string) => (isPendingWorkOrder(woNumber) ? 'Pending Assignment' : woNumber)
 
 export default function CorrectiveMaintenancePage() {
   const router = useRouter()
   const { workOrders, updateWorkOrderStatus, assets, rooms, users, addWorkOrder, currentUser } = useAFMS()
-  
+
   const [selectedWoForAssign, setSelectedWoForAssign] = useState<WorkOrder | null>(null)
   const [selectedWoForResolve, setSelectedWoForResolve] = useState<WorkOrder | null>(null)
   const [selectedWoForDetails, setSelectedWoForDetails] = useState<WorkOrder | null>(null)
@@ -163,7 +169,7 @@ export default function CorrectiveMaintenancePage() {
 
                   return (
                     <tr key={wo.id} className="hover:bg-slate-50/60 transition">
-                      <td className="py-4 px-6 font-mono font-bold text-rose-600">{wo.woNumber}</td>
+                      <td className="py-4 px-6 font-mono font-bold text-rose-600">{displayWoNumber(wo.woNumber)}</td>
                       <td className="py-4 px-4">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                           {wo.source} ({wo.sourceRefId || 'SR'})
@@ -243,7 +249,7 @@ export default function CorrectiveMaintenancePage() {
             <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <span className="text-xs font-mono font-bold text-rose-600">{selectedWoForAssign.woNumber}</span>
+                  <span className="text-xs font-mono font-bold text-rose-600">{displayWoNumber(selectedWoForAssign.woNumber)}</span>
                   <h3 className="text-base font-bold text-slate-900">
                     {selectedWoForAssign.assignedTechnicianName ? 'Reassign Technician' : 'Assign Technician'}
                   </h3>
@@ -317,7 +323,7 @@ export default function CorrectiveMaintenancePage() {
             <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <span className="text-xs font-mono font-bold text-rose-600">{selectedWoForResolve.woNumber}</span>
+                  <span className="text-xs font-mono font-bold text-rose-600">{displayWoNumber(selectedWoForResolve.woNumber)}</span>
                   <h3 className="text-lg font-bold text-slate-900">Log Breakdown Resolution</h3>
                 </div>
                 <button onClick={() => setSelectedWoForResolve(null)} className="text-slate-400 hover:text-slate-600">✕</button>
@@ -498,7 +504,7 @@ export default function CorrectiveMaintenancePage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                          {wo.woNumber}
+                          {displayWoNumber(wo.woNumber)}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                           isCompleted

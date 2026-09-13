@@ -142,10 +142,12 @@ export default function InspectionTemplatesPage() {
 
   // Deletion Protection: Check if linked to any SubCategory or active Assets
   const handleDelete = (id: string, name: string) => {
-    const linkedSubCategories = subCategories.filter(s => s.inspectionTemplateId === id)
+    const linkedSubCategories = subCategories.filter(
+      s => s.inspectionTemplateId === id || (s.inspectionTemplateIds && s.inspectionTemplateIds.includes(id))
+    )
     const linkedAssets = assets.filter(a => {
       const sub = subCategories.find(s => s.id === a.subCategoryId)
-      return sub?.inspectionTemplateId === id
+      return Boolean(sub && (sub.inspectionTemplateId === id || (sub.inspectionTemplateIds && sub.inspectionTemplateIds.includes(id))))
     })
 
     if (linkedSubCategories.length > 0 || linkedAssets.length > 0) {

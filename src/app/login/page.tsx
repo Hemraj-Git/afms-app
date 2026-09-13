@@ -7,20 +7,17 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  Lock,
-  Mail,
   Anchor,
   ShieldCheck,
   User,
+  Mail,
   Phone,
   QrCode,
   ArrowRight,
-  Key,
-  X,
   AlertCircle,
   Loader2,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { signIn, guestSignIn } from '@/app/actions/auth'
 
 function LoginFormContent() {
   const router = useRouter()
@@ -28,32 +25,23 @@ function LoginFormContent() {
   const redirectTarget = searchParams.get('redirect') || '/dashboard'
   const isQrRedirect = redirectTarget.includes('/qr')
 
-  const { login, guestLogin, users, updateUser } = useAFMS()
+  const { login } = useAFMS()
 
   const [activeTab, setActiveTab] = useState<'staff' | 'guest'>(isQrRedirect ? 'guest' : 'staff')
 
   // Staff Credentials State
-  const [email, setEmail] = useState('admin@hemrajmarines.com')
-  const [password, setPassword] = useState('password123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [keepLoggedIn, setKeepLoggedIn] = useState(true)
   const [loginError, setLoginError] = useState('')
   const [isAuthenticating, setIsAuthenticating] = useState(false)
-
-  // Forgot Password / Self-Service Reset State
-  const [showForgotModal, setShowForgotModal] = useState(false)
-  const [forgotEmail, setForgotEmail] = useState('')
-  const [resetNewPass, setResetNewPass] = useState('')
-  const [resetConfirmPass, setResetConfirmPass] = useState('')
-  const [showResetText, setShowResetText] = useState(false)
-  const [forgotError, setForgotError] = useState('')
-  const [forgotSuccess, setForgotSuccess] = useState('')
 
   // Guest Details State
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestError, setGuestError] = useState('')
+  const [isGuestSubmitting, setIsGuestSubmitting] = useState(false)
 
   const getDestination = (userRole: string) => {
     const customRedirect = searchParams.get('redirect')
@@ -71,120 +59,52 @@ function LoginFormContent() {
     setIsAuthenticating(true)
 
     try {
-      // 1. Authenticate with live Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
-      })
-
-      if (!authError && authData?.user) {
-        // Fetch user profile from Supabase
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', authData.user.id)
-          .maybeSingle()
-
-        const fallbackUser = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase())
-        const userRole = (profile?.role || fallbackUser?.role || 'Admin') as any
-        const authenticatedUser = {
-          id: authData.user.id,
-          email: authData.user.email || email,
-          fullName: profile?.full_name || fallbackUser?.fullName || 'Staff Member',
-          role: userRole,
-          department: profile?.department || fallbackUser?.department || 'Operations',
-          phone: profile?.phone || fallbackUser?.phone || '',
-        }
-
-        login(authenticatedUser)
-        router.push(getDestination(authenticatedUser.role))
+      const result = await signIn(email, password)
+      if (!result.success) {
+        setLoginError(result.error)
         return
       }
-
-      // 2. Fallback to local accounts if Supabase Auth user is not registered yet
-      const matchedUser = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase())
-      if (matchedUser) {
-        const expectedPassword = matchedUser.password || 'password123'
-        if (password === expectedPassword) {
-          login(matchedUser)
-          router.push(getDestination(matchedUser.role))
-          return
-        }
-      }
-
-      setLoginError(authError?.message || 'Incorrect password or email. Please verify credentials.')
-    } catch (err: any) {
-      const matchedUser = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase())
-      if (matchedUser && password === (matchedUser.password || 'password123')) {
-        login(matchedUser)
-        router.push(getDestination(matchedUser.role))
-        return
-      }
-      setLoginError(err.message || 'Authentication error. Please check your credentials.')
+      login(result.profile)
+      router.push(getDestination(result.profile.role))
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : 'Authentication error. Please try again.')
     } finally {
       setIsAuthenticating(false)
     }
   }
 
-  const quickLoginAs = (roleName: string) => {
-    const u = users.find(user => user.role === roleName) || users[0]
-    setEmail(u.email)
-    setPassword(u.password || 'password123')
-    setLoginError('')
-    login(u)
-    router.push(getDestination(u.role))
-  }
-
-  const handleSelfResetSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setForgotError('')
-    setForgotSuccess('')
-
-    const targetUser = users.find(u => u.email.toLowerCase() === forgotEmail.trim().toLowerCase())
-    if (!targetUser) {
-      setForgotError('No registered user profile found with this email address.')
-      return
-    }
-
-    if (resetNewPass.length < 6) {
-      setForgotError('Password must be at least 6 characters.')
-      return
-    }
-
-    if (resetNewPass !== resetConfirmPass) {
-      setForgotError('New password and confirmation do not match.')
-      return
-    }
-
-    updateUser(targetUser.id, {
-      password: resetNewPass.trim(),
-      passwordLastChanged: new Date().toISOString().split('T')[0],
-    })
-
-    setForgotSuccess('Password reset successfully! You can now sign in with your new password.')
-    setEmail(targetUser.email)
-    setPassword(resetNewPass.trim())
-    setLoginError('')
-
-    setTimeout(() => {
-      setShowForgotModal(false)
-      setForgotSuccess('')
-    }, 2000)
-  }
-
-  const handleGuestSignIn = (e: React.FormEvent) => {
+  const handleGuestSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!guestEmail.trim() || !guestPhone.trim()) {
       setGuestError('Please provide both email address and mobile number.')
       return
     }
     setGuestError('')
-    guestLogin({
-      fullName: guestName.trim() || 'Guest Visitor',
-      email: guestEmail.trim(),
-      phone: guestPhone.trim(),
-    })
-    router.push(redirectTarget)
+    setIsGuestSubmitting(true)
+    try {
+      const result = await guestSignIn({
+        fullName: guestName.trim(),
+        email: guestEmail.trim(),
+        phone: guestPhone.trim(),
+      })
+      if (!result.success) {
+        setGuestError(result.error)
+        return
+      }
+      login({
+        id: result.profile.id,
+        fullName: result.profile.fullName,
+        email: result.profile.email,
+        phone: result.profile.phone,
+        role: 'Guest',
+        department: 'Visitor Services',
+      })
+      router.push(redirectTarget)
+    } catch (err) {
+      setGuestError(err instanceof Error ? err.message : 'Could not start guest session. Please try again.')
+    } finally {
+      setIsGuestSubmitting(false)
+    }
   }
 
   return (
@@ -289,33 +209,6 @@ function LoginFormContent() {
             </div>
           </div>
 
-          {/* Checkbox and Forgot Password */}
-          <div className="flex items-center justify-between text-xs">
-            <label className="flex items-center gap-2 cursor-pointer text-slate-600 select-none">
-              <input
-                type="checkbox"
-                checked={keepLoggedIn}
-                onChange={e => setKeepLoggedIn(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span>Keep me logged in</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => {
-                setShowForgotModal(true)
-                setForgotEmail(email)
-                setForgotError('')
-                setForgotSuccess('')
-                setResetNewPass('')
-                setResetConfirmPass('')
-              }}
-              className="text-blue-600 font-semibold hover:underline"
-            >
-              Forgot password?
-            </button>
-          </div>
-
           {/* Submit Button */}
           <button
             type="submit"
@@ -331,43 +224,6 @@ function LoginFormContent() {
               <span>Sign In & Continue</span>
             )}
           </button>
-
-          {/* Quick Role Test Logins */}
-          <div className="pt-4 border-t border-slate-100">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              Quick Role Test Logins
-            </p>
-            <div className="grid grid-cols-4 gap-1.5">
-              <button
-                type="button"
-                onClick={() => quickLoginAs('Admin')}
-                className="py-1.5 px-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-[11px] rounded-lg font-medium transition text-center"
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLoginAs('Faculty')}
-                className="py-1.5 px-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-[11px] rounded-lg font-medium transition text-center"
-              >
-                Faculty
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLoginAs('Technician')}
-                className="py-1.5 px-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-[11px] rounded-lg font-medium transition text-center"
-              >
-                Technician
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLoginAs('Housekeeping')}
-                className="py-1.5 px-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-[11px] rounded-lg font-medium transition text-center"
-              >
-                Housekeeping
-              </button>
-            </div>
-          </div>
         </form>
       ) : (
         /* GUEST ACCESS FORM */
@@ -440,130 +296,19 @@ function LoginFormContent() {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold rounded-xl shadow-md shadow-blue-500/25 transition text-xs sm:text-sm flex items-center justify-center gap-2"
+            disabled={isGuestSubmitting}
+            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed active:scale-[0.99] text-white font-semibold rounded-xl shadow-md shadow-blue-500/25 transition text-xs sm:text-sm flex items-center justify-center gap-2"
           >
-            <span>Continue to Scanned Entity</span>
-            <ArrowRight className="w-4 h-4" />
+            {isGuestSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <>
+                <span>Continue to Scanned Entity</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
         </form>
-      )}
-
-      {/* Self-Service Password Reset Modal */}
-      {showForgotModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                  <Key className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800">Reset Account Password</h3>
-                  <p className="text-[11px] text-slate-500">Self-service password recovery for registered personnel</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowForgotModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSelfResetSubmit} className="p-5 space-y-4">
-              {forgotError && (
-                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-                  <span>{forgotError}</span>
-                </div>
-              )}
-
-              {forgotSuccess && (
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs font-medium flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
-                  <span>{forgotSuccess}</span>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Registered Email Address<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    value={forgotEmail}
-                    onChange={e => setForgotEmail(e.target.value)}
-                    placeholder="Enter your registered account email"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
-                  New Password<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showResetText ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={resetNewPass}
-                    onChange={e => setResetNewPass(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowResetText(!showResetText)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showResetText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Confirm New Password<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showResetText ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={resetConfirmPass}
-                    onChange={e => setResetConfirmPass(e.target.value)}
-                    placeholder="Re-enter new password"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowForgotModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition shadow-xs"
-                >
-                  Save New Password
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </div>
   )

@@ -448,7 +448,7 @@ export default function ReservationsPage() {
                       <tr key={room.id} className="hover:bg-slate-50/50 transition">
                         {/* Room Info Cell */}
                         <td className="py-4 px-6 font-bold text-slate-900">
-                          <Link href={`/organization/rooms/${room.id}`} className="hover:text-blue-600 transition">
+                          <Link href={`/organization/rooms/${room.roomNumber || room.id}`} className="hover:text-blue-600 transition">
                             <p>{room.name}</p>
                           </Link>
                           <p className="text-[11px] font-normal text-slate-400">Room {room.roomNumber} • {room.type}</p>

@@ -25,6 +25,12 @@ import {
 } from 'lucide-react'
 import { WorkOrder } from '@/types/afms'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
+import { isPendingWorkOrder } from '@/lib/idGenerator'
+
+// A not-yet-assigned Preventive record has a 'PENDING-<uuid>' placeholder
+// woNumber (see makePendingWoNumber) -- show something readable instead of
+// that raw internal string until it's minted into a real WO-PM-#### number.
+const displayWoNumber = (woNumber: string) => (isPendingWorkOrder(woNumber) ? 'Pending Assignment' : woNumber)
 
 export default function PreventiveMaintenancePage() {
   const router = useRouter()
@@ -119,7 +125,7 @@ export default function PreventiveMaintenancePage() {
 
                     return (
                       <tr key={wo.id} className="hover:bg-slate-50/60 transition">
-                        <td className="py-4 px-6 font-mono font-bold text-blue-600">{wo.woNumber}</td>
+                        <td className="py-4 px-6 font-mono font-bold text-blue-600">{displayWoNumber(wo.woNumber)}</td>
                         <td className="py-4 px-4 font-semibold text-slate-800">{asset?.name || 'Asset'}</td>
                         <td className="py-4 px-4">
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
@@ -213,7 +219,7 @@ export default function PreventiveMaintenancePage() {
             <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <span className="text-xs font-mono font-bold text-blue-600">{selectedWoForAssign.woNumber}</span>
+                  <span className="text-xs font-mono font-bold text-blue-600">{displayWoNumber(selectedWoForAssign.woNumber)}</span>
                   <h3 className="text-base font-bold text-slate-900">
                     {selectedWoForAssign.assignedTechnicianName ? 'Reassign Technician' : 'Assign Technician'}
                   </h3>
@@ -308,7 +314,7 @@ export default function PreventiveMaintenancePage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                          {wo.woNumber}
+                          {displayWoNumber(wo.woNumber)}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                           isCompleted

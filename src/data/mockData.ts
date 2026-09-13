@@ -28,8 +28,6 @@ export const mockUsers: UserProfile[] = [
     role: 'Admin',
     department: 'Facility Operations',
     phone: '+91 98201 12345',
-    password: 'password123',
-    passwordLastChanged: '2026-02-15',
   },
   {
     id: 'USR-0002',
@@ -38,8 +36,6 @@ export const mockUsers: UserProfile[] = [
     role: 'Technician',
     department: 'Engineering & Maintenance',
     phone: '+91 98201 22334',
-    password: 'password123',
-    passwordLastChanged: '2026-02-15',
   },
   {
     id: 'USR-0003',
@@ -48,8 +44,6 @@ export const mockUsers: UserProfile[] = [
     role: 'Faculty',
     department: 'Academic Operations',
     phone: '+91 98201 33445',
-    password: 'password123',
-    passwordLastChanged: '2026-02-15',
   },
   {
     id: 'USR-0004',
@@ -58,8 +52,6 @@ export const mockUsers: UserProfile[] = [
     role: 'Faculty',
     department: 'Quality & Safety',
     phone: '+91 98201 44556',
-    password: 'password123',
-    passwordLastChanged: '2026-02-15',
   },
   {
     id: 'USR-0005',
@@ -68,8 +60,6 @@ export const mockUsers: UserProfile[] = [
     role: 'Housekeeping',
     department: 'Facilities & Hygiene',
     phone: '+91 98201 55667',
-    password: 'password123',
-    passwordLastChanged: '2026-02-15',
   },
 ]
 

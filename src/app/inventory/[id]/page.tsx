@@ -91,14 +91,14 @@ export default function InventoryItemDetailPage() {
   const isOutOfStock = item.quantity === 0
   const isLowStock = item.quantity > 0 && item.quantity <= minThresh
 
-  const handleConfirmDeploy = (e: React.FormEvent) => {
+  const handleConfirmDeploy = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!deployRoomId) {
       alert('Please select a target Room / Area for deployment.')
       return
     }
 
-    const created = convertInventoryToAsset(
+    const created = await convertInventoryToAsset(
       item.id,
       deployRoomId,
       deployInstallDate,
@@ -107,7 +107,7 @@ export default function InventoryItemDetailPage() {
     if (created) {
       setShowDeployModal(false)
       setDeployUserId('')
-      router.push(`/assets/${created.id}`)
+      router.push(`/assets/${created.assetId}`)
     }
   }
 
