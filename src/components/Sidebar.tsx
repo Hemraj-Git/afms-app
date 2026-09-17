@@ -209,7 +209,7 @@ export function Sidebar({
           <div className="bg-slate-100/80 rounded-xl p-3.5 text-center space-y-2 border border-slate-200/60">
             <div>
               <p className="text-[10px] text-slate-400 uppercase font-semibold">A Product of</p>
-              <p className="text-xs font-bold text-slate-800">Hemraj Marines Services</p>
+              <p className="text-xs font-bold text-slate-800">HMS - Digital Solutions</p>
             </div>
             <button
               onClick={() => alert('Support line: support@hemrajmarines.com | Tel: +91 22 6600 4400')}
