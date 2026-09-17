@@ -1,4 +1,6 @@
 // Operational attempt window rules for scheduled PM and Inspections
+import { getLocalDateStr } from './dateUtils'
+
 export type MaintenanceInterval = 'Weekly' | 'Monthly' | 'Quarterly' | 'Half-Yearly' | 'Annually'
 
 export interface AttemptWindowStatus {
@@ -97,7 +99,9 @@ export function getAttemptWindowStatus(
     windowDays = 15
   }
 
-  const unlockDateStr = !isNaN(unlockDate.getTime()) ? unlockDate.toISOString().split('T')[0] : ''
+  // Not .toISOString().split('T')[0] -- unlockDate was built from local
+  // components above, and serializing to UTC rolls it back a day for IST.
+  const unlockDateStr = !isNaN(unlockDate.getTime()) ? getLocalDateStr(unlockDate) : ''
   const diffToUnlockMs = unlockDate.getTime() - today.getTime()
   const daysUntilUnlock = Math.ceil(diffToUnlockMs / 86400000)
   const isOverdue = today.getTime() > dueDay.getTime()

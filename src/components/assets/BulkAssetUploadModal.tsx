@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
+import { getLocalDateStr } from '@/lib/dateUtils'
 import {
   downloadAssetExcelTemplate,
   parseAssetExcelFile,
@@ -152,7 +153,7 @@ export function BulkAssetUploadModal({
           serialNumber: r.serialNumber || undefined,
           price: r.price,
           purchaseDate: r.purchaseDate,
-          installationDate: r.installationDate || new Date().toISOString().split('T')[0],
+          installationDate: r.installationDate || getLocalDateStr(),
           warrantyTill: r.warrantyTill,
           status: r.status,
           maintenanceBy: r.maintenanceBy,

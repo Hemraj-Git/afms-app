@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { calculateDaysRemaining, formatDateDisplay, formatDateTimeDisplay } from '@/lib/dateUtils'
 import {
   Boxes,
   Wrench,
@@ -88,30 +89,6 @@ export default function AssetDetailPage() {
 
   const nextMaintenanceDate = nextScheduledWo ? nextScheduledWo.dueDate : 'Not Scheduled'
 
-  const calculateDaysRemaining = (dueDateStr?: string) => {
-    if (!dueDateStr || dueDateStr === 'Not Scheduled') {
-      return { label: 'No Schedule', variant: 'neutral' }
-    }
-    const due = new Date(dueDateStr)
-    const today = new Date()
-    // Reset time components for accurate date difference calculation
-    due.setHours(0, 0, 0, 0)
-    today.setHours(0, 0, 0, 0)
-
-    const diffTime = due.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays > 1) {
-      return { label: `In ${diffDays} Days`, variant: diffDays <= 7 ? 'warning' : 'info' }
-    } else if (diffDays === 1) {
-      return { label: 'In 1 Day', variant: 'warning' }
-    } else if (diffDays === 0) {
-      return { label: 'Due Today', variant: 'warning' }
-    } else {
-      const overdueDays = Math.abs(diffDays)
-      return { label: `${overdueDays} Day${overdueDays === 1 ? '' : 's'} Overdue`, variant: 'danger' }
-    }
-  }
 
   const nextMaintenancePill = calculateDaysRemaining(nextScheduledWo?.dueDate)
   
@@ -228,7 +205,7 @@ export default function AssetDetailPage() {
               <p className="text-xs font-medium text-slate-500">Last Inspection</p>
               {!lastCompletedInspection && nextScheduledInspection && (
                 <span className="text-[10px] text-slate-400 font-medium">
-                  First Due: {nextScheduledInspection.dueDate}
+                  First Due: {formatDateDisplay(nextScheduledInspection.dueDate)}
                 </span>
               )}
             </div>
@@ -568,7 +545,7 @@ export default function AssetDetailPage() {
                             <td className="py-3 pr-4 font-mono font-bold text-slate-800">{ins.inspectionNumber || ins.id}</td>
                             <td className="py-3 px-3 text-slate-700 font-medium">Periodic Safety Inspection</td>
                             <td className="py-3 px-3 text-slate-700 font-medium">{ins.assignedInspectorName || 'Unassigned'}</td>
-                            <td className="py-3 px-3 text-slate-500">{ins.dueDate}</td>
+                            <td className="py-3 px-3 text-slate-500">{formatDateDisplay(ins.dueDate)}</td>
                             <td className="py-3 px-3 text-slate-500">{ins.completedAt || 'NA'}</td>
                             <td className="py-3 px-3">
                               {ins.result ? (
@@ -645,7 +622,7 @@ export default function AssetDetailPage() {
                             {doc.fileType} • {doc.fileSizeKb} KB
                           </p>
                           <p className="text-[10px] text-slate-400">
-                            Uploaded {doc.uploadedAt}
+                            Uploaded {formatDateDisplay(doc.uploadedAt)}
                           </p>
                         </div>
                         <button
@@ -653,7 +630,7 @@ export default function AssetDetailPage() {
                           onClick={() => {
                             // Generate mock downloadable file blob
                             const element = document.createElement('a')
-                            const fileContent = `AFMS Official Compliance Document\nDocument ID: ${doc.id}\nTitle: ${doc.title}\nType: ${doc.fileType}\nAsset: ${asset.assetId} - ${asset.name}\nUploaded By: ${doc.uploadedBy}\nDate: ${doc.uploadedAt}`
+                            const fileContent = `AFMS Official Compliance Document\nDocument ID: ${doc.id}\nTitle: ${doc.title}\nType: ${doc.fileType}\nAsset: ${asset.assetId} - ${asset.name}\nUploaded By: ${doc.uploadedBy}\nDate: ${formatDateDisplay(doc.uploadedAt)}`
                             const file = new Blob([fileContent], { type: 'text/plain;charset=utf-8' })
                             element.href = URL.createObjectURL(file)
                             element.download = `${doc.title.replace(/[^a-z0-9]/gi, '_')}.txt`
@@ -708,7 +685,7 @@ export default function AssetDetailPage() {
                           </p>
                           <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
                             <span className="font-semibold text-slate-700">By {item.byUser || 'Authorized Staff'}</span>
-                            <span>{item.timestamp}</span>
+                            <span>{formatDateTimeDisplay(item.timestampEpoch != null ? new Date(item.timestampEpoch) : item.timestamp)}</span>
                           </div>
                         </div>
                       </div>

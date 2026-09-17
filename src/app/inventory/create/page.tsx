@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr } from '@/lib/dateUtils'
 import {
   Package,
   Plus,
@@ -85,7 +86,7 @@ function AddInventoryForm() {
   const [unit, setUnit] = useState('Units')
   const [minStockThreshold, setMinStockThreshold] = useState<number>(2)
   const [unitPrice, setUnitPrice] = useState('')
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0])
+  const [purchaseDate, setPurchaseDate] = useState(getLocalDateStr())
   const [warrantyTill, setWarrantyTill] = useState('')
   const [purchasedFromId, setPurchasedFromId] = useState('')
   const [storageLocation, setStorageLocation] = useState('Main Warehouse - Bay 1')

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { getRoomQrUrl } from '@/lib/qrUrls'
+import { getLocalDateStr, formatDateDisplay, formatTimeDisplay } from '@/lib/dateUtils'
 import {
   DoorOpen,
   Boxes,
@@ -29,6 +30,7 @@ import {
   ArrowUpRight,
   Sparkles,
   QrCode,
+  X,
 } from 'lucide-react'
 
 export default function RoomDetailPage() {
@@ -49,6 +51,12 @@ export default function RoomDetailPage() {
   } = useAFMS()
 
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'access_log'>('overview')
+
+  // Access Log date filter -- empty string means "View All" (the default).
+  const [accessLogDate, setAccessLogDate] = useState('')
+  // 'activity' = flat, fully chronological Check In/Out rows (default).
+  // 'grouped' = one row per visit, Check In and Check Out never separated.
+  const [logViewMode, setLogViewMode] = useState<'activity' | 'grouped'>('activity')
 
   // Needed to build the real, scannable QR URL (matches the QR Codes
   // dashboard) -- window.location.origin isn't available during SSR.
@@ -79,53 +87,74 @@ export default function RoomDetailPage() {
     : []
   const openRequestsCount = roomRequests.length
 
-  // Access Logs for this room
-  const roomLogs = room ? roomAccessLogs.filter(l => l.roomId === room.id) : []
+  // Access Logs (sessions) for this room — filtered to the selected date, if
+  // any. Not sorted here: the two views below each sort for their own
+  // purpose (Activity Log sorts individual events; Grouped sorts sessions).
+  const roomLogs = room
+    ? roomAccessLogs.filter(l => l.roomId === room.id && (!accessLogDate || l.checkInDate === accessLogDate))
+    : []
 
-  // Each session (one row in roomAccessLogs) is split into its own Check In
-  // and Check Out entries for display, rather than one combined row — a
-  // completed visit should read as two distinct log lines, one per event.
-  const roomLogEvents = roomLogs.flatMap(log => {
-    const activityId = log.activityNumber || log.id
-    const events: Array<{
-      key: string
-      activityId: string
-      type: 'Check In' | 'Check Out'
-      date?: string
-      time: string
-      userName: string
-      userRole?: string
-      purpose?: string
-      isActive: boolean
-    }> = [{
-      key: `${log.id}-in`,
-      activityId,
-      type: 'Check In',
-      date: log.checkInDate,
-      time: log.checkInTime,
-      userName: log.userName,
-      userRole: log.userRole,
-      purpose: log.purpose,
-      isActive: !log.checkOutTime,
-    }]
-    if (log.checkOutTime) {
-      events.push({
-        key: `${log.id}-out`,
+  // ACTIVITY LOG VIEW: each session is split into its own Check In and (if
+  // closed) Check Out row, and every row carries its own real epoch --
+  // checkInTimestamp for Check In, checkOutTimestamp for Check Out (falling
+  // back to checkInTimestamp only for historical rows that predate that
+  // column). The full flat list is then sorted by that real timestamp, so a
+  // short visit's Check Out correctly outranks its own Check In, and rows
+  // from different visits interleave in true chronological order.
+  const roomLogEvents = roomLogs
+    .flatMap(log => {
+      const activityId = log.activityNumber || log.id
+      const events: Array<{
+        key: string
+        activityId: string
+        type: 'Check In' | 'Check Out'
+        date?: string
+        time: string
+        userName: string
+        userRole?: string
+        purpose?: string
+        isActive: boolean
+        sortKey: number
+      }> = [{
+        key: `${log.id}-in`,
         activityId,
-        type: 'Check Out',
+        type: 'Check In',
         date: log.checkInDate,
-        time: log.checkOutTime,
+        time: log.checkInTime,
         userName: log.userName,
         userRole: log.userRole,
         purpose: log.purpose,
-        isActive: false,
-      })
-    }
-    return events
-  })
+        isActive: !log.checkOutTime,
+        sortKey: log.checkInTimestamp || 0,
+      }]
+      if (log.checkOutTime) {
+        events.push({
+          key: `${log.id}-out`,
+          activityId,
+          type: 'Check Out',
+          date: log.checkInDate,
+          time: log.checkOutTime,
+          userName: log.userName,
+          userRole: log.userRole,
+          purpose: log.purpose,
+          isActive: false,
+          sortKey: log.checkOutTimestamp || log.checkInTimestamp || 0,
+        })
+      }
+      return events
+    })
+    .sort((a, b) => b.sortKey - a.sortKey)
+
+  // GROUPED VIEW: one row per session/Activity ID, so a visit's Check In and
+  // Check Out are never separated by another visit's rows. Ranked by the
+  // session's own most recent event -- its checkout time if closed, its
+  // check-in time if still open.
+  const roomLogGroups = roomLogs
+    .slice()
+    .sort((a, b) => (b.checkOutTimestamp || b.checkInTimestamp || 0) - (a.checkOutTimestamp || a.checkInTimestamp || 0))
 
   // Dynamic Reservations for today (from centralized reservation state)
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateStr()
   const standardHours = [
     { hour: 9, label: '09:00 AM - 10:00 AM' },
     { hour: 10, label: '10:00 AM - 11:00 AM' },
@@ -430,66 +459,169 @@ export default function RoomDetailPage() {
               {/* TAB 3: ACCESS LOG */}
               {activeTab === 'access_log' && (
                 <div className="space-y-4 animate-in fade-in">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="text-sm font-bold text-slate-900">Access Log (Tamper-Evident QR Check-In / Out)</h3>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      Verified Logs
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        Verified Logs
+                      </span>
+                      <div className="flex items-center bg-slate-100 rounded-xl p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setLogViewMode('activity')}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold transition ${
+                            logViewMode === 'activity' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Activity Log
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLogViewMode('grouped')}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold transition ${
+                            logViewMode === 'grouped' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Grouped
+                        </button>
+                      </div>
+                      <input
+                        type="date"
+                        value={accessLogDate}
+                        onChange={e => setAccessLogDate(e.target.value)}
+                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700"
+                      />
+                      {accessLogDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAccessLogDate('')}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>View All</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                          <th className="py-3 px-4">Activity ID</th>
-                          <th className="py-3 px-4">Type</th>
-                          <th className="py-3 px-4">Date &amp; Time</th>
-                          <th className="py-3 px-4">Access By</th>
-                          <th className="py-3 px-4">Purpose</th>
-                          <th className="py-3 px-4 text-right">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {roomLogEvents.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="py-8 text-center text-slate-400">
-                              No access logs recorded for this space yet.
-                            </td>
+                  {logViewMode === 'activity' ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
+                            <th className="py-3 px-4">Activity ID</th>
+                            <th className="py-3 px-4">Type</th>
+                            <th className="py-3 px-4">Date &amp; Time</th>
+                            <th className="py-3 px-4">Access By</th>
+                            <th className="py-3 px-4">Purpose</th>
+                            <th className="py-3 px-4 text-right">Status</th>
                           </tr>
-                        ) : (
-                          roomLogEvents.map(event => (
-                            <tr key={event.key} className="hover:bg-slate-50/60 transition">
-                              <td className="py-3 px-4 font-mono font-semibold text-slate-700">{event.activityId}</td>
-                              <td className="py-3 px-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  event.type === 'Check In'
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
-                                }`}>
-                                  {event.type}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-slate-500 font-medium">{event.date ? `${event.date} ` : ''}{event.time}</td>
-                              <td className="py-3 px-4">
-                                <p className="font-bold text-slate-900">{event.userName}</p>
-                                <p className="text-[10px] text-slate-400">{event.userRole}</p>
-                              </td>
-                              <td className="py-3 px-4 text-slate-600">{event.purpose}</td>
-                              <td className="py-3 px-4 text-right">
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  event.isActive
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
-                                }`}>
-                                  {event.isActive ? 'Active In Room' : 'Completed'}
-                                </span>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {roomLogEvents.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="py-8 text-center text-slate-400">
+                                {accessLogDate
+                                  ? `No access logs recorded on ${formatDateDisplay(accessLogDate)}.`
+                                  : 'No access logs recorded for this space yet.'}
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                          ) : (
+                            roomLogEvents.map(event => (
+                              <tr key={event.key} className="hover:bg-slate-50/60 transition">
+                                <td className="py-3 px-4 font-mono font-semibold text-slate-700">{event.activityId}</td>
+                                <td className="py-3 px-4">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    event.type === 'Check In'
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                  }`}>
+                                    {event.type}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-slate-500 font-medium">
+                                  {event.date ? `${formatDateDisplay(event.date)} ` : ''}
+                                  {formatTimeDisplay(new Date(event.sortKey))}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <p className="font-bold text-slate-900">{event.userName}</p>
+                                  <p className="text-[10px] text-slate-400">{event.userRole}</p>
+                                </td>
+                                <td className="py-3 px-4 text-slate-600">{event.purpose}</td>
+                                <td className="py-3 px-4 text-right">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                    event.isActive
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                  }`}>
+                                    {event.isActive ? 'Active In Room' : 'Completed'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
+                            <th className="py-3 px-4">Activity ID</th>
+                            <th className="py-3 px-4">Access By</th>
+                            <th className="py-3 px-4">Check In</th>
+                            <th className="py-3 px-4">Check Out</th>
+                            <th className="py-3 px-4">Purpose</th>
+                            <th className="py-3 px-4 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {roomLogGroups.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="py-8 text-center text-slate-400">
+                                {accessLogDate
+                                  ? `No access logs recorded on ${formatDateDisplay(accessLogDate)}.`
+                                  : 'No access logs recorded for this space yet.'}
+                              </td>
+                            </tr>
+                          ) : (
+                            roomLogGroups.map(log => {
+                              const isActive = !log.checkOutTime
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-50/60 transition">
+                                  <td className="py-3 px-4 font-mono font-semibold text-slate-700">{log.activityNumber || log.id}</td>
+                                  <td className="py-3 px-4">
+                                    <p className="font-bold text-slate-900">{log.userName}</p>
+                                    <p className="text-[10px] text-slate-400">{log.userRole}</p>
+                                  </td>
+                                  <td className="py-3 px-4 text-slate-500 font-medium">
+                                    {log.checkInDate ? `${formatDateDisplay(log.checkInDate)} ` : ''}
+                                    {log.checkInTimestamp ? formatTimeDisplay(new Date(log.checkInTimestamp)) : log.checkInTime}
+                                  </td>
+                                  <td className="py-3 px-4 text-slate-500 font-medium">
+                                    {log.checkOutTimestamp
+                                      ? formatTimeDisplay(new Date(log.checkOutTimestamp))
+                                      : (log.checkOutTime || '—')}
+                                  </td>
+                                  <td className="py-3 px-4 text-slate-600">{log.purpose}</td>
+                                  <td className="py-3 px-4 text-right">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                      isActive
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                    }`}>
+                                      {isActive ? 'Active In Room' : 'Completed'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

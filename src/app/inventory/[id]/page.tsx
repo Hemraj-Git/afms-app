@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   Package,
   ArrowLeft,
@@ -51,7 +52,7 @@ export default function InventoryItemDetailPage() {
   const [deployCampusId, setDeployCampusId] = useState(campuses[0]?.id || '')
   const [deployBuildingId, setDeployBuildingId] = useState('')
   const [deployRoomId, setDeployRoomId] = useState('')
-  const [deployInstallDate, setDeployInstallDate] = useState(new Date().toISOString().split('T')[0])
+  const [deployInstallDate, setDeployInstallDate] = useState(getLocalDateStr())
   const [deployUserId, setDeployUserId] = useState('')
 
   // Quick Adjust Modal State
@@ -138,7 +139,7 @@ export default function InventoryItemDetailPage() {
               </h1>
             </div>
             <p className="text-xs text-slate-500 mt-1 pl-7">
-              {cat?.name || 'General'} • {sub?.name || 'Sub-Category'} • Added on {item.createdAt}
+              {cat?.name || 'General'} • {sub?.name || 'Sub-Category'} • Added on {formatDateDisplay(item.createdAt)}
             </p>
           </div>
 
@@ -400,12 +401,12 @@ export default function InventoryItemDetailPage() {
 
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
                   <span className="text-slate-400">Purchase Date:</span>
-                  <span className="font-semibold text-slate-800">{item.purchaseDate || 'N/A'}</span>
+                  <span className="font-semibold text-slate-800">{item.purchaseDate ? formatDateDisplay(item.purchaseDate) : 'N/A'}</span>
                 </div>
 
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
                   <span className="text-slate-400">Warranty Expiry:</span>
-                  <span className="font-semibold text-slate-800">{item.warrantyTill || 'No Warranty'}</span>
+                  <span className="font-semibold text-slate-800">{item.warrantyTill ? formatDateDisplay(item.warrantyTill) : 'No Warranty'}</span>
                 </div>
 
                 <div className="flex justify-between py-1.5">

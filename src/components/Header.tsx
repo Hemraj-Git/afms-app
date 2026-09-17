@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAFMS } from '@/context/AFMSContext'
+import { formatDateDisplay } from '@/lib/dateUtils'
 import {
   Search,
   Menu,
@@ -223,10 +224,7 @@ export function Header({
                           </span>
                           <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
                             <Clock className="w-2.5 h-2.5" />
-                            {new Date(sr.createdAt).toLocaleDateString([], {
-                              month: 'short',
-                              day: 'numeric',
-                            })}
+                            {formatDateDisplay(sr.createdAt)}
                           </span>
                         </div>
                         <p className="font-semibold text-slate-800 line-clamp-1 group-hover:text-blue-600 transition">

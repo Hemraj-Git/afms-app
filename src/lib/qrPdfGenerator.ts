@@ -1,6 +1,7 @@
 ﻿import { jsPDF } from 'jspdf'
 import QRCode from 'qrcode'
 import { Room, Asset, Building, Campus } from '@/types/afms'
+import { getLocalDateStr } from '@/lib/dateUtils'
 
 /**
  * Generate a PDF for Room QR Placards
@@ -142,7 +143,7 @@ export async function generateRoomPlacardsPdf(
     doc.text('Check In • Service Requests • Reservation', x + cardWidth - 5, y + cardHeight - 5, { align: 'right' })
   }
 
-  const filename = `Room-Placards-${new Date().toISOString().split('T')[0]}.pdf`
+  const filename = `Room-Placards-${getLocalDateStr()}.pdf`
   doc.save(filename)
 }
 
@@ -251,6 +252,6 @@ export async function generateAssetLabelsPdf(
     doc.text(locText, x + labelSize - 2.5, y + 45, { align: 'right' })
   }
 
-  const filename = `Asset-Labels-5x5cm-${new Date().toISOString().split('T')[0]}.pdf`
+  const filename = `Asset-Labels-5x5cm-${getLocalDateStr()}.pdf`
   doc.save(filename)
 }

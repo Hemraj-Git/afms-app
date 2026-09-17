@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   Wrench,
   AlertTriangle,
@@ -41,7 +42,11 @@ export default function PreventiveMaintenancePage() {
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('')
   const [assignRemarks, setAssignRemarks] = useState('')
 
-  const pmOrders = workOrders.filter(w => w.type === 'Preventive')
+  // Sorted soonest-due-first -- the fetch only orders by created_at.
+  const pmOrders = workOrders
+    .filter(w => w.type === 'Preventive')
+    .slice()
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
   const technicians = users.filter(u => u.role === 'Technician' || u.role === 'Admin')
   const availableTechs = technicians.length > 0 ? technicians : users
 
@@ -120,7 +125,7 @@ export default function PreventiveMaintenancePage() {
                   pmOrders.map(wo => {
                     const asset = assets.find(a => a.id === wo.assetId || a.assetId === wo.assetId)
                     const isPendingAssignment = !wo.assignedTechnicianName
-                    const isOverdue = wo.status !== 'Completed' && wo.dueDate && wo.dueDate < new Date().toISOString().split('T')[0]
+                    const isOverdue = wo.status !== 'Completed' && wo.dueDate && wo.dueDate < getLocalDateStr()
                     const windowStatus = getAttemptWindowStatus(wo.dueDate, wo.frequency)
 
                     return (
@@ -133,7 +138,7 @@ export default function PreventiveMaintenancePage() {
                           </span>
                         </td>
                         <td className="py-4 px-4">
-                          <div className="text-slate-700 font-semibold">{wo.dueDate}</div>
+                          <div className="text-slate-700 font-semibold">{formatDateDisplay(wo.dueDate)}</div>
                           {wo.status !== 'Completed' && (
                             <div className="mt-1">
                               {windowStatus.canAttempt ? (
@@ -237,7 +242,7 @@ export default function PreventiveMaintenancePage() {
               <form onSubmit={handleAssignTechnician} className="space-y-4 text-xs">
                 <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-1">
                   <p className="text-blue-900 font-bold">{selectedWoForAssign.title}</p>
-                  <p className="text-blue-700 text-[11px]">Due Date: {selectedWoForAssign.dueDate} ({selectedWoForAssign.frequency || 'Quarterly'})</p>
+                  <p className="text-blue-700 text-[11px]">Due Date: {formatDateDisplay(selectedWoForAssign.dueDate)} ({selectedWoForAssign.frequency || 'Quarterly'})</p>
                 </div>
 
                 <div>
@@ -374,7 +379,7 @@ export default function PreventiveMaintenancePage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Scheduled Due Date:</span>
-                        <span className="font-semibold text-slate-800">{wo.dueDate}</span>
+                        <span className="font-semibold text-slate-800">{formatDateDisplay(wo.dueDate)}</span>
                       </div>
                       {(() => {
                         const win = getAttemptWindowStatus(wo.dueDate, wo.frequency)
@@ -398,7 +403,7 @@ export default function PreventiveMaintenancePage() {
                       {wo.completedAt && (
                         <div className="flex justify-between pt-1 border-t border-slate-200/60">
                           <span className="text-emerald-700 font-medium">Completed Date:</span>
-                          <span className="font-bold text-emerald-800">{wo.completedAt}</span>
+                          <span className="font-bold text-emerald-800">{formatDateDisplay(wo.completedAt)}</span>
                         </div>
                       )}
                     </div>
@@ -492,7 +497,7 @@ export default function PreventiveMaintenancePage() {
                               Current Status: {wo.status}
                             </span>
                             <span className="text-[10px] text-amber-700 font-bold">
-                              Due: {wo.dueDate}
+                              Due: {formatDateDisplay(wo.dueDate)}
                             </span>
                           </div>
                           <p className="text-slate-700 text-xs">

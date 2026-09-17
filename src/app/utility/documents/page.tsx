@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { formatDateDisplay } from '@/lib/dateUtils'
 import {
   FileText,
   Upload,
@@ -227,7 +228,7 @@ export default function DocumentLibraryPage() {
 
                     <div>
                       <h3 className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">{doc.title}</h3>
-                      <p className="text-[11px] text-slate-400 mt-1">{doc.fileSizeKb} KB • Uploaded on {doc.uploadedAt}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">{doc.fileSizeKb} KB • Uploaded on {formatDateDisplay(doc.uploadedAt)}</p>
                     </div>
 
                     {linkedAssets.length > 0 && (

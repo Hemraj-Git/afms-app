@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
+import { formatDateDisplay, formatTimeDisplay } from '@/lib/dateUtils'
 import {
   Boxes,
   MessageSquare,
@@ -47,7 +48,13 @@ export default function DashboardPage() {
     s => (s.status === 'Open' || s.status === 'In Progress') && s.slaDueDate && new Date(s.slaDueDate).getTime() < Date.now()
   ).length
 
-  const upcomingPMs = workOrders.filter(w => w.type === 'Preventive' && w.status !== 'Completed')
+  // Sorted soonest-due-first -- the underlying fetch only orders by
+  // created_at, so without this the "Upcoming" widget (which .slice(0,5)s
+  // below) could hide a genuinely urgent item behind older-but-later-due rows.
+  const upcomingPMs = workOrders
+    .filter(w => w.type === 'Preventive' && w.status !== 'Completed')
+    .slice()
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
   const pmDueCount = upcomingPMs.length
 
   const pendingInspections = inspections.filter(i => i.status !== 'Completed')
@@ -207,7 +214,7 @@ export default function DashboardPage() {
                         {sr.requestedBy} ({sr.requestedByRole})
                       </p>
                       <p className="text-[10px] text-slate-400">
-                        Room: {rooms.find(r => r.id === sr.roomId)?.roomNumber || sr.roomId} • {new Date(sr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        Room: {rooms.find(r => r.id === sr.roomId)?.roomNumber || sr.roomId} • {formatTimeDisplay(sr.createdAt)}
                       </p>
                     </div>
 
@@ -513,7 +520,7 @@ export default function DashboardPage() {
                             <p className="font-bold text-slate-900 font-mono text-blue-600">{isPendingWorkOrder(wo.woNumber) ? 'Pending Assignment' : wo.woNumber}</p>
                             <p className="text-[11px] text-slate-400">{asset?.name || 'Asset'}</p>
                           </td>
-                          <td className="py-3 text-slate-600 font-medium">{wo.dueDate}</td>
+                          <td className="py-3 text-slate-600 font-medium">{formatDateDisplay(wo.dueDate)}</td>
                           <td className="py-3">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700">
                               {wo.frequency || 'Quarterly'}

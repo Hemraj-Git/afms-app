@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   ClipboardList,
   Wrench,
@@ -62,7 +63,7 @@ export default function WorkOrdersHubPage() {
   const [roomId, setRoomId] = useState(rooms[0]?.id || '')
   const [assignedTechnicianId, setAssignedTechnicianId] = useState(users.find(u => u.role === 'Technician' || u.role === 'Housekeeping')?.id || users[0]?.id || '')
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Critical'>('Medium')
-  const [dueDate, setDueDate] = useState(new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0])
+  const [dueDate, setDueDate] = useState(getLocalDateStr(new Date(Date.now() + 86400000 * 3)))
   const [issueLogged, setIssueLogged] = useState('')
 
   // A Preventive/Corrective record with no technician assigned yet is a
@@ -83,7 +84,7 @@ export default function WorkOrdersHubPage() {
   const isWorkOrderOverdue = (wo: WorkOrder) => {
     if (wo.status === 'Completed' || wo.status === 'Cancelled') return false
     if (!wo.dueDate) return false
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = getLocalDateStr()
     return wo.dueDate < todayStr
   }
   const overdueWoCount = realWorkOrders.filter(isWorkOrderOverdue).length
@@ -403,7 +404,7 @@ export default function WorkOrdersHubPage() {
                         <td className="py-3.5 px-4 font-medium text-slate-600">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{wo.dueDate}</span>
+                            <span>{formatDateDisplay(wo.dueDate)}</span>
                           </div>
                           {wo.type === 'Preventive' && wo.status !== 'Completed' && (() => {
                             const win = getAttemptWindowStatus(wo.dueDate, wo.frequency)
@@ -847,7 +848,7 @@ export default function WorkOrdersHubPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Due Date / SLA:</span>
-                        <span className="font-semibold text-slate-800">{wo.dueDate}</span>
+                        <span className="font-semibold text-slate-800">{formatDateDisplay(wo.dueDate)}</span>
                       </div>
                       {wo.type === 'Preventive' && (() => {
                         const win = getAttemptWindowStatus(wo.dueDate, wo.frequency)
@@ -875,7 +876,7 @@ export default function WorkOrdersHubPage() {
                       {wo.completedAt && (
                         <div className="flex justify-between pt-1 border-t border-slate-200/60">
                           <span className="text-emerald-700 font-medium">Completed Date:</span>
-                          <span className="font-bold text-emerald-800">{wo.completedAt}</span>
+                          <span className="font-bold text-emerald-800">{formatDateDisplay(wo.completedAt)}</span>
                         </div>
                       )}
                     </div>
@@ -1137,7 +1138,7 @@ export default function WorkOrdersHubPage() {
                               Current Status: {wo.status}
                             </span>
                             <span className="text-[10px] text-blue-700 font-bold">
-                              Due: {wo.dueDate}
+                              Due: {formatDateDisplay(wo.dueDate)}
                             </span>
                           </div>
                           <p className="text-slate-700 text-xs">

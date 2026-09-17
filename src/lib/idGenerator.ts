@@ -1,5 +1,7 @@
 // ID Formatting and Generation Utilities for AFMS
 
+import { getLocalDateStr } from './dateUtils'
+
 export function formatId(prefix: string, num: number, padLength: number = 4): string {
   return `${prefix}-${String(num).padStart(padLength, '0')}`
 }
@@ -112,5 +114,8 @@ export function addIntervalToDate(baseDateStr: string, interval: string = 'Quart
     date.setMonth(date.getMonth() + 3)
   }
 
-  return date.toISOString().split('T')[0]
+  // Not .toISOString().split('T')[0] -- that serializes the UTC calendar
+  // date, which rolls back one day for IST (UTC+5:30) since `date` here was
+  // built from local-timezone components above. See dateUtils.ts.
+  return getLocalDateStr(date)
 }

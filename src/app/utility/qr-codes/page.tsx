@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr } from '@/lib/dateUtils'
 import {
   QrCode,
   Printer,
@@ -113,7 +114,7 @@ export default function QrDashboardPage() {
   const handleDownloadRoomPdf = async () => {
     try {
       setGeneratingPdf(true)
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDateStr()
       selectedRoomIds.forEach(id => {
         updateRoom(id, { lastPrintedAt: today })
       })
@@ -130,7 +131,7 @@ export default function QrDashboardPage() {
   const handleDownloadAssetPdf = async () => {
     try {
       setGeneratingPdf(true)
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDateStr()
       selectedAssetIds.forEach(id => {
         updateAsset(id, { lastPrintedAt: today })
       })

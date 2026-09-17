@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   CalendarCheck2,
   Clock,
@@ -46,7 +47,7 @@ export default function ReservationsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   // Date selection for grid view (default today)
-  const [selectedGridDate, setSelectedGridDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedGridDate, setSelectedGridDate] = useState(getLocalDateStr())
 
   // Filter state for list view
   const [listSearchQuery, setListSearchQuery] = useState('')
@@ -59,8 +60,8 @@ export default function ReservationsPage() {
   const [selectedRoomId, setSelectedRoomId] = useState('')
   
   // Date Range Configuration
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
+  const [startDate, setStartDate] = useState(getLocalDateStr())
+  const [endDate, setEndDate] = useState(getLocalDateStr())
   
   // Day of week exclusion (0=Sun, 1=Mon, ..., 6=Sat)
   // Default: exclude Sat (6) and Sun (0) if date range spans multiple days
@@ -101,7 +102,11 @@ export default function ReservationsPage() {
   ]
 
   // Helper: check if a given date string is in the past
-  const todayStr = new Date().toISOString().split('T')[0]
+  // Not .toISOString().split('T')[0] -- that's the UTC calendar date,
+  // which was being compared here against currentHour (already local), a
+  // mixed-clock bug: right after local midnight, a UTC-lagged todayStr
+  // could make yesterday's already-past slots look still bookable.
+  const todayStr = getLocalDateStr()
   const currentHour = new Date().getHours()
 
   const isDateInPast = (dateStr: string) => {
@@ -305,7 +310,7 @@ export default function ReservationsPage() {
   const shiftGridDate = (offsetDays: number) => {
     const d = new Date(selectedGridDate)
     d.setDate(d.getDate() + offsetDays)
-    setSelectedGridDate(d.toISOString().split('T')[0])
+    setSelectedGridDate(getLocalDateStr(d))
   }
 
   return (
@@ -596,7 +601,7 @@ export default function ReservationsPage() {
                       <tr key={res.id} className="hover:bg-slate-50/60 transition">
                         <td className="py-4 px-6 font-mono font-bold text-blue-600">{res.reservationNumber}</td>
                         <td className="py-4 px-4 font-semibold text-slate-900">
-                          <p>{res.date}</p>
+                          <p>{formatDateDisplay(res.date)}</p>
                           <p className="text-[11px] text-slate-400 font-normal">{res.timeSlot}</p>
                         </td>
                         <td className="py-4 px-4 font-bold text-slate-800">{res.roomName}</td>

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
+import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   BarChart3,
   FileSpreadsheet,
@@ -185,9 +186,9 @@ export default function ReportsHubPage() {
   const defaultStartDate = useMemo(() => {
     const d = new Date()
     d.setDate(d.getDate() - 90)
-    return d.toISOString().split('T')[0]
+    return getLocalDateStr(d)
   }, [])
-  const defaultEndDate = useMemo(() => new Date().toISOString().split('T')[0], [])
+  const defaultEndDate = useMemo(() => getLocalDateStr(), [])
 
   const [startDate, setStartDate] = useState(defaultStartDate)
   const [endDate, setEndDate] = useState(defaultEndDate)
@@ -197,7 +198,7 @@ export default function ReportsHubPage() {
   const applyDatePreset = (preset: 'today' | '30days' | '90days' | 'this_year' | 'all') => {
     setDatePreset(preset)
     const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
+    const todayStr = getLocalDateStr(today)
 
     if (preset === 'today') {
       setStartDate(todayStr)
@@ -205,12 +206,12 @@ export default function ReportsHubPage() {
     } else if (preset === '30days') {
       const d = new Date()
       d.setDate(d.getDate() - 30)
-      setStartDate(d.toISOString().split('T')[0])
+      setStartDate(getLocalDateStr(d))
       setEndDate(todayStr)
     } else if (preset === '90days') {
       const d = new Date()
       d.setDate(d.getDate() - 90)
-      setStartDate(d.toISOString().split('T')[0])
+      setStartDate(getLocalDateStr(d))
       setEndDate(todayStr)
     } else if (preset === 'this_year') {
       const y = today.getFullYear()
@@ -375,7 +376,10 @@ export default function ReportsHubPage() {
   const roomAccessData = useMemo(() => {
     return roomAccessLogs
       .filter(l => {
-        if (!isWithinDateRange(l.checkInTime)) return false
+        // checkInTime is a time-only display string ("11:27:00 PM", no
+        // date) -- comparing it against a YYYY-MM-DD range always fails.
+        // checkInDate is the actual date field.
+        if (!isWithinDateRange(l.checkInDate)) return false
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase()
           if (
@@ -402,6 +406,7 @@ export default function ReportsHubPage() {
   // 5. Warranty & AMC Expiry Report
   const warrantyAmcData = useMemo(() => {
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
     return assets
       .filter(a => {
         if (assetFilter !== 'ALL' && a.id !== assetFilter && a.assetId !== assetFilter) return false
@@ -426,6 +431,12 @@ export default function ReportsHubPage() {
 
         if (a.warrantyTill) {
           const expiryDate = new Date(a.warrantyTill)
+          // Zero out time-of-day on both sides -- otherwise `today` retains
+          // its current time while `expiryDate` parses to UTC midnight,
+          // making a warranty expiring "today" flip to Expired hours early
+          // (and disagree with assets/[id]/page.tsx's calculateDaysRemaining,
+          // which already does this correctly).
+          expiryDate.setHours(0, 0, 0, 0)
           const diffTime = expiryDate.getTime() - today.getTime()
           daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
           if (daysLeft < 0) {
@@ -628,7 +639,7 @@ export default function ReportsHubPage() {
       const completedPMs = assignedWOs.filter(w => w.type === 'Preventive' && w.status === 'Completed').length
       const completedCorrective = assignedWOs.filter(w => w.type === 'Corrective' && w.status === 'Completed').length
       const inProgress = assignedWOs.filter(w => w.status === 'In Progress').length
-      const overdue = assignedWOs.filter(w => w.status !== 'Completed' && w.dueDate < new Date().toISOString().split('T')[0]).length
+      const overdue = assignedWOs.filter(w => w.status !== 'Completed' && w.dueDate < getLocalDateStr()).length
 
       return {
         techId: t.id,
@@ -745,7 +756,7 @@ export default function ReportsHubPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', `${fileNamePrefix}_${new Date().toISOString().split('T')[0]}.csv`)
+    link.setAttribute('download', `${fileNamePrefix}_${getLocalDateStr()}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -807,8 +818,8 @@ export default function ReportsHubPage() {
           <h1 className="text-xl font-bold text-slate-900">Facility Operations Management System</h1>
           <h2 className="text-sm font-semibold text-slate-700 mt-0.5">{activeReport.title}</h2>
           <div className="flex justify-between text-xs text-slate-500 mt-2">
-            <span>Generated Date: {new Date().toLocaleDateString()}</span>
-            <span>Date Range: {startDate} to {endDate}</span>
+            <span>Generated Date: {formatDateDisplay(new Date())}</span>
+            <span>Date Range: {formatDateDisplay(startDate)} to {formatDateDisplay(endDate)}</span>
             {userFilter !== 'ALL' && (
               <span>Personnel: {users.find(u => u.id === userFilter)?.fullName || userFilter}</span>
             )}
@@ -1151,7 +1162,7 @@ export default function ReportsHubPage() {
                         </td>
                         <td className="py-3.5 px-4 text-slate-600 font-medium">{row.location}</td>
                         <td className="py-3.5 px-4 font-mono text-slate-700">{row.serialNumber}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.purchaseDate}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.purchaseDate)}</td>
                         <td className="py-3.5 px-4 font-semibold text-slate-900">{row.price}</td>
                         <td className="py-3.5 px-4 font-medium text-slate-800">{row.assignedTo}</td>
                         <td className="py-3.5 px-6 text-right">
@@ -1349,7 +1360,7 @@ export default function ReportsHubPage() {
                         <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.assetId}</td>
                         <td className="py-3.5 px-4 font-bold text-slate-900">{row.assetName}</td>
                         <td className="py-3.5 px-4 text-slate-700 font-medium">{row.vendorName}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.purchaseDate}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.purchaseDate)}</td>
                         <td className="py-3.5 px-4 font-semibold text-slate-900">{row.warrantyExpiry}</td>
                         <td className="py-3.5 px-4 font-bold text-slate-700">{row.daysLeft}</td>
                         <td className="py-3.5 px-6 text-right">
@@ -1403,9 +1414,9 @@ export default function ReportsHubPage() {
                         <td className="py-3.5 px-4 text-slate-800 font-semibold">{row.assetName}</td>
                         <td className="py-3.5 px-4 text-slate-600">{row.location}</td>
                         <td className="py-3.5 px-4 text-slate-700 font-medium">{row.frequency}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-900">{row.dueDate}</td>
+                        <td className="py-3.5 px-4 font-semibold text-slate-900">{formatDateDisplay(row.dueDate)}</td>
                         <td className="py-3.5 px-4 text-slate-800 font-medium">{row.assignedTo}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.completedAt}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.completedAt)}</td>
                         <td className="py-3.5 px-6 text-right">
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -1468,7 +1479,7 @@ export default function ReportsHubPage() {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-slate-800 font-medium">{row.assignedTo}</td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">{row.dueDate}</td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">{formatDateDisplay(row.dueDate)}</td>
                         <td className="py-3.5 px-4 text-slate-600 max-w-xs">{row.solution}</td>
                         <td className="py-3.5 px-6 text-right">
                           <span
@@ -1516,8 +1527,8 @@ export default function ReportsHubPage() {
                         <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.inspectionNumber}</td>
                         <td className="py-3.5 px-4 font-bold text-slate-900">{row.assetName}</td>
                         <td className="py-3.5 px-4 text-slate-800 font-medium">{row.inspector}</td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">{row.dueDate}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.completedAt}</td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">{formatDateDisplay(row.dueDate)}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.completedAt)}</td>
                         <td className="py-3.5 px-4">
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -1584,8 +1595,8 @@ export default function ReportsHubPage() {
                             {row.priority}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.createdAt}</td>
-                        <td className="py-3.5 px-4 font-medium text-slate-900">{row.slaDueDate}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.createdAt)}</td>
+                        <td className="py-3.5 px-4 font-medium text-slate-900">{formatDateDisplay(row.slaDueDate)}</td>
                         <td className="py-3.5 px-6 text-right">
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${

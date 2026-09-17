@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
+import { getLocalDateStr, formatDateDisplay, formatDateTimeDisplay } from '@/lib/dateUtils'
 import {
   QrCode,
   Camera,
@@ -269,7 +270,7 @@ function MobileFieldAppContent() {
   const [vendorTicketNo, setVendorTicketNo] = useState('')
   const [vendorTechName, setVendorTechName] = useState('')
   const [vendorTechPhone, setVendorTechPhone] = useState('')
-  const [vendorServiceDate, setVendorServiceDate] = useState(new Date().toISOString().split('T')[0])
+  const [vendorServiceDate, setVendorServiceDate] = useState(getLocalDateStr())
   const [vendorJobSheetUrl, setVendorJobSheetUrl] = useState('')
   const [vendorRemarks, setVendorRemarks] = useState('')
   const [vendorCost, setVendorCost] = useState<number | undefined>(undefined)
@@ -437,7 +438,7 @@ function MobileFieldAppContent() {
   const hkInProgressCount = housekeepingWorkOrders.filter(w => w.status === 'In Progress').length
   const hkCompletedCount = housekeepingWorkOrders.filter(w => w.status === 'Completed').length
   const hkOverdueCount = housekeepingWorkOrders.filter(
-    w => w.status !== 'Completed' && w.dueDate < new Date().toISOString().split('T')[0]
+    w => w.status !== 'Completed' && w.dueDate < getLocalDateStr()
   ).length
 
   // Filtered Technician Work Orders
@@ -456,7 +457,7 @@ function MobileFieldAppContent() {
   const correctiveCount = technicianWorkOrders.filter(w => w.type === 'Corrective' && w.status !== 'Completed').length
   const completedCount = technicianWorkOrders.filter(w => w.status === 'Completed').length
   const overdueCount = technicianWorkOrders.filter(
-    w => w.status !== 'Completed' && w.dueDate < new Date().toISOString().split('T')[0]
+    w => w.status !== 'Completed' && w.dueDate < getLocalDateStr()
   ).length
 
   // Assigned Inspections for Current User (Faculty, Technician, Admin, etc.)
@@ -485,7 +486,7 @@ function MobileFieldAppContent() {
   const passedUserInsp = userInspections.filter(i => i.result === 'Pass').length
   const failedUserInsp = userInspections.filter(i => i.result === 'Fail').length
   const overdueUserInsp = userInspections.filter(
-    i => i.status !== 'Completed' && i.dueDate < new Date().toISOString().split('T')[0]
+    i => i.status !== 'Completed' && i.dueDate < getLocalDateStr()
   ).length
 
   // Service requests raised by the current user only — real RLS backs this
@@ -572,7 +573,7 @@ function MobileFieldAppContent() {
     setVendorTicketNo(wo.vendorTicketNo || '')
     setVendorTechName(wo.vendorTechName || '')
     setVendorTechPhone(wo.vendorTechPhone || '')
-    setVendorServiceDate(wo.vendorServiceDate || new Date().toISOString().split('T')[0])
+    setVendorServiceDate(wo.vendorServiceDate || getLocalDateStr())
     setVendorJobSheetUrl(wo.vendorJobSheetUrl || '')
     setVendorRemarks(wo.vendorRemarks || '')
     setVendorCost(wo.vendorCost)
@@ -666,7 +667,7 @@ function MobileFieldAppContent() {
 
   // Handle Service Request Submission — shared by both the Scan-tab inline
   // form and the standalone RaiseRequest tab (see renderServiceRequestForm).
-  const handleServiceRequestSubmit = (e: React.FormEvent) => {
+  const handleServiceRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!reqRoomId) {
       showToast('error', 'Please select a room.')
@@ -690,25 +691,29 @@ function MobileFieldAppContent() {
         : `[${reqType}] ${roomObj?.name || 'Facility'} - ${reqDescription.slice(0, 40)}`
     )
 
-    addServiceRequest({
-      title: finalTitle,
-      description: reqDescription,
-      requestType: reqType,
-      roomId: reqRoomId,
-      assetId: reqType === 'Maintenance' ? reqAssetId || undefined : undefined,
-      requestedBy: currentUser.fullName,
-      requestedByRole: currentUser.role,
-      status: 'Open',
-      priority: finalPriority,
-      slaDueDate,
-      photoUrls: reqPhotoUrl ? [reqPhotoUrl] : [],
-    })
+    try {
+      await addServiceRequest({
+        title: finalTitle,
+        description: reqDescription,
+        requestType: reqType,
+        roomId: reqRoomId,
+        assetId: reqType === 'Maintenance' ? reqAssetId || undefined : undefined,
+        requestedBy: currentUser.fullName,
+        requestedByRole: currentUser.role,
+        status: 'Open',
+        priority: finalPriority,
+        slaDueDate,
+        photoUrls: reqPhotoUrl ? [reqPhotoUrl] : [],
+      })
 
-    setReqSuccessMsg(true)
-    setTimeout(() => {
-      setReqSuccessMsg(false)
-      resetServiceRequestForm()
-    }, 2500)
+      setReqSuccessMsg(true)
+      setTimeout(() => {
+        setReqSuccessMsg(false)
+        resetServiceRequestForm()
+      }, 2500)
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to submit service request. Please try again.')
+    }
   }
 
   // Handle Housekeeping Work Order Submission
@@ -1176,7 +1181,7 @@ function MobileFieldAppContent() {
                               <div>
                                 <span className="text-slate-400 flex items-center gap-1 font-mono">
                                   <Clock className="w-3 h-3 text-slate-500" />
-                                  Due: {wo.dueDate}
+                                  Due: {formatDateDisplay(wo.dueDate)}
                                 </span>
                                 {isLocked && windowStatus && (
                                   <span className="text-[12px] text-amber-400/90 font-medium block mt-0.5">
@@ -1343,7 +1348,7 @@ function MobileFieldAppContent() {
                         <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[12px]">
                           <span className="text-slate-400 flex items-center gap-1 font-mono">
                             <Clock className="w-3 h-3 text-slate-500" />
-                            Due: {wo.dueDate}
+                            Due: {formatDateDisplay(wo.dueDate)}
                           </span>
 
                           <button
@@ -1515,7 +1520,7 @@ function MobileFieldAppContent() {
                               <div>
                                 <span className="text-slate-400 flex items-center gap-1 font-mono">
                                   <Clock className="w-3 h-3 text-slate-500" />
-                                  Due: {insp.dueDate}
+                                  Due: {formatDateDisplay(insp.dueDate)}
                                 </span>
                                 {isLocked && (
                                   <span className="text-[12px] text-amber-400/90 font-medium block mt-0.5">
@@ -1864,7 +1869,7 @@ function MobileFieldAppContent() {
                         <span>{srRoom ? `${srRoom.name} • ` : ''}{sr.requestType} • {sr.priority}</span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {new Date(sr.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                          {formatDateDisplay(sr.createdAt)}
                         </span>
                       </div>
                       {requestStatusExplanation(sr) && (
@@ -2641,7 +2646,7 @@ function MobileFieldAppContent() {
                 <p className="font-bold text-blue-300">
                   Target: {assets.find(a => a.id === selectedInspection.assetId || a.assetId === selectedInspection.assetId)?.name || 'Asset'}
                 </p>
-                <p className="text-[12px] text-slate-400">Due Date: {selectedInspection.dueDate}</p>
+                <p className="text-[12px] text-slate-400">Due Date: {formatDateDisplay(selectedInspection.dueDate)}</p>
               </div>
               <span className="text-[12px] text-blue-400 font-mono font-semibold">
                 {assets.find(a => a.id === selectedInspection.assetId || a.assetId === selectedInspection.assetId)?.assetId}
@@ -2856,7 +2861,7 @@ function MobileFieldAppContent() {
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800/80">
                   <span className="text-slate-400">Completed Date:</span>
-                  <span className="text-white font-mono">{viewingInspection.completedAt || viewingInspection.dueDate}</span>
+                  <span className="text-white font-mono">{formatDateDisplay(viewingInspection.completedAt || viewingInspection.dueDate)}</span>
                 </div>
                 <div className="py-1">
                   <span className="text-slate-400 block mb-1">Remarks:</span>
@@ -2967,12 +2972,12 @@ function MobileFieldAppContent() {
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800/80">
                   <span className="text-slate-400">Raised On:</span>
-                  <span className="text-white font-mono">{new Date(viewingRequest.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  <span className="text-white font-mono">{formatDateTimeDisplay(viewingRequest.createdAt)}</span>
                 </div>
                 {viewingRequest.slaDueDate && (
                   <div className="flex justify-between py-1">
                     <span className="text-slate-400">Expected By:</span>
-                    <span className="text-white font-mono">{new Date(viewingRequest.slaDueDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                    <span className="text-white font-mono">{formatDateTimeDisplay(viewingRequest.slaDueDate)}</span>
                   </div>
                 )}
               </div>
@@ -3040,7 +3045,7 @@ function MobileFieldAppContent() {
                   <DoorOpen className="w-3.5 h-3.5" />
                   <span>{rooms.find(r => r.id === selectedHkOrder.roomId)?.name || 'Facility Area'}</span>
                 </p>
-                <p className="text-[12px] text-slate-400">Due: {selectedHkOrder.dueDate}</p>
+                <p className="text-[12px] text-slate-400">Due: {formatDateDisplay(selectedHkOrder.dueDate)}</p>
               </div>
               <span className="text-[12px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded border border-purple-500/30">
                 {selectedHkOrder.priority} Priority

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   ShieldCheck,
   CheckCircle2,
@@ -39,6 +40,11 @@ export default function InspectionsPage() {
   const failedCount = inspections.filter(i => i.result === 'Fail').length
   const completedTotal = inspections.filter(i => i.status === 'Completed').length
   const compliancePercentage = completedTotal > 0 ? Math.round((passedCount / completedTotal) * 100) : 100
+
+  // Sorted soonest-due-first -- the fetch only orders by created_at.
+  const sortedInspections = inspections
+    .slice()
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
 
   // Inspectors list (Staff from any registered role: Admin, Faculty, Technician, Housekeeping)
   const inspectors = users
@@ -152,11 +158,11 @@ export default function InspectionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {inspections.map(insp => {
+                {sortedInspections.map(insp => {
                   const asset = assets.find(a => a.id === insp.assetId)
                   const tmpl = checklistTemplates.find(t => t.id === insp.templateId)
                   const isPendingAssignment = !insp.assignedInspectorName
-                  const isOverdue = insp.status !== 'Completed' && insp.dueDate && insp.dueDate < new Date().toISOString().split('T')[0]
+                  const isOverdue = insp.status !== 'Completed' && insp.dueDate && insp.dueDate < getLocalDateStr()
                   const windowStatus = getAttemptWindowStatus(insp.dueDate, tmpl?.interval)
                   const isLocked = insp.status !== 'Completed' && !windowStatus.canAttempt
 
@@ -201,7 +207,7 @@ export default function InspectionsPage() {
                       <td className="py-4 px-4 text-slate-500 font-medium">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{insp.dueDate}</span>
+                          <span>{formatDateDisplay(insp.dueDate)}</span>
                         </div>
                         {insp.status !== 'Completed' && (
                           <span className={`text-[10px] block mt-0.5 ${isLocked ? 'text-amber-600 font-semibold' : 'text-emerald-600'}`}>
@@ -300,7 +306,7 @@ export default function InspectionsPage() {
                   <p className="text-blue-900 font-bold">
                     Target: {assets.find(a => a.id === selectedInspForAssign.assetId)?.name || 'Asset'}
                   </p>
-                  <p className="text-blue-700 text-[11px]">Due Date: {selectedInspForAssign.dueDate}</p>
+                  <p className="text-blue-700 text-[11px]">Due Date: {formatDateDisplay(selectedInspForAssign.dueDate)}</p>
                 </div>
 
                 <div>
@@ -484,7 +490,7 @@ export default function InspectionsPage() {
                     <p className="text-slate-400 text-[10px] font-semibold uppercase">Completed Date</p>
                     <div className="flex items-center gap-1 mt-0.5 font-bold text-slate-900">
                       <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{selectedInspForView.completedAt || selectedInspForView.dueDate}</span>
+                      <span>{formatDateDisplay(selectedInspForView.completedAt || selectedInspForView.dueDate)}</span>
                     </div>
                   </div>
                 </div>

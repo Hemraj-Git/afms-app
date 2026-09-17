@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   AlertTriangle,
   Wrench,
@@ -51,7 +52,11 @@ export default function CorrectiveMaintenancePage() {
   const [photoUrl, setPhotoUrl] = useState('')
   const [executionMode, setExecutionMode] = useState<'In House' | 'Vendor'>('In House')
 
-  const correctiveOrders = workOrders.filter(w => w.type === 'Corrective')
+  // Sorted soonest-due-first -- the fetch only orders by created_at.
+  const correctiveOrders = workOrders
+    .filter(w => w.type === 'Corrective')
+    .slice()
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
 
   // Technicians list
   const technicians = users.filter(u => u.role === 'Technician' || u.role === 'Admin')
@@ -165,7 +170,7 @@ export default function CorrectiveMaintenancePage() {
                   const asset = assets.find(a => a.id === wo.assetId)
                   const room = rooms.find(r => r.id === (wo.roomId || asset?.roomId))
                   const isPendingAssignment = !wo.assignedTechnicianName
-                  const isOverdue = wo.status !== 'Completed' && wo.dueDate && wo.dueDate < new Date().toISOString().split('T')[0]
+                  const isOverdue = wo.status !== 'Completed' && wo.dueDate && wo.dueDate < getLocalDateStr()
 
                   return (
                     <tr key={wo.id} className="hover:bg-slate-50/60 transition">
@@ -561,12 +566,12 @@ export default function CorrectiveMaintenancePage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Due Date / SLA:</span>
-                        <span className="font-semibold text-slate-800">{wo.dueDate}</span>
+                        <span className="font-semibold text-slate-800">{formatDateDisplay(wo.dueDate)}</span>
                       </div>
                       {wo.completedAt && (
                         <div className="flex justify-between pt-1 border-t border-slate-200/60">
                           <span className="text-emerald-700 font-medium">Completed Date:</span>
-                          <span className="font-bold text-emerald-800">{wo.completedAt}</span>
+                          <span className="font-bold text-emerald-800">{formatDateDisplay(wo.completedAt)}</span>
                         </div>
                       )}
                     </div>
@@ -659,7 +664,7 @@ export default function CorrectiveMaintenancePage() {
                               Current Status: {wo.status}
                             </span>
                             <span className="text-[10px] text-amber-700 font-bold">
-                              Due: {wo.dueDate}
+                              Due: {formatDateDisplay(wo.dueDate)}
                             </span>
                           </div>
                           <p className="text-slate-700 text-xs mt-1">

@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { Bell, CheckCircle2, Wrench, ClipboardCheck, LogOut as LogOutIcon } from 'lucide-react'
 import type { AppNotification } from '@/types/afms'
+import { formatDateTimeDisplay } from '@/lib/dateUtils'
 
 const ICONS: Record<AppNotification['type'], React.ReactNode> = {
   wo_assigned: <Wrench className="w-3.5 h-3.5" />,
@@ -71,7 +72,7 @@ export function NotificationBell({
                       <p className="font-semibold text-slate-100 line-clamp-2">{n.title}</p>
                       {n.body && <p className="text-slate-400 line-clamp-2 mt-0.5">{n.body}</p>}
                       <p className="text-[10px] text-slate-500 mt-1">
-                        {new Date(n.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {formatDateTimeDisplay(n.createdAt)}
                       </p>
                     </div>
                     {!n.isRead && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />}

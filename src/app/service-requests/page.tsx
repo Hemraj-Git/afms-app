@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { ServiceRequest, SlaPriority } from '@/types/afms'
 import { getNextSequence, formatYearlyId } from '@/lib/idGenerator'
+import { getLocalDateStr, formatDateDisplay, formatDateTimeDisplay } from '@/lib/dateUtils'
 
 export default function ServiceRequestsPage() {
   const router = useRouter()
@@ -115,7 +116,7 @@ export default function ServiceRequestsPage() {
     return matchesTab && matchesSearch
   })
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const targetAsset = assets.find(a => a.id === newAssetId)
     const sub = targetAsset ? subCategories.find(s => s.id === targetAsset.subCategoryId) : undefined
@@ -126,22 +127,26 @@ export default function ServiceRequestsPage() {
     const dueTimeMs = Date.now() + slaHours * 60 * 60 * 1000
     const slaDueDate = new Date(dueTimeMs).toISOString()
 
-    addServiceRequest({
-      title: newTitle,
-      description: newDesc,
-      requestType: newType,
-      roomId: newRoomId,
-      assetId: newType === 'Maintenance' || newType === 'IT Support' ? newAssetId : undefined,
-      requestedBy: currentUser.fullName,
-      requestedByRole: currentUser.role,
-      status: 'Open',
-      priority: finalPriority,
-      slaDueDate,
-    })
+    try {
+      await addServiceRequest({
+        title: newTitle,
+        description: newDesc,
+        requestType: newType,
+        roomId: newRoomId,
+        assetId: newType === 'Maintenance' || newType === 'IT Support' ? newAssetId : undefined,
+        requestedBy: currentUser.fullName,
+        requestedByRole: currentUser.role,
+        status: 'Open',
+        priority: finalPriority,
+        slaDueDate,
+      })
 
-    setShowCreateModal(false)
-    setNewTitle('')
-    setNewDesc('')
+      setShowCreateModal(false)
+      setNewTitle('')
+      setNewDesc('')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to create service request. Please try again.')
+    }
   }
 
   // Convert Service Request to Corrective Maintenance. This no longer mints
@@ -162,7 +167,10 @@ export default function ServiceRequestsPage() {
       priority: ticket.priority,
       source: 'Service Request',
       sourceRefId: ticket.ticketId,
-      dueDate: ticket.slaDueDate.split('T')[0] || new Date().toISOString().split('T')[0],
+      // Not .split('T')[0] -- that truncates to the UTC calendar date,
+      // which can land on the wrong IST day for deadlines falling in
+      // 18:30-23:59 UTC (00:00-05:29 IST).
+      dueDate: ticket.slaDueDate ? getLocalDateStr(new Date(ticket.slaDueDate)) : getLocalDateStr(),
       status: 'Scheduled', // Pending technician assignment
       issueLogged: `${ticket.title} — ${ticket.description || 'Reported via Service Desk'}`,
     })
@@ -191,7 +199,10 @@ export default function ServiceRequestsPage() {
       priority: ticket.priority,
       source: 'Service Request',
       sourceRefId: ticket.ticketId,
-      dueDate: ticket.slaDueDate.split('T')[0] || new Date().toISOString().split('T')[0],
+      // Not .split('T')[0] -- that truncates to the UTC calendar date,
+      // which can land on the wrong IST day for deadlines falling in
+      // 18:30-23:59 UTC (00:00-05:29 IST).
+      dueDate: ticket.slaDueDate ? getLocalDateStr(new Date(ticket.slaDueDate)) : getLocalDateStr(),
       status: 'Scheduled', // Pending staff assignment
       issueLogged: `${ticket.title} — ${ticket.description || 'Reported via Service Desk'}`,
     })
@@ -213,11 +224,14 @@ export default function ServiceRequestsPage() {
     e.preventDefault()
     if (!selectedTicket || !dismissReason.trim()) return
 
-    const today = new Date().toISOString().split('T')[0]
+    // Full ISO instant, not just a date -- dismissed_at is now a
+    // timestamptz column (previously text, date-only, which dropped
+    // time-of-day that its sibling columns on the same table all keep).
+    const dismissedAtIso = new Date().toISOString()
 
     updateServiceRequestStatus(selectedTicket.id, 'Closed', {
       dismissalReason: dismissReason.trim(),
-      dismissedAt: today,
+      dismissedAt: dismissedAtIso,
       dismissedBy: currentUser?.fullName || 'Administrator',
     })
 
@@ -225,7 +239,7 @@ export default function ServiceRequestsPage() {
       ...prev,
       status: 'Closed',
       dismissalReason: dismissReason.trim(),
-      dismissedAt: today,
+      dismissedAt: dismissedAtIso,
       dismissedBy: currentUser?.fullName || 'Administrator',
     } : null)
 
@@ -419,7 +433,7 @@ export default function ServiceRequestsPage() {
                         {req.ticketId}
                       </td>
                       <td className="py-4 px-4 text-slate-500 font-medium">
-                        {req.createdAt.split(' ')[0]}
+                        {formatDateDisplay(req.createdAt)}
                       </td>
                       <td className="py-4 px-4">
                         <p className="font-bold text-slate-900">{req.title}</p>
@@ -502,7 +516,7 @@ export default function ServiceRequestsPage() {
                       </div>
                     </div>
                     <span className="text-[10px] font-mono font-bold bg-white text-rose-700 px-2 py-1 rounded border border-rose-200">
-                      Due: {currentTicket.slaDueDate ? new Date(currentTicket.slaDueDate).toLocaleDateString() : 'Active'}
+                      Due: {currentTicket.slaDueDate ? formatDateDisplay(currentTicket.slaDueDate) : 'Active'}
                     </span>
                   </div>
 
@@ -550,7 +564,7 @@ export default function ServiceRequestsPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Reported Date:</span>
-                      <span className="font-semibold text-slate-800">{currentTicket.createdAt}</span>
+                      <span className="font-semibold text-slate-800">{formatDateDisplay(currentTicket.createdAt)}</span>
                     </div>
                   </div>
 
@@ -614,7 +628,7 @@ export default function ServiceRequestsPage() {
                         </span>
                         {currentTicket.dismissedAt && (
                           <span className="text-[10px] text-amber-700 font-medium">
-                            {currentTicket.dismissedAt}
+                            {formatDateTimeDisplay(currentTicket.dismissedAt)}
                           </span>
                         )}
                       </div>

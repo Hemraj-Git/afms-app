@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { getNextSequence, formatYearlyId } from '@/lib/idGenerator'
+import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   Sparkles,
   Search,
@@ -29,7 +30,7 @@ export default function HousekeepingPage() {
   const [assignedTechnicianId, setAssignedTechnicianId] = useState(
     users.find(u => u.role === 'Housekeeping')?.id || users[0]?.id || ''
   )
-  const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0])
+  const [dueDate, setDueDate] = useState(getLocalDateStr())
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Low')
   const [notes, setNotes] = useState('')
 
@@ -166,7 +167,7 @@ export default function HousekeepingPage() {
                     </div>
                     <div className="flex items-center gap-1 text-slate-400 font-medium">
                       <Calendar className="w-3.5 h-3.5" />
-                      <span>{wo.dueDate}</span>
+                      <span>{formatDateDisplay(wo.dueDate)}</span>
                     </div>
                   </div>
 

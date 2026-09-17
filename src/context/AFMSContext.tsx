@@ -27,6 +27,7 @@ import {
 } from '@/types/afms'
 import { formatId, formatYearlyId, formatCategoryId, formatSubCategoryId, formatTaxonomyIdFromName, getNextSequence, addIntervalToDate, makePendingWoNumber, isPendingWorkOrder } from '@/lib/idGenerator'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
+import { getLocalDateStr } from '@/lib/dateUtils'
 import { supabase } from '@/lib/supabase'
 import { mockUsers } from '@/data/mockData'
 
@@ -128,7 +129,7 @@ interface AFMSContextType {
   
   // Service Requests (SR-YYYY-#### automatically generated, unchangeable)
   serviceRequests: ServiceRequest[]
-  addServiceRequest: (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>) => ServiceRequest
+  addServiceRequest: (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>) => Promise<ServiceRequest>
   updateServiceRequestStatus: (
     id: string,
     status: ServiceRequest['status'],
@@ -153,7 +154,7 @@ interface AFMSContextType {
   // Logs
   roomAccessLogs: RoomAccessLog[]
   checkInRoom: (roomId: string, purpose: string) => Promise<void>
-  checkOutRoom: (roomId: string) => void
+  checkOutRoom: (roomId: string) => Promise<void>
   assetActivityLogs: AssetActivityLog[]
   addAssetLog: (log: Omit<AssetActivityLog, 'id' | 'timestamp'>) => void
   
@@ -680,7 +681,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             dynamicSpecifications: inv.dynamic_specifications || {},
             imageUrl: inv.image_url || undefined,
             notes: inv.notes || undefined,
-            createdAt: inv.created_at ? inv.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            createdAt: inv.created_at ? inv.created_at.split('T')[0] : getLocalDateStr(),
           })))
         }
 
@@ -701,12 +702,16 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             timeSlot: r.time_slot,
             purpose: r.purpose || '',
             status: r.status as Reservation['status'],
-            createdAt: r.created_at ? r.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            createdAt: r.created_at ? r.created_at.split('T')[0] : getLocalDateStr(),
           })))
         }
 
         // 15. Room Access Logs
-        const { data: ralRows } = await supabase.from('room_access_logs').select('*').order('check_in_time', { ascending: false })
+        // Ordered by check_in_timestamp (a real epoch), not check_in_time --
+        // that's just a formatted "HH:MM:SS AM/PM" display string with no
+        // date component, so sorting on it doesn't produce true
+        // chronological order across different days.
+        const { data: ralRows } = await supabase.from('room_access_logs').select('*').order('check_in_timestamp', { ascending: false })
         if (isMounted && ralRows && ralRows.length > 0) {
           setRoomAccessLogs(ralRows.map(l => {
             // roomName was previously just set to the raw room_id (a UUID)
@@ -728,6 +733,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
               checkInDate: l.check_in_date,
               checkInTimestamp: l.check_in_timestamp,
               checkOutTime: l.check_out_time,
+              checkOutTimestamp: l.check_out_timestamp,
               purpose: l.purpose || '',
               isForceCheckout: Boolean(l.is_force_checkout),
               autoCheckOutNote: l.auto_checkout_note,
@@ -736,7 +742,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 16. Asset Activity Logs
-        const { data: aalRows } = await supabase.from('asset_activity_logs').select('*').order('timestamp', { ascending: false })
+        // Ordered by timestamp_epoch (a real epoch), not timestamp -- that's
+        // a locale-formatted new Date().toLocaleString() display string
+        // (e.g. "1/16/2026, 12:41:55 AM"), and sorting on it lexicographically
+        // scrambles order across months/years, not just within a day.
+        const { data: aalRows } = await supabase.from('asset_activity_logs').select('*').order('timestamp_epoch', { ascending: false, nullsFirst: false })
         if (isMounted && aalRows && aalRows.length > 0) {
           setAssetActivityLogs(aalRows.map(l => ({
             id: l.id,
@@ -746,6 +756,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             remarks: l.remarks,
             source: (l.source as any) || 'Manual',
             timestamp: l.timestamp,
+            timestampEpoch: l.timestamp_epoch || undefined,
           })))
         }
       } catch (e) {
@@ -881,7 +892,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
 
     const newUuid = generateUUID()
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     const newDept: Department = {
       ...deptData,
       id: newUuid,
@@ -1234,7 +1245,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const nextSeq = getNextSequence(assets.map(a => a.assetId || a.id), 'AST')
     const newId = formatId('AST', nextSeq)
     const newUuid = generateUUID()
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
 
     const createdAsset: Asset = {
       ...assetData,
@@ -1369,6 +1380,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
         setInspections(prev => [newInsp, ...prev])
 
+        // inspection_number is re-minted server-side by a DB trigger (see
+        // supabase/migrations/0014_server_side_ticket_numbering.sql), which
+        // ignores whatever's sent here -- inspNumber above is only an
+        // optimistic guess for a snappy UI. Reconcile below if it differs.
         supabase.from('inspections').insert([{
           id: inspUuid,
           inspection_number: inspNumber,
@@ -1379,8 +1394,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           status: 'Scheduled',
           checklist_snapshot: tmpl?.items || [],
           created_at: new Date().toISOString(),
-        }]).then(({ error }) => {
-          if (error) console.error('Supabase Inspection insert error:', error.message)
+        }]).select().single().then(({ data, error }) => {
+          if (error) {
+            console.error('Supabase Inspection insert error:', error.message)
+            return
+          }
+          if (data && data.inspection_number !== inspNumber) {
+            setInspections(prev => prev.map(i => (i.id === inspUuid ? { ...i, inspectionNumber: data.inspection_number } : i)))
+          }
         })
       })
     }
@@ -1412,7 +1433,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       return { success: false, createdCount: 0, createdAssets: [] }
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     // NOTE: previously scanned a.id (a UUID) against the 'AST-####' pattern,
     // which never matched anything -- every bulk import silently restarted
     // numbering at AST-0001 regardless of how many assets already existed.
@@ -1667,7 +1688,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     ]
     const nextSeq = getNextSequence(knownIds, 'INV')
     const newId = formatId('INV', nextSeq)
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     const newUuid = generateUUID()
 
     const newItem: InventoryItem = {
@@ -1779,7 +1800,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       serialNumber: item.serialNumber,
       price: item.unitPrice,
       purchaseDate: item.purchaseDate,
-      installationDate: installationDate || new Date().toISOString().split('T')[0],
+      installationDate: installationDate || getLocalDateStr(),
       warrantyTill: item.warrantyTill,
       maintenanceBy: 'In House',
       purchaseVendorId: item.purchaseVendorId,
@@ -1832,7 +1853,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
     const nextSeq = getNextSequence(reservations.map(r => r.reservationNumber), 'RSV')
     const resNumber = formatYearlyId('RSV', nextSeq)
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     const newUuid = generateUUID()
 
     const targetRoom = rooms.find(r => r.id === resData.roomId || r.roomNumber === resData.roomId)
@@ -1876,7 +1897,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     reservationsData: Array<Omit<Reservation, 'id' | 'reservationNumber' | 'createdAt'>>
   ): { success: boolean; createdCount: number; conflictCount: number; message?: string } => {
     const now = new Date()
-    const today = now.toISOString().split('T')[0]
+    // Not .toISOString().split('T')[0] -- that's the UTC calendar date,
+    // which would be compared here against currentHour (already local),
+    // a mixed-clock bug near local midnight.
+    const today = getLocalDateStr(now)
     const currentHour = now.getHours()
     const validToCreate: Reservation[] = []
     let conflictCount = 0
@@ -1976,41 +2000,45 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
-  // 8. Service Request: SR-YYYY-#### (Immutable ID)
-  const addServiceRequest = (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>): ServiceRequest => {
-    const nextSeq = getNextSequence(serviceRequests.map(s => s.ticketId), 'SR')
-    const ticketId = formatYearlyId('SR', nextSeq)
+  // 8. Service Request: SR-YYYY-#### (minted server-side by a DB trigger —
+  // see supabase/migrations/0014_server_side_ticket_numbering.sql. A
+  // client-computed guess previously collided with existing tickets a
+  // Guest/Technician's RLS-scoped view couldn't see, silently failing the
+  // insert while the UI still showed a false "success".)
+  const addServiceRequest = async (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>): Promise<ServiceRequest> => {
     const newUuid = generateUUID()
-    
-    const newSr: ServiceRequest = {
-      ...sr,
+
+    const { data, error } = await supabase.from('service_requests').insert([{
       id: newUuid,
-      ticketId,
-      createdAt: new Date().toLocaleString(),
+      title: sr.title,
+      description: sr.description || '',
+      type: sr.requestType || 'Maintenance',
+      room_id: sr.roomId || null,
+      asset_id: sr.assetId || null,
+      status: sr.status || 'Open',
+      priority: sr.priority || 'Medium',
+      requested_by_name: sr.requestedBy,
       // Stamped from the real session, not the caller — this is what the
       // RLS "own service_requests" policies key off, so it must always be
       // the actual signed-in user regardless of what a caller passes in.
+      requested_by_user_id: currentUser.id,
+      sla_due_date: sr.slaDueDate || null,
+      photo_urls: sr.photoUrls || [],
+      created_at: new Date().toISOString(),
+    }]).select().single()
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to create service request.')
+    }
+
+    const newSr: ServiceRequest = {
+      ...sr,
+      id: data.id,
+      ticketId: data.ticket_id,
+      createdAt: data.created_at,
       requestedByUserId: currentUser.id,
     }
     setServiceRequests(prev => [newSr, ...prev])
-    supabase.from('service_requests').insert([{
-      id: newUuid,
-      ticket_id: ticketId,
-      title: newSr.title,
-      description: newSr.description || '',
-      type: newSr.requestType || 'Maintenance',
-      room_id: newSr.roomId || null,
-      asset_id: newSr.assetId || null,
-      status: newSr.status || 'Open',
-      priority: newSr.priority || 'Medium',
-      requested_by_name: newSr.requestedBy,
-      requested_by_user_id: currentUser.id,
-      sla_due_date: newSr.slaDueDate || null,
-      photo_urls: newSr.photoUrls || [],
-      created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase service_request insert error:', error.message)
-    })
 
     if (sr.assetId) {
       addAssetLog({
@@ -2177,11 +2205,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const nextSeq = getNextSequence(documents.map(d => d.id), 'DOC')
     const displayId = formatYearlyId('DOC', nextSeq)
     const newUuid = generateUUID()
-    const today = new Date().toISOString().split('T')[0]
+    // Full ISO instant, matching what the DB write below sends and what a
+    // reload reads back (documents/page.tsx:656) -- previously this used
+    // getLocalDateStr() (YYYY-MM-DD), so a freshly-uploaded document's card
+    // visibly changed date format the moment the page refreshed.
+    const uploadedAtIso = new Date().toISOString()
     const newDoc: DocumentItem = {
       ...doc,
       id: newUuid,
-      uploadedAt: today,
+      uploadedAt: uploadedAtIso,
     }
     setDocuments(prev => [newDoc, ...prev])
 
@@ -2208,7 +2240,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       file_size_bytes: (newDoc.fileSizeKb || 100) * 1024,
       file_url: newDoc.fileUrl,
       uploaded_by_user_name: newDoc.uploadedBy || 'Staff',
-      uploaded_at: new Date().toISOString(),
+      uploaded_at: uploadedAtIso,
       asset_id: linkedAsset?.id || null,
       inventory_item_id: linkedInventoryItem?.id || null,
     }])
@@ -2239,7 +2271,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // Checklist Templates CRUD
   const addChecklistTemplate = (tmpl: Omit<ChecklistTemplate, 'id' | 'updatedAt'>) => {
     const newUuid = generateUUID()
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     const newTmpl: ChecklistTemplate = {
       ...tmpl,
       id: newUuid,
@@ -2261,7 +2293,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     return newTmpl
   }
   const updateChecklistTemplate = (id: string, tmplData: Partial<ChecklistTemplate>) => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     setChecklistTemplates(prev =>
       prev.map(t =>
         t.id === id
@@ -2293,7 +2325,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // Work Orders & Inspections status updates
   const addWorkOrder = (wo: Omit<WorkOrder, 'id' | 'createdAt'>) => {
     const newUuid = generateUUID()
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     // Callers that want a not-yet-assigned Corrective/Preventive record
     // pass the literal sentinel 'PENDING' (they can't know this row's UUID
     // ahead of time) — work_orders.wo_number has a UNIQUE constraint, so
@@ -2389,7 +2421,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     if (mintedWoNumber) dbUpdates.wo_number = mintedWoNumber
     if (remarks !== undefined) dbUpdates.technician_remarks = remarks
     if (status === 'Completed') {
-      dbUpdates.completed_at = new Date().toISOString().split('T')[0]
+      dbUpdates.completed_at = getLocalDateStr()
     }
     if (extraUpdates) {
       if (extraUpdates.assignedTechnicianId !== undefined) dbUpdates.assigned_technician_id = extraUpdates.assignedTechnicianId
@@ -2408,8 +2440,24 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       if (extraUpdates.frequency !== undefined) dbUpdates.frequency = extraUpdates.frequency
     }
 
-    supabase.from('work_orders').update(dbUpdates).or(`id.eq.${id},wo_number.eq.${id}`).then(({ error }) => {
-      if (error) console.error('Supabase work_order update error:', error.message)
+    // wo_number itself is re-minted server-side by a DB trigger (see
+    // supabase/migrations/0014_server_side_ticket_numbering.sql) whenever
+    // this transition applies -- the client's mintedWoNumber above is only
+    // an optimistic guess (computed from an RLS-scoped, possibly-incomplete
+    // view) used for a snappy UI. Reconcile local state below if the DB's
+    // authoritative number came back different.
+    supabase.from('work_orders').update(dbUpdates).or(`id.eq.${id},wo_number.eq.${id}`).select().single().then(({ data, error }) => {
+      if (error) {
+        console.error('Supabase work_order update error:', error.message)
+        return
+      }
+      const realWoNumber: string | undefined = data?.wo_number
+      if (isFirstAssignment && realWoNumber && realWoNumber !== mintedWoNumber) {
+        setWorkOrders(prev => prev.map(w => (w.id === data.id ? { ...w, woNumber: realWoNumber } : w)))
+        if (targetWoForMint?.source === 'Service Request' && targetWoForMint.sourceRefId) {
+          updateServiceRequestStatus(targetWoForMint.sourceRefId, 'In Progress', { workOrderNumber: realWoNumber })
+        }
+      }
     })
 
     // If a Corrective WO is being minted for the first time (i.e. just
@@ -2440,7 +2488,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             technicianRemarks: remarks || w.technicianRemarks,
           }
           if (status === 'Completed') {
-            const completedDateIso = new Date().toISOString().split('T')[0]
+            const completedDateIso = getLocalDateStr()
             updated.completedAt = completedDateIso
             if (w.assetId) {
               updateAssetStatus(w.assetId, 'Operational')
@@ -2537,7 +2585,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const addInspection = (insp: Omit<Inspection, 'id' | 'createdAt'>) => {
     const newUuid = generateUUID()
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     const newInsp: Inspection = {
       ...insp,
       id: newUuid,
@@ -2603,7 +2651,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const completedDateIso = new Date().toISOString().split('T')[0]
+    const completedDateIso = getLocalDateStr()
     supabase.from('inspections').update({
       status: 'Completed',
       result,
@@ -2649,6 +2697,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             createdAt: completedDateIso,
           }
 
+          // inspection_number is re-minted server-side by a DB trigger (see
+          // supabase/migrations/0014_server_side_ticket_numbering.sql),
+          // which ignores whatever's sent here -- nextInspNumber above is
+          // only an optimistic guess (computed from this technician's own
+          // RLS-scoped, possibly-incomplete view) for a snappy UI. Reconcile
+          // below if it differs, rather than letting a stale number persist
+          // in local state until the next full refresh.
           supabase.from('inspections').insert([{
             id: nextInspUuid,
             inspection_number: nextInspNumber,
@@ -2659,8 +2714,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             status: 'Scheduled',
             checklist_snapshot: ins.checklistSnapshot || tmpl?.items || [],
             created_at: new Date().toISOString(),
-          }]).then(({ error }) => {
-            if (error) console.error('Supabase recurring inspection insert error:', error.message)
+          }]).select().single().then(({ data, error }) => {
+            if (error) {
+              console.error('Supabase recurring inspection insert error:', error.message)
+              return
+            }
+            if (data && data.inspection_number !== nextInspNumber) {
+              setInspections(prev2 => prev2.map(i => (i.id === nextInspUuid ? { ...i, inspectionNumber: data.inspection_number } : i)))
+            }
           })
 
           if (result === 'Fail') {
@@ -2679,7 +2740,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
               assetId: ins.assetId,
               source: 'Failed Inspection',
               sourceRefId: ins.inspectionNumber,
-              dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+              dueDate: getLocalDateStr(new Date(Date.now() + 86400000 * 2)),
               status: 'Scheduled',
               issueLogged: `Failed inspection item during inspection: ${remarks}`,
               createdAt: completedDateIso,
@@ -2740,7 +2801,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const resolvedRoomId = room ? room.id : roomId
     const now = new Date()
     const checkInTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    const checkInDate = now.toISOString().split('T')[0]
+    // Not .toISOString().split('T')[0] -- this is the exact UTC-vs-local
+    // ambiguity supabase/migrations/0006_server_side_auto_checkout.sql's
+    // comments already documented ("can be off by one day from the IST
+    // calendar date near midnight"); this is that value's actual source.
+    const checkInDate = getLocalDateStr(now)
     const newUuid = generateUUID()
 
     // AL-A#### is a real human-readable id (like assets.asset_id,
@@ -2783,67 +2848,101 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setRoomAccessLogs(prev => [log, ...prev])
     setRooms(prev => prev.map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Occupied', currentOccupant: currentUser.fullName } : r)))
 
-    const { error } = await supabase.from('room_access_logs').insert([{
-      id: newUuid,
-      activity_number: activityNumber,
-      room_id: resolvedRoomId,
-      user_id: currentUser.id,
-      user_name: currentUser.fullName,
-      user_role: currentUser.role,
-      check_in_time: checkInTime,
-      check_in_date: checkInDate,
-      check_in_timestamp: now.getTime(),
-      purpose,
-      is_force_checkout: false,
-    }])
+    // Both the log write and the room status flip happen atomically inside
+    // this one RPC (see supabase/migrations/0015_room_self_service_checkin.sql)
+    // — previously these were two separate calls, and the room status one
+    // silently failed for any non-admin (RLS only lets Admin write to
+    // `rooms` directly), so the "Occupied" indicator never survived a
+    // reload, or showed up for any other browser session, or even appeared
+    // in the first place for a Guest/Technician check-in.
+    const { error } = await supabase.rpc('room_check_in', {
+      p_id: newUuid,
+      p_room_id: resolvedRoomId,
+      p_activity_number: activityNumber,
+      p_purpose: purpose,
+      p_user_name: currentUser.fullName,
+      p_user_role: currentUser.role,
+      p_check_in_time: checkInTime,
+      p_check_in_date: checkInDate,
+      p_check_in_timestamp: now.getTime(),
+    })
     if (error) {
-      console.error('Supabase room_access_logs insert error:', error.message)
+      console.error('Supabase room_check_in error:', error.message)
       if (typeof window !== 'undefined') {
         alert(`Could not save this check-in: ${error.message}`)
       }
     }
-    // Previously this only updated local state — the "Occupied" indicator
-    // never survived a reload or showed up for any other browser session
-    // viewing the same room.
-    supabase.from('rooms').update({ status: 'Occupied', current_occupant: currentUser.fullName }).eq('id', resolvedRoomId).then(({ error }) => {
-      if (error) console.error('Supabase room status update error:', error.message)
-    })
   }
 
-  const checkOutRoom = (roomId: string) => {
+  const checkOutRoom = async (roomId: string) => {
     const room = rooms.find(r => r.id === roomId || r.roomNumber === roomId)
     const resolvedRoomId = room ? room.id : roomId
-    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    const nowDate = new Date()
+    const now = nowDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    const nowTimestamp = nowDate.getTime()
     // Scoped to the caller's own open log only — previously this matched
     // by room alone, so checking out could close a DIFFERENT user's still-
     // open session in a shared room.
     setRoomAccessLogs(prev =>
-      prev.map(l => ((l.roomId === resolvedRoomId || l.roomId === roomId) && l.userId === currentUser.id && !l.checkOutTime ? { ...l, checkOutTime: now } : l))
+      prev.map(l => ((l.roomId === resolvedRoomId || l.roomId === roomId) && l.userId === currentUser.id && !l.checkOutTime ? { ...l, checkOutTime: now, checkOutTimestamp: nowTimestamp } : l))
     )
     setRooms(prev => prev.map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Available', currentOccupant: undefined } : r)))
 
-    supabase.from('room_access_logs').update({ check_out_time: now }).eq('room_id', resolvedRoomId).eq('user_id', currentUser.id).is('check_out_time', null).then(({ error }) => {
-      if (error) console.error('Supabase room_access_logs checkout update error:', error.message)
+    // Same atomicity fix as checkInRoom above — one RPC, log update and
+    // room status flip together (see
+    // supabase/migrations/0015_room_self_service_checkin.sql). Also stamps
+    // a real checkout epoch (0017/0018) so a Check Out event can be ranked
+    // chronologically against other events, not just assumed to sit right
+    // after its own Check In.
+    const { error } = await supabase.rpc('room_check_out', {
+      p_room_id: resolvedRoomId,
+      p_check_out_time: now,
+      p_check_out_timestamp: nowTimestamp,
     })
-    supabase.from('rooms').update({ status: 'Available', current_occupant: null }).eq('id', resolvedRoomId).then(({ error }) => {
-      if (error) console.error('Supabase room status update error:', error.message)
-    })
+    if (error) {
+      console.error('Supabase room_check_out error:', error.message)
+      if (typeof window !== 'undefined') {
+        alert(`Could not save this check-out: ${error.message}`)
+      }
+    }
   }
 
   // Automated End-of-Day Check-Out at 11:59 PM
+  //
+  // This client-side sweep is only a best-effort, same-tab convenience for
+  // the current user's own stale session(s) -- the real, authoritative,
+  // always-on auto-checkout is the server-side 23:59 IST pg_cron job
+  // (public.run_auto_checkouts, supabase/migrations/0006), which closes
+  // every user's stale sessions regardless of whether anyone has a tab
+  // open. This function used to compare checkInDate/currentDateStr, both
+  // built via `.toISOString().split('T')[0]` -- the UTC calendar date, not
+  // the local one, exactly the ambiguity 0006's own comments already
+  // documented and the server cron was fixed to avoid. It also wrote
+  // directly to room_access_logs/rooms via raw .update() calls instead of
+  // the room_check_out RPC, which silently no-ops the rooms status write
+  // for a non-admin under RLS -- the same bug already fixed for manual
+  // checkout. Both are fixed here: real local dates via getLocalDateStr,
+  // and the same RPC checkOutRoom uses (also now stamping a real
+  // checkOutTimestamp, previously missing on this path entirely).
   const evaluateAutoCheckouts = React.useCallback(() => {
     const now = new Date()
-    const currentDateStr = now.toISOString().split('T')[0]
+    const nowTimestamp = now.getTime()
+    const currentDateStr = getLocalDateStr(now)
     const currentDayCutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 0, 0)
     const isPast1159Today = now.getTime() >= currentDayCutoff.getTime()
 
     setRoomAccessLogs(prevLogs => {
       let hasChanges = false
       const updatedRoomsToFree = new Set<string>()
-      const newlyCheckedOutIds: string[] = []
+      const staleRoomIds: string[] = []
 
       const newLogs = prevLogs.map(log => {
         if (log.checkOutTime) return log
+        // Only this session's own open logs -- the RPC below is scoped to
+        // auth.uid() regardless of caller role, so that's the most this
+        // client can ever actually persist; the server cron is what
+        // handles everyone else's stale sessions.
+        if (log.userId !== currentUser.id) return log
 
         const logDateStr = log.checkInDate || currentDateStr
         const isPastLogDate = logDateStr < currentDateStr
@@ -2852,10 +2951,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         if (isPastLogDate || isSameDayPastCutoff) {
           hasChanges = true
           updatedRoomsToFree.add(log.roomId)
-          newlyCheckedOutIds.push(log.id)
+          staleRoomIds.push(log.roomId)
           return {
             ...log,
             checkOutTime: '11:59 PM',
+            checkOutTimestamp: nowTimestamp,
             isForceCheckout: true,
             autoCheckOutNote: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
           }
@@ -2864,19 +2964,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (hasChanges) {
-        // Persist each forced checkout — this previously only ever updated
-        // local state, so the DB row (and the Phase 4 auto-checkout
-        // notification trigger, which fires on this exact UPDATE) never
-        // actually ran. RLS restricts this to the caller's own rows (or
-        // Admin), which matches "each browser force-checks-out its own
-        // stale session" — the only case this ever legitimately applies to.
-        newlyCheckedOutIds.forEach(logId => {
-          supabase.from('room_access_logs').update({
-            check_out_time: '11:59 PM',
-            is_force_checkout: true,
-            auto_checkout_note: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
-          }).eq('id', logId).then(({ error }) => {
-            if (error) console.error('Supabase auto-checkout persist error:', error.message)
+        // One RPC per stale room — atomic log + room status update
+        // together (see room_check_out,
+        // supabase/migrations/0020_room_check_out_force_params.sql).
+        staleRoomIds.forEach(roomId => {
+          supabase.rpc('room_check_out', {
+            p_room_id: roomId,
+            p_check_out_time: '11:59 PM',
+            p_check_out_timestamp: nowTimestamp,
+            p_is_force_checkout: true,
+            p_auto_checkout_note: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
+          }).then(({ error }) => {
+            if (error) console.error('Supabase auto-checkout error:', error.message)
           })
         })
         setRooms(prevRooms =>
@@ -2886,14 +2985,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
               : r
           )
         )
-        // Persist the freed status/occupant to Supabase too — previously
-        // only local state was updated here, same gap as checkInRoom/
-        // checkOutRoom.
-        updatedRoomsToFree.forEach(freedRoomId => {
-          supabase.from('rooms').update({ status: 'Available', current_occupant: null }).eq('id', freedRoomId).then(({ error }) => {
-            if (error) console.error('Supabase auto-checkout room status update error:', error.message)
-          })
-        })
         // activeCheckIn is derived elsewhere (see the useEffect keyed on
         // roomAccessLogs/currentUser.id) — it will automatically clear
         // once the corresponding log above gets its checkOutTime set.
@@ -2902,7 +2993,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
       return prevLogs
     })
-  }, [])
+  }, [currentUser.id])
 
   // Auto-checkout scheduler effect
   React.useEffect(() => {
@@ -2933,6 +3024,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const addAssetLog = (log: Omit<AssetActivityLog, 'id' | 'timestamp'>) => {
     const newUuid = generateUUID()
     const timestamp = new Date().toLocaleString()
+    const timestampEpoch = Date.now()
     const targetAsset = assets.find(a => a.id === log.assetId || a.assetId === log.assetId)
     const resolvedAssetId = targetAsset ? targetAsset.id : log.assetId
 
@@ -2941,6 +3033,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       id: newUuid,
       assetId: resolvedAssetId,
       timestamp,
+      timestampEpoch,
     }
     setAssetActivityLogs(prev => [newLog, ...prev])
 
@@ -2952,6 +3045,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       remarks: log.remarks || null,
       source: log.source || 'Manual',
       timestamp,
+      timestamp_epoch: timestampEpoch,
     }]).then(({ error }) => {
       if (error) console.error('Supabase asset_activity_log insert error:', error.message)
     })

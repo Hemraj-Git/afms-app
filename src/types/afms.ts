@@ -317,6 +317,7 @@ export interface RoomAccessLog {
   checkInDate?: string
   checkInTimestamp?: number
   checkOutTime?: string
+  checkOutTimestamp?: number
   purpose: string
   isForceCheckout: boolean
   autoCheckOutNote?: string
@@ -333,4 +334,5 @@ export interface AssetActivityLog {
   referenceId?: string
   source: 'Manual' | 'System' | 'Bulk Import'
   timestamp: string
+  timestampEpoch?: number
 }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { getLocalDateStr } from '@/lib/dateUtils'
 import {
   Package,
   Plus,
@@ -57,7 +58,7 @@ export default function InventoryDashboardPage() {
   const [deployCampusId, setDeployCampusId] = useState('')
   const [deployBuildingId, setDeployBuildingId] = useState('')
   const [deployRoomId, setDeployRoomId] = useState('')
-  const [deployInstallDate, setDeployInstallDate] = useState(new Date().toISOString().split('T')[0])
+  const [deployInstallDate, setDeployInstallDate] = useState(getLocalDateStr())
   const [deployUserId, setDeployUserId] = useState('')
 
   // Quick Stock Adjustment Modal State

@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import { Asset, Category, SubCategory, Campus, Building, Room, Vendor } from '@/types/afms'
+import { getLocalDateStr } from '@/lib/dateUtils'
 
 export interface ParsedAssetRow {
   rowNumber: number
@@ -37,14 +38,14 @@ function normalizeDateString(val: any): string | undefined {
   if (!val) return undefined
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return undefined
-    return val.toISOString().split('T')[0]
+    return getLocalDateStr(val)
   }
   if (typeof val === 'number') {
     // Excel serial date to JS Date
     try {
       const parsedDate = new Date(Math.round((val - 25569) * 86400 * 1000))
       if (!isNaN(parsedDate.getTime())) {
-        return parsedDate.toISOString().split('T')[0]
+        return getLocalDateStr(parsedDate)
       }
     } catch {
       return undefined
@@ -58,7 +59,7 @@ function normalizeDateString(val: any): string | undefined {
     // Match DD/MM/YYYY or MM/DD/YYYY
     const parsed = new Date(trimmed)
     if (!isNaN(parsed.getTime())) {
-      return parsed.toISOString().split('T')[0]
+      return getLocalDateStr(parsed)
     }
   }
   return undefined
@@ -508,7 +509,7 @@ export async function parseAssetExcelFile(
 
     // 5. Parse Dates
     const purchaseDate = normalizeDateString(purchaseDateRaw)
-    const installationDate = normalizeDateString(installationDateRaw) || purchaseDate || new Date().toISOString().split('T')[0]
+    const installationDate = normalizeDateString(installationDateRaw) || purchaseDate || getLocalDateStr()
     const warrantyTill = normalizeDateString(warrantyTillRaw)
 
     if (purchaseDateRaw && !purchaseDate) {
