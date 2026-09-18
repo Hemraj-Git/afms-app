@@ -41,29 +41,61 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { WorkOrder, Asset, Room, Vendor, UserRole, WorkOrderPartItem, Inspection, ServiceRequest } from '@/types/afms'
+import { WorkOrder, Asset, Room, Vendor, UserRole, WorkOrderPartItem, Inspection, ServiceRequest, ChecklistItemDef } from '@/types/afms'
+
+// Housekeeping's 5 sanitation items are fixed (not template-driven like
+// Preventive), so this is the one-time snapshot saved alongside each
+// order's checklistResponses -- the same WorkOrder fields Preventive
+// already uses to persist/restore its checklist, just with a constant
+// item list instead of one pulled from a maintenance template.
+const HK_CHECKLIST_ITEMS: ChecklistItemDef[] = [
+  { id: 'dusting', order: 1, itemText: 'Dust desks, simulator cockpits & fixtures', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
+  { id: 'mopping', order: 2, itemText: 'Sweep and wet mop entire floor with disinfectant', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
+  { id: 'trashDisposal', order: 3, itemText: 'Empty waste bins & replace liner bags', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
+  { id: 'sanitization', order: 4, itemText: 'Wipe door handles, switches & touchpoints', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
+  { id: 'restroomClean', order: 5, itemText: 'Restroom deep-clean and supply replenishment', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
+]
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { NotificationBell } from '@/components/mobile/NotificationBell'
 import { QrScanner } from '@/components/mobile/QrScanner'
+import { uploadToStorage, readFileAsDataUrl } from '@/lib/storageUpload'
 
 // Real device-camera photo capture, replacing every "Snap" button that
 // previously just set the exact same hardcoded stock-photo URL regardless
 // of context. `capture="environment"` opens the rear camera directly on
-// iOS Safari and Android without any getUserMedia permissions dance; the
-// captured/selected file is read into a base64 data URL, matching the
-// FileReader pattern already used for asset/inventory image uploads
-// elsewhere in this app.
+// iOS Safari and Android without any getUserMedia permissions dance.
+// Every photo this button captures anywhere in the mobile app (work order
+// start/completion, housekeeping, inspection overall + per-checkpoint, and
+// service request evidence) uploads to the work-order-evidence bucket;
+// base64 (self-contained, survives a reload on its own unlike a blob: URL)
+// is only a fallback if the real upload fails.
 function CameraCaptureButton({
   onCapture,
+  onUploadingChange,
+  onUploadFallback,
   label = 'Snap',
   className,
 }: {
-  onCapture: (dataUrl: string) => void
+  onCapture: (url: string) => void
+  // Lets a parent form track this button's busy state (e.g. to disable
+  // its own submit button) -- previously isUploading was fully private,
+  // so a submit could fire while a capture/retake was still mid-upload
+  // and silently save a stale or empty photo value.
+  onUploadingChange?: (isUploading: boolean) => void
+  // Fired when the real Storage upload failed and a base64 fallback was
+  // used instead -- previously this was silent (console.warn only), with
+  // no way for the user to know their photo didn't reach cloud storage.
+  onUploadFallback?: () => void
   label?: string
   className?: string
 }) {
   const inputRef = React.useRef<HTMLInputElement | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const setUploading = (val: boolean) => {
+    setIsUploading(val)
+    onUploadingChange?.(val)
+  }
   return (
     <>
       <input
@@ -72,27 +104,49 @@ function CameraCaptureButton({
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={e => {
+        onChange={async e => {
           const file = e.target.files?.[0]
-          if (file) {
-            const reader = new FileReader()
-            reader.onload = event => {
-              if (event.target?.result) onCapture(event.target.result as string)
-            }
-            reader.readAsDataURL(file)
-          }
           e.target.value = ''
+          if (!file) return
+          setUploading(true)
+          try {
+            const uploadedUrl = await uploadToStorage(file, 'work-order-evidence')
+            if (uploadedUrl) {
+              onCapture(uploadedUrl)
+            } else {
+              onCapture(await readFileAsDataUrl(file))
+              onUploadFallback?.()
+            }
+          } catch (err) {
+            console.error('Failed to capture photo:', err)
+          } finally {
+            setUploading(false)
+          }
         }}
       />
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
+        disabled={isUploading}
         className={className || 'px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs flex items-center gap-1 shrink-0'}
       >
         <Camera className="w-3.5 h-3.5" />
-        <span>{label}</span>
+        <span>{isUploading ? 'Uploading…' : label}</span>
       </button>
     </>
+  )
+}
+
+// Shown in place of CameraCaptureButton when viewing a completed record
+// with no photo attached -- matches the light-theme placeholder already
+// used on the admin Corrective/Preventive pages' evidence cards, adapted
+// to this file's dark theme.
+function NoPhotoNote() {
+  return (
+    <div className="flex items-center gap-2 p-3 bg-slate-950 rounded-xl border border-dashed border-slate-700 text-slate-500 mt-1">
+      <ImageIcon className="w-4 h-4 text-slate-600 shrink-0" />
+      <span>No photo attached to this record.</span>
+    </div>
   )
 }
 
@@ -217,6 +271,18 @@ function MobileFieldAppContent() {
   const [selectedHkOrder, setSelectedHkOrder] = useState<WorkOrder | null>(null)
   const [hkStartPhoto, setHkStartPhoto] = useState('')
   const [hkCompletionPhoto, setHkCompletionPhoto] = useState('')
+  // Which of this modal's CameraCaptureButtons currently have an upload
+  // in flight -- submit is blocked while non-empty, so a retake can't be
+  // silently superseded by a submit that fires before it resolves.
+  const [hkUploadingKeys, setHkUploadingKeys] = useState<Set<string>>(new Set())
+  const setHkUploading = (key: string, uploading: boolean) => {
+    setHkUploadingKeys(prev => {
+      const next = new Set(prev)
+      if (uploading) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
   const [hkNotes, setHkNotes] = useState('')
   // Previously defaulted to mostly pre-checked (true) and was never reset
   // when a different order was opened -- a housekeeping worker's very
@@ -244,6 +310,18 @@ function MobileFieldAppContent() {
   // only a single inspection-wide photo field, so there was no way to
   // know or prove which specific checkpoint a photo actually documented.
   const [inspItemPhotos, setInspItemPhotos] = useState<Record<string, string>>({})
+  // Which photo slot(s) are mid-upload -- 'overall' for the single
+  // inspection-wide photo, or a checklist item's id for its per-checkpoint
+  // photo. Submit is blocked while non-empty.
+  const [inspUploadingKeys, setInspUploadingKeys] = useState<Set<string>>(new Set())
+  const setInspUploading = (key: string, uploading: boolean) => {
+    setInspUploadingKeys(prev => {
+      const next = new Set(prev)
+      if (uploading) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
   const [inspSuccessMsg, setInspSuccessMsg] = useState(false)
 
   // Active Work Order for Execution Modal
@@ -252,6 +330,17 @@ function MobileFieldAppContent() {
   // Work Order Execution Form States
   const [startPhoto, setStartPhoto] = useState<string>('')
   const [completionPhoto, setCompletionPhoto] = useState<string>('')
+  // Which photo slot(s) are mid-upload ('start' | 'completion' |
+  // 'vendorJobSheet') -- submit is blocked while non-empty.
+  const [woUploadingKeys, setWoUploadingKeys] = useState<Set<string>>(new Set())
+  const setWoUploading = (key: string, uploading: boolean) => {
+    setWoUploadingKeys(prev => {
+      const next = new Set(prev)
+      if (uploading) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
   const [techRemarks, setTechRemarks] = useState<string>('')
   const [issueDiagnosed, setIssueDiagnosed] = useState<string>('')
   const [actionSolution, setActionSolution] = useState<string>('')
@@ -373,6 +462,7 @@ function MobileFieldAppContent() {
   const [reqDescription, setReqDescription] = useState('')
   const [reqPriority, setReqPriority] = useState<'Low' | 'Medium' | 'High' | 'Critical'>('Medium')
   const [reqPhotoUrl, setReqPhotoUrl] = useState('')
+  const [isReqPhotoUploading, setIsReqPhotoUploading] = useState(false)
   const [reqSuccessMsg, setReqSuccessMsg] = useState(false)
 
   // When the request is Maintenance and tied to an asset whose sub-category
@@ -490,12 +580,21 @@ function MobileFieldAppContent() {
   ).length
 
   // Service requests raised by the current user only — real RLS backs this
-  // (requested_by_user_id = auth.uid()), this filter is just UI ergonomics.
+  // (requested_by_user_id = auth.uid()). A returning Guest gets a fresh
+  // auth.uid() on every login, so requests from earlier visits are matched
+  // by e-mail instead (a dedicated RLS policy allows a Guest session to read
+  // service_requests sharing its own profile's email) — this filter mirrors
+  // that on the client so both sets combine into one list.
   const myServiceRequests = useMemo(() => {
     return serviceRequests
-      .filter(sr => sr.requestedByUserId === currentUser.id)
+      .filter(sr =>
+        sr.requestedByUserId === currentUser.id ||
+        (currentUser.role === 'Guest' &&
+          !!currentUser.email &&
+          sr.requestedByEmail?.toLowerCase() === currentUser.email.toLowerCase())
+      )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }, [serviceRequests, currentUser.id])
+  }, [serviceRequests, currentUser.id, currentUser.role, currentUser.email])
 
   // Open Inspection Execution Modal
   const handleOpenInspectionModal = (insp: Inspection) => {
@@ -508,6 +607,7 @@ function MobileFieldAppContent() {
     setInspRemarks('')
     setInspPhotoUrl('')
     setInspItemPhotos({})
+    setInspUploadingKeys(new Set())
     setInspSuccessMsg(false)
   }
 
@@ -515,6 +615,11 @@ function MobileFieldAppContent() {
   const handleSubmitInspectionModal = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     if (!selectedInspection) return
+
+    if (inspUploadingKeys.size > 0) {
+      showToast('error', 'Please wait for the photo to finish uploading.')
+      return
+    }
 
     const tmpl = checklistTemplates.find(t => t.id === selectedInspection.templateId)
     const items = tmpl?.items || []
@@ -540,7 +645,9 @@ function MobileFieldAppContent() {
       selectedInspection.id,
       finalResult,
       inspRemarks || defaultRemark,
-      inspAnswers
+      inspAnswers,
+      inspPhotoUrl || undefined,
+      Object.keys(inspItemPhotos).length > 0 ? inspItemPhotos : undefined
     )
 
     setInspSuccessMsg(true)
@@ -577,6 +684,7 @@ function MobileFieldAppContent() {
     setVendorJobSheetUrl(wo.vendorJobSheetUrl || '')
     setVendorRemarks(wo.vendorRemarks || '')
     setVendorCost(wo.vendorCost)
+    setWoUploadingKeys(new Set())
 
     // Init checklist responses if PM
     const initialChecklist: Record<string, any> = {}
@@ -611,6 +719,11 @@ function MobileFieldAppContent() {
   // Submit Work Order (PM or Corrective)
   const handleSubmitWorkOrder = (status: 'In Progress' | 'Completed') => {
     if (!selectedWorkOrder) return
+
+    if (woUploadingKeys.size > 0) {
+      showToast('error', 'Please wait for the photo to finish uploading.')
+      return
+    }
 
     // Proof of Presence Check -- previously only enforced for Corrective/
     // In-House, even though the Preventive start photo is also labeled
@@ -677,6 +790,10 @@ function MobileFieldAppContent() {
       showToast('error', 'Please describe the problem or service needed.')
       return
     }
+    if (isReqPhotoUploading) {
+      showToast('error', 'Please wait for the photo to finish uploading.')
+      return
+    }
 
     const roomObj = rooms.find(r => r.id === reqRoomId)
     const targetAsset = assets.find(a => a.id === reqAssetId)
@@ -720,6 +837,11 @@ function MobileFieldAppContent() {
   const handleHkSubmitWorkOrder = (status: 'In Progress' | 'Completed') => {
     if (!selectedHkOrder) return
 
+    if (hkUploadingKeys.size > 0) {
+      showToast('error', 'Please wait for the photo to finish uploading.')
+      return
+    }
+
     // The completion photo is labeled "*Required" in the UI but was never
     // actually enforced -- an order could be marked Completed with no
     // photo evidence and nothing checked at all.
@@ -734,12 +856,22 @@ function MobileFieldAppContent() {
       ? `Verified tasks: ${completedItems.join(', ')}`
       : 'No checklist tasks verified.'
 
+    // Structured save (mirrors how Preventive persists its checklist) so
+    // reopening this order later -- active or completed -- restores exactly
+    // what was checked, instead of always showing blank.
+    const checklistResponses: Record<string, { value: boolean }> = {}
+    HK_CHECKLIST_ITEMS.forEach(item => {
+      checklistResponses[item.id] = { value: hkChecklist[item.id] || false }
+    })
+
     const extraUpdates: Partial<WorkOrder> = {
       startPhotoUrl: hkStartPhoto || undefined,
       completionPhotoUrl: hkCompletionPhoto || undefined,
       technicianRemarks: hkNotes ? `${hkNotes} | ${checklistNotes}` : checklistNotes,
       solutionTaken: 'Room sanitized, mopped, dusted, waste cleared and hygiene replenished.',
       executedBy: 'In House',
+      checklistSnapshot: HK_CHECKLIST_ITEMS,
+      checklistResponses,
     }
 
     updateWorkOrderStatus(selectedHkOrder.id, status, hkNotes || 'Sanitation completed', extraUpdates)
@@ -750,6 +882,14 @@ function MobileFieldAppContent() {
 
   // Selected Vendor object for Contact details
   const selectedVendorObj = vendors.find(v => v.id === selectedVendorId) || vendors[0]
+
+  // Completed records open the same execution modal as a "View Details"
+  // read-only view (see displayedWorkOrders/displayedHkOrders "Completed"
+  // filter tab) -- previously the whole form stayed fully interactive with
+  // only the footer's submit buttons hidden, so a completed record still
+  // looked and behaved like a live editable form.
+  const isWoReadOnly = selectedWorkOrder?.status === 'Completed'
+  const isHkReadOnly = selectedHkOrder?.status === 'Completed'
 
   // Shared Service Request form — one field order/label set used both
   // inline in the Scan tab (room pre-filled and locked, `locked=true`) and
@@ -914,6 +1054,8 @@ function MobileFieldAppContent() {
           <div className="flex items-center gap-2">
             <CameraCaptureButton
               onCapture={setReqPhotoUrl}
+              onUploadingChange={setIsReqPhotoUploading}
+              onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
               label={reqPhotoUrl ? 'Retake Photo' : 'Take Photo'}
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5"
             />
@@ -925,9 +1067,10 @@ function MobileFieldAppContent() {
 
         <button
           type="submit"
-          className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow transition active:scale-[0.98]"
+          disabled={isReqPhotoUploading}
+          className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow transition active:scale-[0.98] disabled:opacity-60"
         >
-          Submit Service Request
+          {isReqPhotoUploading ? 'Uploading Photo…' : 'Submit Service Request'}
         </button>
       </form>
     </div>
@@ -1190,7 +1333,16 @@ function MobileFieldAppContent() {
                                 )}
                               </div>
 
-                              {isLocked ? (
+                              {wo.status === 'Completed' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenWorkOrder(wo)}
+                                  className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 transition"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View Details</span>
+                                </button>
+                              ) : isLocked ? (
                                 <div
                                   className="inline-flex items-center gap-1 bg-slate-800/80 text-slate-400 font-semibold text-[12px] px-2.5 py-1.5 rounded-xl border border-slate-700/60 cursor-not-allowed"
                                   title={`Attempt window opens on ${windowStatus?.unlockDate} (${windowStatus?.windowDescription})`}
@@ -1358,12 +1510,35 @@ function MobileFieldAppContent() {
                               setHkStartPhoto(wo.startPhotoUrl || '')
                               setHkCompletionPhoto(wo.completionPhotoUrl || '')
                               setHkNotes(wo.technicianRemarks || '')
-                              setHkChecklist(emptyHkChecklist)
+                              // Restore whatever was actually checked last time
+                              // (a completed order's real history, or an
+                              // in-progress order resumed later) instead of
+                              // always showing blank -- falls back to fully
+                              // unchecked for a brand-new task.
+                              const restoredChecklist = { ...emptyHkChecklist }
+                              if (wo.checklistResponses) {
+                                HK_CHECKLIST_ITEMS.forEach(item => {
+                                  restoredChecklist[item.id] = Boolean(wo.checklistResponses?.[item.id]?.value)
+                                })
+                              }
+                              setHkChecklist(restoredChecklist)
+                              setHkUploadingKeys(new Set())
                             }}
-                            className="inline-flex items-center gap-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow transition active:scale-[0.98]"
+                            className={wo.status === 'Completed'
+                              ? "inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 transition"
+                              : "inline-flex items-center gap-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow transition active:scale-[0.98]"}
                           >
-                            <span>Perform Cleaning</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
+                            {wo.status === 'Completed' ? (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>View Details</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>Perform Cleaning</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </>
+                            )}
                           </button>
                         </div>
                       </div>
@@ -2148,12 +2323,18 @@ function MobileFieldAppContent() {
                       Technician must take a photo with the asset on site before servicing.
                     </p>
 
-                    <div className="flex items-center gap-2 pt-1">
-                      <CameraCaptureButton
-                        onCapture={setStartPhoto}
-                        label={startPhoto ? 'Retake Proof Photo' : 'Snap Proof'}
-                      />
-                    </div>
+                    {!isWoReadOnly && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <CameraCaptureButton
+                          onCapture={setStartPhoto}
+                          onUploadingChange={uploading => setWoUploading('start', uploading)}
+                          onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
+                          label={startPhoto ? 'Retake Proof Photo' : 'Snap Proof'}
+                        />
+                      </div>
+                    )}
+
+                    {isWoReadOnly && !startPhoto && <NoPhotoNote />}
 
                     {startPhoto && (
                       <div className="relative inline-block mt-2">
@@ -2187,13 +2368,13 @@ function MobileFieldAppContent() {
                               }`}
                             >
                               <div
-                                onClick={() => {
+                                onClick={isWoReadOnly ? undefined : () => {
                                   setChecklistResponses(prev => ({
                                     ...prev,
                                     [item.id]: { ...prev[item.id], value: !currentVal },
                                   }))
                                 }}
-                                className="flex items-center justify-between cursor-pointer"
+                                className={`flex items-center justify-between ${isWoReadOnly ? '' : 'cursor-pointer'}`}
                               >
                                 <span className="text-xs font-medium pr-2">
                                   {idx + 1}. {item.itemText}
@@ -2212,6 +2393,7 @@ function MobileFieldAppContent() {
                               <input
                                 type="text"
                                 value={itemRemarks}
+                                readOnly={isWoReadOnly}
                                 onClick={e => e.stopPropagation()}
                                 onChange={e => setChecklistResponses(prev => ({
                                   ...prev,
@@ -2243,6 +2425,7 @@ function MobileFieldAppContent() {
                     <textarea
                       rows={2}
                       value={techRemarks}
+                      readOnly={isWoReadOnly}
                       onChange={e => setTechRemarks(e.target.value)}
                       placeholder="Enter details of cleaning, oil lubrication, sensor calibration done..."
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white"
@@ -2254,13 +2437,18 @@ function MobileFieldAppContent() {
                     <label className="block text-[12px] font-bold text-slate-400 uppercase">
                       4. Post-Service Asset Completion Photo:
                     </label>
-                    <div className="flex items-center gap-2">
-                      <CameraCaptureButton
-                        onCapture={setCompletionPhoto}
-                        label={completionPhoto ? 'Retake Photo' : 'Take Photo'}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                      />
-                    </div>
+                    {!isWoReadOnly && (
+                      <div className="flex items-center gap-2">
+                        <CameraCaptureButton
+                          onCapture={setCompletionPhoto}
+                          onUploadingChange={uploading => setWoUploading('completion', uploading)}
+                          onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
+                          label={completionPhoto ? 'Retake Photo' : 'Take Photo'}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                        />
+                      </div>
+                    )}
+                    {isWoReadOnly && !completionPhoto && <NoPhotoNote />}
                     {completionPhoto && (
                       <img src={completionPhoto} alt="Completion proof" className="h-20 w-auto rounded-xl object-cover border border-slate-700 mt-1" />
                     )}
@@ -2280,7 +2468,8 @@ function MobileFieldAppContent() {
                     <button
                       type="button"
                       onClick={() => setCorrectiveMode('In House')}
-                      className={`py-2 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                      disabled={isWoReadOnly}
+                      className={`py-2 rounded-xl transition flex items-center justify-center gap-1.5 disabled:opacity-60 ${
                         correctiveMode === 'In House'
                           ? 'bg-blue-600 text-white shadow'
                           : 'text-slate-400 hover:text-white'
@@ -2293,7 +2482,8 @@ function MobileFieldAppContent() {
                     <button
                       type="button"
                       onClick={() => setCorrectiveMode('Vendor')}
-                      className={`py-2 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                      disabled={isWoReadOnly}
+                      className={`py-2 rounded-xl transition flex items-center justify-center gap-1.5 disabled:opacity-60 ${
                         correctiveMode === 'Vendor'
                           ? 'bg-amber-600 text-white shadow'
                           : 'text-slate-400 hover:text-white'
@@ -2316,13 +2506,18 @@ function MobileFieldAppContent() {
                           </p>
                           <span className="text-[12px] text-amber-400 font-semibold">*Required</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <CameraCaptureButton
-                            onCapture={setStartPhoto}
-                            label={startPhoto ? 'Retake Photo' : 'Snap'}
-                            className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5"
-                          />
-                        </div>
+                        {!isWoReadOnly && (
+                          <div className="flex items-center gap-2">
+                            <CameraCaptureButton
+                              onCapture={setStartPhoto}
+                              onUploadingChange={uploading => setWoUploading('start', uploading)}
+                              onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
+                              label={startPhoto ? 'Retake Photo' : 'Snap'}
+                              className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5"
+                            />
+                          </div>
+                        )}
+                        {isWoReadOnly && !startPhoto && <NoPhotoNote />}
                         {startPhoto && (
                           <img src={startPhoto} alt="Start proof" className="h-20 w-auto rounded-lg object-cover border border-slate-700 mt-1" />
                         )}
@@ -2336,6 +2531,7 @@ function MobileFieldAppContent() {
                         <textarea
                           rows={2}
                           value={issueDiagnosed}
+                          readOnly={isWoReadOnly}
                           onChange={e => setIssueDiagnosed(e.target.value)}
                           placeholder="Describe the root cause (e.g. capacitor blown, pipe leakage, belt worn out)..."
                           className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-white"
@@ -2350,6 +2546,7 @@ function MobileFieldAppContent() {
                         <textarea
                           rows={2}
                           value={actionSolution}
+                          readOnly={isWoReadOnly}
                           onChange={e => setActionSolution(e.target.value)}
                           placeholder="Describe what repair, soldering, rewiring or calibration was performed..."
                           className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-white"
@@ -2367,31 +2564,33 @@ function MobileFieldAppContent() {
                         </div>
 
                         {/* Add Part Row */}
-                        <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={newPartName}
-                              onChange={e => setNewPartName(e.target.value)}
-                              placeholder="Part Name (e.g. 50uF Capacitor)"
-                              className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white"
-                            />
-                            <input
-                              type="number"
-                              min={1}
-                              value={newPartQty}
-                              onChange={e => setNewPartQty(parseInt(e.target.value) || 1)}
-                              className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center"
-                            />
-                            <button
-                              type="button"
-                              onClick={handleAddPart}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs"
-                            >
-                              + Add
-                            </button>
+                        {!isWoReadOnly && (
+                          <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={newPartName}
+                                onChange={e => setNewPartName(e.target.value)}
+                                placeholder="Part Name (e.g. 50uF Capacitor)"
+                                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white"
+                              />
+                              <input
+                                type="number"
+                                min={1}
+                                value={newPartQty}
+                                onChange={e => setNewPartQty(parseInt(e.target.value) || 1)}
+                                className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleAddPart}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs"
+                              >
+                                + Add
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         {/* List of Added Parts */}
                         {partsList.length > 0 && (
@@ -2401,13 +2600,15 @@ function MobileFieldAppContent() {
                                 <span className="font-medium text-slate-200">
                                   {p.partName} <span className="text-emerald-400 font-bold">(Qty: {p.quantity})</span>
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemovePart(pIdx)}
-                                  className="text-rose-400 hover:text-rose-300 p-1"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {!isWoReadOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePart(pIdx)}
+                                    className="text-rose-400 hover:text-rose-300 p-1"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -2419,13 +2620,18 @@ function MobileFieldAppContent() {
                         <label className="block text-[12px] font-bold text-slate-400 uppercase">
                           5. Repaired Asset Completion Photo:
                         </label>
-                        <div className="flex items-center gap-2">
-                          <CameraCaptureButton
-                            onCapture={setCompletionPhoto}
-                            label={completionPhoto ? 'Retake Photo' : 'Snap'}
-                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                          />
-                        </div>
+                        {!isWoReadOnly && (
+                          <div className="flex items-center gap-2">
+                            <CameraCaptureButton
+                              onCapture={setCompletionPhoto}
+                              onUploadingChange={uploading => setWoUploading('completion', uploading)}
+                              onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
+                              label={completionPhoto ? 'Retake Photo' : 'Snap'}
+                              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                            />
+                          </div>
+                        )}
+                        {isWoReadOnly && !completionPhoto && <NoPhotoNote />}
                         {completionPhoto && (
                           <img src={completionPhoto} alt="Completion proof" className="h-20 w-auto rounded-xl object-cover border border-slate-700 mt-1" />
                         )}
@@ -2444,7 +2650,8 @@ function MobileFieldAppContent() {
                         <select
                           value={selectedVendorId}
                           onChange={e => setSelectedVendorId(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-medium focus:ring-1 focus:ring-amber-500"
+                          disabled={isWoReadOnly}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-medium focus:ring-1 focus:ring-amber-500 disabled:opacity-60"
                         >
                           {vendors.map(v => (
                             <option key={v.id} value={v.id}>
@@ -2504,6 +2711,7 @@ function MobileFieldAppContent() {
                               type="text"
                               value={vendorTicketNo}
                               onChange={e => setVendorTicketNo(e.target.value)}
+                              readOnly={isWoReadOnly}
                               placeholder="e.g. VND-JOB-8841"
                               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white"
                             />
@@ -2514,6 +2722,7 @@ function MobileFieldAppContent() {
                               type="date"
                               value={vendorServiceDate}
                               onChange={e => setVendorServiceDate(e.target.value)}
+                              readOnly={isWoReadOnly}
                               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white"
                             />
                           </div>
@@ -2526,6 +2735,7 @@ function MobileFieldAppContent() {
                               type="text"
                               value={vendorTechName}
                               onChange={e => setVendorTechName(e.target.value)}
+                              readOnly={isWoReadOnly}
                               placeholder="Engineer Name"
                               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white"
                             />
@@ -2536,6 +2746,7 @@ function MobileFieldAppContent() {
                               type="text"
                               value={vendorTechPhone}
                               onChange={e => setVendorTechPhone(e.target.value)}
+                              readOnly={isWoReadOnly}
                               placeholder="+91..."
                               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono"
                             />
@@ -2548,6 +2759,7 @@ function MobileFieldAppContent() {
                             rows={2}
                             value={vendorRemarks}
                             onChange={e => setVendorRemarks(e.target.value)}
+                            readOnly={isWoReadOnly}
                             placeholder="Enter vendor diagnosis, parts supplied by OEM, and warranty stamps..."
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white"
                           />
@@ -2555,13 +2767,18 @@ function MobileFieldAppContent() {
 
                         <div className="space-y-1">
                           <label className="block text-[12px] text-slate-400">Vendor Job Sheet / Invoice Attachment:</label>
-                          <div className="flex items-center gap-2">
-                            <CameraCaptureButton
-                              onCapture={setVendorJobSheetUrl}
-                              label={vendorJobSheetUrl ? 'Retake Photo' : 'Photograph Job Sheet'}
-                              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                            />
-                          </div>
+                          {!isWoReadOnly && (
+                            <div className="flex items-center gap-2">
+                              <CameraCaptureButton
+                                onCapture={setVendorJobSheetUrl}
+                                onUploadingChange={uploading => setWoUploading('vendorJobSheet', uploading)}
+                                onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
+                                label={vendorJobSheetUrl ? 'Retake Photo' : 'Photograph Job Sheet'}
+                                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                              />
+                            </div>
+                          )}
+                          {isWoReadOnly && !vendorJobSheetUrl && <NoPhotoNote />}
                           {vendorJobSheetUrl && (
                             <img src={vendorJobSheetUrl} alt="Job sheet" className="h-20 w-auto rounded-xl object-cover border border-slate-700 mt-1" />
                           )}
@@ -2576,34 +2793,41 @@ function MobileFieldAppContent() {
 
             </div>
 
-            {/* Modal Footer Actions */}
+            {/* Modal Footer Actions -- a Completed work order is historical/
+                read-only: no submit actions, since re-submitting would
+                re-run the completion cascade (see updateWorkOrderStatus's
+                idempotency guard) and overwrite the real completion date. */}
             <div className="bg-slate-950 border-t border-slate-800 p-4 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setSelectedWorkOrder(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
               >
-                Cancel
+                {selectedWorkOrder?.status === 'Completed' ? 'Close' : 'Cancel'}
               </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSubmitWorkOrder('In Progress')}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/30"
-                >
-                  Save as In Progress
-                </button>
+              {selectedWorkOrder?.status !== 'Completed' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSubmitWorkOrder('In Progress')}
+                    disabled={woUploadingKeys.size > 0}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/30 disabled:opacity-60"
+                  >
+                    Save as In Progress
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleSubmitWorkOrder('Completed')}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Complete &amp; Close</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSubmitWorkOrder('Completed')}
+                    disabled={woUploadingKeys.size > 0}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{woUploadingKeys.size > 0 ? 'Uploading Photo…' : 'Complete & Close'}</span>
+                  </button>
+                </div>
+              )}
             </div>
 
           </div>
@@ -2738,6 +2962,8 @@ function MobileFieldAppContent() {
                           <div className="flex items-center gap-2 pt-1">
                             <CameraCaptureButton
                               onCapture={url => setInspItemPhotos(prev => ({ ...prev, [item.id]: url }))}
+                              onUploadingChange={uploading => setInspUploading(item.id, uploading)}
+                              onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
                               label={itemPhoto ? 'Retake Photo' : 'Attach Photo for this Checkpoint'}
                               className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[12px] flex items-center gap-1.5"
                             />
@@ -2775,6 +3001,8 @@ function MobileFieldAppContent() {
                 <div className="flex items-center gap-2">
                   <CameraCaptureButton
                     onCapture={setInspPhotoUrl}
+                    onUploadingChange={uploading => setInspUploading('overall', uploading)}
+                    onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
                     label={inspPhotoUrl ? 'Retake Photo' : 'Take Photo'}
                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs flex items-center gap-1 shrink-0"
                   />
@@ -2801,10 +3029,11 @@ function MobileFieldAppContent() {
               <button
                 type="button"
                 onClick={handleSubmitInspectionModal}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition active:scale-[0.98]"
+                disabled={inspUploadingKeys.size > 0}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition active:scale-[0.98] disabled:opacity-60"
               >
                 <Check className="w-4 h-4" />
-                <span>Submit &amp; Complete Inspection</span>
+                <span>{inspUploadingKeys.size > 0 ? 'Uploading Photo…' : 'Submit & Complete Inspection'}</span>
               </button>
             </div>
 
@@ -3063,13 +3292,18 @@ function MobileFieldAppContent() {
                   </p>
                   <span className="text-[12px] text-slate-400">Proof of condition</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CameraCaptureButton
-                    onCapture={setHkStartPhoto}
-                    label={hkStartPhoto ? 'Retake Photo' : 'Snap'}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5"
-                  />
-                </div>
+                {!isHkReadOnly && (
+                  <div className="flex items-center gap-2">
+                    <CameraCaptureButton
+                      onCapture={setHkStartPhoto}
+                      onUploadingChange={uploading => setHkUploading('start', uploading)}
+                      onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
+                      label={hkStartPhoto ? 'Retake Photo' : 'Snap'}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5"
+                    />
+                  </div>
+                )}
+                {isHkReadOnly && !hkStartPhoto && <NoPhotoNote />}
                 {hkStartPhoto && (
                   <img src={hkStartPhoto} alt="Before cleaning" className="h-20 w-auto rounded-xl object-cover border border-purple-500/40 mt-1" />
                 )}
@@ -3082,25 +3316,19 @@ function MobileFieldAppContent() {
                   2. Sanitation Tasks Checklist:
                 </p>
                 <div className="space-y-2">
-                  {[
-                    { key: 'dusting', label: 'Dust desks, simulator cockpits & fixtures' },
-                    { key: 'mopping', label: 'Sweep and wet mop entire floor with disinfectant' },
-                    { key: 'trashDisposal', label: 'Empty waste bins & replace liner bags' },
-                    { key: 'sanitization', label: 'Wipe door handles, switches & touchpoints' },
-                    { key: 'restroomClean', label: 'Restroom deep-clean and supply replenishment' },
-                  ].map(item => {
-                    const checked = (hkChecklist as any)[item.key] || false
+                  {HK_CHECKLIST_ITEMS.map(item => {
+                    const checked = hkChecklist[item.id] || false
                     return (
                       <div
-                        key={item.key}
-                        onClick={() => setHkChecklist(prev => ({ ...prev, [item.key]: !checked }))}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                        key={item.id}
+                        onClick={isHkReadOnly ? undefined : () => setHkChecklist(prev => ({ ...prev, [item.id]: !checked }))}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between transition ${isHkReadOnly ? '' : 'cursor-pointer'} ${
                           checked
                             ? 'bg-emerald-950/20 border-emerald-500/40 text-white'
                             : 'bg-slate-900 border-slate-800 text-slate-400'
                         }`}
                       >
-                        <span className="text-xs font-medium">{item.label}</span>
+                        <span className="text-xs font-medium">{item.itemText}</span>
                         <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
                           checked ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-slate-700 bg-slate-950'
                         }`}>
@@ -3121,6 +3349,7 @@ function MobileFieldAppContent() {
                   rows={2}
                   value={hkNotes}
                   onChange={e => setHkNotes(e.target.value)}
+                  readOnly={isHkReadOnly}
                   placeholder="e.g. Floor cleaner 50ml used, hand sanitizers refilled, trash bag replaced..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white"
                 />
@@ -3135,47 +3364,57 @@ function MobileFieldAppContent() {
                   </p>
                   <span className="text-[12px] text-emerald-400 font-semibold">*Required</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CameraCaptureButton
-                    onCapture={setHkCompletionPhoto}
-                    label={hkCompletionPhoto ? 'Retake Photo' : 'Snap'}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5"
-                  />
-                </div>
+                {!isHkReadOnly && (
+                  <div className="flex items-center gap-2">
+                    <CameraCaptureButton
+                      onCapture={setHkCompletionPhoto}
+                      onUploadingChange={uploading => setHkUploading('completion', uploading)}
+                      onUploadFallback={() => showToast('error', 'Photo saved locally — cloud upload failed, but it will still be recorded.')}
+                      label={hkCompletionPhoto ? 'Retake Photo' : 'Snap'}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5"
+                    />
+                  </div>
+                )}
+                {isHkReadOnly && !hkCompletionPhoto && <NoPhotoNote />}
                 {hkCompletionPhoto && (
                   <img src={hkCompletionPhoto} alt="After cleaning" className="h-20 w-auto rounded-xl object-cover border border-emerald-500/40 mt-1" />
                 )}
               </div>
             </div>
 
-            {/* Modal Footer Actions */}
+            {/* Modal Footer Actions -- a Completed order is historical/
+                read-only, same reasoning as the WO execution modal. */}
             <div className="bg-slate-950 border-t border-slate-800 p-4 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setSelectedHkOrder(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
               >
-                Cancel
+                {selectedHkOrder?.status === 'Completed' ? 'Close' : 'Cancel'}
               </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleHkSubmitWorkOrder('In Progress')}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/30"
-                >
-                  Save In Progress
-                </button>
+              {selectedHkOrder?.status !== 'Completed' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleHkSubmitWorkOrder('In Progress')}
+                    disabled={hkUploadingKeys.size > 0}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/30 disabled:opacity-60"
+                  >
+                    Save In Progress
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleHkSubmitWorkOrder('Completed')}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Complete Sanitization</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => handleHkSubmitWorkOrder('Completed')}
+                    disabled={hkUploadingKeys.size > 0}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{hkUploadingKeys.size > 0 ? 'Uploading Photo…' : 'Complete Sanitization'}</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

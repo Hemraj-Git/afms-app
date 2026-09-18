@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
@@ -26,9 +26,12 @@ import {
   FolderTree,
   UserPlus,
   Loader2,
+  ClipboardList,
+  QrCode,
 } from 'lucide-react'
-import { UserProfile, UserRole, Department } from '@/types/afms'
+import { UserProfile, UserRole, Department, ServiceRequest } from '@/types/afms'
 import { inviteUser } from '@/app/actions/users'
+import { formatDateDisplay } from '@/lib/dateUtils'
 
 export default function UsersAdminPage() {
   const {
@@ -42,10 +45,14 @@ export default function UsersAdminPage() {
     deleteDepartment,
     assets,
     roomAccessLogs,
+    serviceRequests,
   } = useAFMS()
 
   // Active Tab: Users or Departments
   const [activeTab, setActiveTab] = useState<'users' | 'departments'>('users')
+
+  // Personnel Sub-Tab: Registered (real accounts) or Guests (anonymous visitor logins)
+  const [personnelSubTab, setPersonnelSubTab] = useState<'registered' | 'guests'>('registered')
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('')
@@ -74,6 +81,20 @@ export default function UsersAdminPage() {
 
   // User Detail Drawer / Modal State (Assigned Assets & Check-In Logs)
   const [viewingUser, setViewingUser] = useState<UserProfile | null>(null)
+
+  // Guest identity: every guest login mints a fresh anonymous profiles row
+  // (there's no persistent auth account to key off), so guests are grouped
+  // by lower-cased email into one visitor per group for display/detail.
+  type GuestGroup = {
+    email: string
+    fullName: string
+    phone: string
+    profileIds: string[]
+    visitCount: number
+    firstSeen?: string
+    lastSeen?: string
+  }
+  const [viewingGuestGroup, setViewingGuestGroup] = useState<GuestGroup | null>(null)
 
   // Open User Create Modal
   const openCreateUserModal = () => {
@@ -225,13 +246,58 @@ export default function UsersAdminPage() {
     }
   }
 
+  // Registered (real, invited) accounts only -- Guests live in their own tab
+  const registeredUsers = users.filter(u => u.role !== 'Guest')
+
   // Filtered users
-  const filteredUsers = users.filter(
+  const filteredUsers = registeredUsers.filter(
     u =>
       u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.department?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  // Guests grouped by lower-cased email -- one row per returning visitor,
+  // even though each of their logins created its own profiles row.
+  const guestGroups: GuestGroup[] = useMemo(() => {
+    const map = new Map<string, GuestGroup>()
+    users
+      .filter(u => u.role === 'Guest' && u.email)
+      .forEach(g => {
+        const key = g.email.toLowerCase()
+        const existing = map.get(key)
+        if (!existing) {
+          map.set(key, {
+            email: key,
+            fullName: g.fullName,
+            phone: g.phone || '',
+            profileIds: [g.id],
+            visitCount: 1,
+            firstSeen: g.createdAt,
+            lastSeen: g.createdAt,
+          })
+          return
+        }
+        existing.profileIds.push(g.id)
+        existing.visitCount += 1
+        if (g.createdAt && (!existing.lastSeen || g.createdAt > existing.lastSeen)) {
+          existing.lastSeen = g.createdAt
+          existing.fullName = g.fullName
+          existing.phone = g.phone || existing.phone
+        }
+        if (g.createdAt && (!existing.firstSeen || g.createdAt < existing.firstSeen)) {
+          existing.firstSeen = g.createdAt
+        }
+      })
+    return Array.from(map.values()).sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''))
+  }, [users])
+
+  const filteredGuestGroups = guestGroups.filter(
+    g =>
+      g.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      g.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      g.phone.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   // Filtered departments
@@ -265,6 +331,20 @@ export default function UsersAdminPage() {
   // CheckIn / CheckOut access logs of viewing user
   const userAccessLogs = viewingUser
     ? roomAccessLogs.filter(l => l.userId === viewingUser.id || l.userName === viewingUser.fullName)
+    : []
+
+  // Service requests raised by the viewing registered user
+  const userRaisedRequests = viewingUser
+    ? serviceRequests.filter(sr => sr.requestedByUserId === viewingUser.id)
+    : []
+
+  // Access log + raised requests for the viewing guest group, matched across
+  // every profiles row that shares this guest's email
+  const guestAccessLogs = viewingGuestGroup
+    ? roomAccessLogs.filter(l => viewingGuestGroup.profileIds.includes(l.userId))
+    : []
+  const guestRaisedRequests = viewingGuestGroup
+    ? serviceRequests.filter(sr => sr.requestedByEmail?.toLowerCase() === viewingGuestGroup.email)
     : []
 
   return (
@@ -311,7 +391,7 @@ export default function UsersAdminPage() {
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Personnel ({users.length})</span>
+            <span>Personnel ({registeredUsers.length})</span>
           </button>
 
           <button
@@ -333,7 +413,11 @@ export default function UsersAdminPage() {
             <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-slate-900">Institute Personnel Directory</h2>
-                <p className="text-xs text-slate-400">Click any user row to view assigned assets and check-in history</p>
+                <p className="text-xs text-slate-400">
+                  {personnelSubTab === 'registered'
+                    ? 'Click any user row to view assigned assets, access log, and raised requests'
+                    : 'Click any visitor row to view their access log and raised requests'}
+                </p>
               </div>
 
               <div className="relative max-w-xs w-full">
@@ -342,12 +426,39 @@ export default function UsersAdminPage() {
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, role, department..."
+                  placeholder={personnelSubTab === 'registered' ? 'Search by name, role, department...' : 'Search by name, email, phone...'}
                   className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
             </div>
 
+            {/* Registered / Guests Sub-Tab Pills */}
+            <div className="px-4 sm:px-6 pt-3 pb-1 flex items-center gap-2">
+              <button
+                onClick={() => setPersonnelSubTab('registered')}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 ${
+                  personnelSubTab === 'registered'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Registered ({registeredUsers.length})</span>
+              </button>
+              <button
+                onClick={() => setPersonnelSubTab('guests')}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 ${
+                  personnelSubTab === 'guests'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Guests ({guestGroups.length})</span>
+              </button>
+            </div>
+
+            {personnelSubTab === 'registered' ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -389,7 +500,6 @@ export default function UsersAdminPage() {
                                 <p className="font-bold text-slate-900 group-hover:text-blue-600 transition">
                                   {user.fullName}
                                 </p>
-                                <span className="font-mono text-[10px] text-slate-400">{user.id}</span>
                               </div>
                               <p className="text-[11px] text-slate-400 mt-0.5">{user.email}</p>
                             </div>
@@ -448,6 +558,73 @@ export default function UsersAdminPage() {
                 </tbody>
               </table>
             </div>
+            ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
+                    <th className="py-3.5 px-6">Guest Profile</th>
+                    <th className="py-3.5 px-4">Contact Details</th>
+                    <th className="py-3.5 px-4">Visits</th>
+                    <th className="py-3.5 px-4">Last Visit</th>
+                    <th className="py-3.5 px-6 text-right">&nbsp;</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredGuestGroups.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400">
+                        No guest visitors found matching search criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredGuestGroups.map(group => (
+                      <tr
+                        key={group.email}
+                        onClick={() => setViewingGuestGroup(group)}
+                        className="hover:bg-blue-50/40 transition cursor-pointer group"
+                      >
+                        {/* Guest Profile */}
+                        <td className="py-4 px-6 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-sm shrink-0 border border-slate-200">
+                            {group.fullName.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 group-hover:text-blue-600 transition">
+                              {group.fullName}
+                            </p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">{group.email}</p>
+                          </div>
+                        </td>
+
+                        {/* Phone */}
+                        <td className="py-4 px-4 text-slate-600 font-mono">
+                          {group.phone || '—'}
+                        </td>
+
+                        {/* Visit Count */}
+                        <td className="py-4 px-4">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-slate-50 text-slate-600 border-slate-200">
+                            {group.visitCount} {group.visitCount === 1 ? 'Visit' : 'Visits'}
+                          </span>
+                        </td>
+
+                        {/* Last Visit */}
+                        <td className="py-4 px-4 text-slate-500">
+                          {group.lastSeen ? new Date(group.lastSeen).toLocaleDateString() : '—'}
+                        </td>
+
+                        {/* View Chevron */}
+                        <td className="py-4 px-6 text-right">
+                          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 inline-block transition" />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            )}
           </div>
         )}
 
@@ -664,6 +841,7 @@ export default function UsersAdminPage() {
                         </div>
 
                         <div className="text-right">
+                          <p className="text-[10px] text-slate-400 font-mono">{formatDateDisplay(log.checkInDate)}</p>
                           <div className="flex items-center gap-2 font-mono text-[11px]">
                             <span className="text-emerald-600 flex items-center gap-1 font-semibold">
                               <LogIn className="w-3 h-3" />
@@ -688,11 +866,133 @@ export default function UsersAdminPage() {
                 )}
               </div>
 
+              {/* Section 3: Raised Service Requests */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-amber-600" />
+                    <span>Raised Service Requests ({userRaisedRequests.length})</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-400">Tickets submitted by this user</span>
+                </div>
+                <ServiceRequestList requests={userRaisedRequests} />
+              </div>
+
               {/* Drawer Footer */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setViewingUser(null)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DRAWER / MODAL: GUEST DETAILS (ACCESS LOG & RAISED REQUESTS ONLY -- no assigned assets, guests are never assignable) */}
+        {viewingGuestGroup && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+              {/* Drawer Header */}
+              <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl font-bold border border-slate-200">
+                    {viewingGuestGroup.fullName.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-slate-900">{viewingGuestGroup.fullName}</h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        Guest
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {viewingGuestGroup.email} • {viewingGuestGroup.phone || 'No phone'} •{' '}
+                      {viewingGuestGroup.visitCount} {viewingGuestGroup.visitCount === 1 ? 'visit' : 'visits'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setViewingGuestGroup(null)}
+                  className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Section 1: Check-In & Check-Out Access Logs */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-purple-600" />
+                    <span>Facility Check-In / Check-Out Log ({guestAccessLogs.length})</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-400">Room access history across all visits</span>
+                </div>
+
+                {guestAccessLogs.length === 0 ? (
+                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-center space-y-1">
+                    <p className="text-xs font-semibold text-slate-600">No Room Check-In History</p>
+                    <p className="text-[11px] text-slate-400">
+                      When this visitor scans room QR codes or checks in, the access history will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100">
+                    {guestAccessLogs.map(log => (
+                      <div key={log.id} className="pt-2 flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-bold text-slate-800">{log.roomName}</p>
+                          <p className="text-[11px] text-slate-400">{log.purpose || 'Routine Access'}</p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-[10px] text-slate-400 font-mono">{formatDateDisplay(log.checkInDate)}</p>
+                          <div className="flex items-center gap-2 font-mono text-[11px]">
+                            <span className="text-emerald-600 flex items-center gap-1 font-semibold">
+                              <LogIn className="w-3 h-3" />
+                              {log.checkInTime}
+                            </span>
+                            {log.checkOutTime && (
+                              <span className="text-slate-500 flex items-center gap-1">
+                                <LogOut className="w-3 h-3" />
+                                {log.checkOutTime}
+                              </span>
+                            )}
+                          </div>
+                          {!log.checkOutTime && (
+                            <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">
+                              Currently Inside Room
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Raised Service Requests */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-amber-600" />
+                    <span>Raised Service Requests ({guestRaisedRequests.length})</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-400">Tickets submitted across all visits</span>
+                </div>
+                <ServiceRequestList requests={guestRaisedRequests} />
+              </div>
+
+              {/* Drawer Footer */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setViewingGuestGroup(null)}
                   className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
                 >
                   Close
@@ -945,5 +1245,54 @@ export default function UsersAdminPage() {
 
       </div>
     </AppLayout>
+  )
+}
+
+// Shared list of service-request tickets, used by both the registered-user
+// and guest detail drawers.
+function srStatusBadgeClasses(status: ServiceRequest['status']) {
+  switch (status) {
+    case 'Open':
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'In Progress':
+      return 'bg-blue-50 text-blue-700 border-blue-200'
+    case 'Resolved':
+    case 'Closed':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'Escalated':
+      return 'bg-rose-50 text-rose-700 border-rose-200'
+    default:
+      return 'bg-slate-50 text-slate-600 border-slate-200'
+  }
+}
+
+function ServiceRequestList({ requests }: { requests: ServiceRequest[] }) {
+  if (requests.length === 0) {
+    return (
+      <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-center space-y-1">
+        <p className="text-xs font-semibold text-slate-600">No Service Requests Raised</p>
+        <p className="text-[11px] text-slate-400">
+          Requests raised via the mobile app or a scanned QR code will appear here.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="max-h-60 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100">
+      {requests.map(sr => (
+        <div key={sr.id} className="pt-2 flex items-center justify-between text-xs gap-3">
+          <div className="min-w-0">
+            <p className="font-bold text-slate-800 truncate">{sr.title}</p>
+            <p className="text-[11px] text-slate-400 font-mono">{sr.ticketId}</p>
+          </div>
+          <div className="text-right shrink-0">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${srStatusBadgeClasses(sr.status)}`}>
+              {sr.status}
+            </span>
+            <p className="text-[11px] text-slate-400 mt-1">{new Date(sr.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

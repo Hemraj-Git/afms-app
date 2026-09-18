@@ -79,6 +79,7 @@ const navSections: NavSection[] = [
       { title: 'Work Orders', href: '/maintenance/work-orders', icon: ClipboardList },
       { title: 'Preventive', href: '/maintenance/preventive', icon: Wrench },
       { title: 'Corrective', href: '/maintenance/corrective', icon: AlertTriangle },
+      { title: 'Housekeeping', href: '/maintenance/housekeeping', icon: Sparkles },
     ],
   },
   {

@@ -187,9 +187,18 @@ function LoginFormContent() {
 
           {/* Password Field */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-700">
-              Password<span className="text-rose-500">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-slate-700">
+                Password<span className="text-rose-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => router.push('/auth/forgot-password')}
+                className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Forgot password?
+              </button>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}

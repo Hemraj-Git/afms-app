@@ -628,6 +628,33 @@ export default function CorrectiveMaintenancePage() {
                           )}
                         </div>
 
+                        {/* Start of Work Evidence -- proof-of-presence photo
+                            captured before servicing began */}
+                        <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+                          <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
+                            Start of Work Evidence
+                          </p>
+                          {wo.startPhotoUrl ? (
+                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
+                              <img
+                                src={wo.startPhotoUrl}
+                                alt="Work Order Start Evidence"
+                                className="w-full h-44 object-cover"
+                              />
+                              <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
+                                <span>Proof of Presence at Job Start</span>
+                                <span className="font-mono text-emerald-700 font-bold">✓ Verified</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
+                              <ImageIcon className="w-5 h-5 text-slate-300" />
+                              <span>No start-of-work photo attached to this record.</span>
+                            </div>
+                          )}
+                        </div>
+
                         {/* 4. Photo Evidence */}
                         <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
                           <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">

@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { formatDateDisplay } from '@/lib/dateUtils'
+import { uploadToStorage, readFileAsDataUrl } from '@/lib/storageUpload'
 import {
   FileText,
   Upload,
@@ -18,7 +19,7 @@ import {
 } from 'lucide-react'
 
 export default function DocumentLibraryPage() {
-  const { documents, assets, addDocument } = useAFMS()
+  const { documents, assets, addDocument, currentUser } = useAFMS()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL')
   const [selectedAssetFilter, setSelectedAssetFilter] = useState<string>('ALL')
@@ -28,6 +29,9 @@ export default function DocumentLibraryPage() {
   const [newTitle, setNewTitle] = useState('')
   const [newType, setNewType] = useState<'Invoice' | 'Warranty' | 'User Guide' | 'AMC Contract' | 'Other'>('Invoice')
   const [newLinkedAssetIds, setNewLinkedAssetIds] = useState<string[]>([])
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploadingFile, setIsUploadingFile] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const fileTypes = ['Invoice', 'Warranty', 'User Guide', 'AMC Contract', 'Other']
 
@@ -59,19 +63,32 @@ export default function DocumentLibraryPage() {
       return 0
     })
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!selectedFile) {
+      alert('Please select a file to upload.')
+      return
+    }
+
+    setIsUploadingFile(true)
+    let fileUrl = await uploadToStorage(selectedFile, 'facility-documents')
+    if (!fileUrl) {
+      fileUrl = await readFileAsDataUrl(selectedFile)
+    }
+    setIsUploadingFile(false)
+
     addDocument({
       title: newTitle,
       fileType: newType,
-      fileUrl: '/docs/uploaded.pdf',
-      fileSizeKb: Math.floor(200 + Math.random() * 800),
-      uploadedBy: 'Facility Administrator',
+      fileUrl,
+      fileSizeKb: Math.round(selectedFile.size / 1024),
+      uploadedBy: currentUser.fullName,
       linkedAssetIds: newLinkedAssetIds,
     })
     setShowUploadModal(false)
     setNewTitle('')
     setNewLinkedAssetIds([])
+    setSelectedFile(null)
   }
 
   return (
@@ -254,7 +271,10 @@ export default function DocumentLibraryPage() {
                     </span>
 
                     <button
-                      onClick={() => alert(`Downloading ${doc.title}...`)}
+                      onClick={() => {
+                        if (doc.fileUrl) window.open(doc.fileUrl, '_blank', 'noopener,noreferrer')
+                        else alert('No file is available for this document.')
+                      }}
                       className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition"
                       title="Download File"
                     >
@@ -273,7 +293,13 @@ export default function DocumentLibraryPage() {
             <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-lg font-bold text-slate-900">Upload to Document Library</h3>
-                <button onClick={() => setShowUploadModal(false)} className="text-slate-400">✕</button>
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  disabled={isUploadingFile}
+                  className="text-slate-400 disabled:opacity-40"
+                >
+                  ✕
+                </button>
               </div>
 
               <form onSubmit={handleUploadSubmit} className="space-y-4 text-xs">
@@ -304,25 +330,48 @@ export default function DocumentLibraryPage() {
                   </select>
                 </div>
 
-                <div className="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center text-slate-500 bg-slate-50">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,image/*"
+                  className="hidden"
+                  onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingFile}
+                  className="w-full border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center text-slate-500 bg-slate-50 hover:border-blue-400 hover:bg-blue-50/50 transition disabled:opacity-60"
+                >
                   <Upload className="w-8 h-8 mx-auto text-blue-500 mb-1" />
-                  <p className="font-bold text-slate-800">Select PDF or Image file</p>
-                  <p className="text-[10px] text-slate-400">Up to 25MB</p>
-                </div>
+                  {selectedFile ? (
+                    <>
+                      <p className="font-bold text-slate-800 truncate">{selectedFile.name}</p>
+                      <p className="text-[10px] text-slate-400">{Math.round(selectedFile.size / 1024)} KB &middot; tap to change</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-bold text-slate-800">Select PDF or Image file</p>
+                      <p className="text-[10px] text-slate-400">Up to 25MB</p>
+                    </>
+                  )}
+                </button>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setShowUploadModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    disabled={isUploadingFile}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium disabled:opacity-40"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    disabled={isUploadingFile}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs disabled:opacity-60"
                   >
-                    Upload Document
+                    {isUploadingFile ? 'Uploading…' : 'Upload Document'}
                   </button>
                 </div>
               </form>

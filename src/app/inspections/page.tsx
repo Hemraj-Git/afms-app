@@ -47,7 +47,7 @@ export default function InspectionsPage() {
     .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
 
   // Inspectors list (Staff from any registered role: Admin, Faculty, Technician, Housekeeping)
-  const inspectors = users
+  const inspectors = users.filter(u => u.role !== 'Guest')
 
   // Inspector Assignment -> Persists to Supabase & sets inspector
   const handleAssignInspector = (e: React.FormEvent) => {
@@ -503,6 +503,16 @@ export default function InspectionsPage() {
                   </p>
                 </div>
 
+                {/* Overall Inspection Photo */}
+                {selectedInspForView.photoUrl && (
+                  <div className="space-y-1.5">
+                    <p className="font-bold text-slate-900 text-xs uppercase tracking-wider">Overall Photo</p>
+                    <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
+                      <img src={selectedInspForView.photoUrl} alt="Overall inspection proof" className="w-full h-44 object-cover" />
+                    </div>
+                  </div>
+                )}
+
                 {/* Checklist Verification Results */}
                 <div className="space-y-2 pt-2">
                   <p className="font-bold text-slate-900 text-xs uppercase tracking-wider">
@@ -517,6 +527,8 @@ export default function InspectionsPage() {
                                     (typeof selectedInspForView.checklistResponses?.[item.id] === 'string' ? selectedInspForView.checklistResponses?.[item.id] : 'Pass')
                         const isPass = val === 'Pass' || !val || val === true
 
+                        const itemPhoto = selectedInspForView.itemPhotos?.[item.id]
+
                         return (
                           <div
                             key={item.id}
@@ -530,6 +542,10 @@ export default function InspectionsPage() {
                                 <span className="text-[10px] text-slate-400 font-medium">Mandatory Verification</span>
                               )}
                             </div>
+
+                            {itemPhoto && (
+                              <img src={itemPhoto} alt={`Photo for ${item.itemText}`} className="h-10 w-10 rounded-lg object-cover border border-slate-200 shrink-0" />
+                            )}
 
                             <span
                               className={`px-3 py-1 rounded-lg text-xs font-bold shrink-0 flex items-center gap-1 ${

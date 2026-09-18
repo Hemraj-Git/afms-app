@@ -61,7 +61,7 @@ export default function WorkOrdersHubPage() {
   const [title, setTitle] = useState('')
   const [assetId, setAssetId] = useState(assets[0]?.id || '')
   const [roomId, setRoomId] = useState(rooms[0]?.id || '')
-  const [assignedTechnicianId, setAssignedTechnicianId] = useState(users.find(u => u.role === 'Technician' || u.role === 'Housekeeping')?.id || users[0]?.id || '')
+  const [assignedTechnicianId, setAssignedTechnicianId] = useState(users.find(u => u.role === 'Technician' || u.role === 'Housekeeping')?.id || users.find(u => u.role !== 'Guest')?.id || '')
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Critical'>('Medium')
   const [dueDate, setDueDate] = useState(getLocalDateStr(new Date(Date.now() + 86400000 * 3)))
   const [issueLogged, setIssueLogged] = useState('')
@@ -576,11 +576,13 @@ export default function WorkOrdersHubPage() {
                       onChange={e => setAssignedTechnicianId(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white"
                     >
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.fullName} ({u.role})
-                        </option>
-                      ))}
+                      {users
+                        .filter(u => (type === 'Housekeeping' ? u.role === 'Housekeeping' || u.role === 'Admin' : u.role !== 'Guest'))
+                        .map(u => (
+                          <option key={u.id} value={u.id}>
+                            {u.fullName} ({u.role})
+                          </option>
+                        ))}
                     </select>
                   </div>
 

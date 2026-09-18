@@ -18,6 +18,7 @@ export interface UserProfile {
   departmentId?: string
   phone?: string
   avatarUrl?: string
+  createdAt?: string
 }
 
 export interface Campus {
@@ -217,6 +218,7 @@ export interface ServiceRequest {
   requestedBy: string
   requestedByRole: string
   requestedByUserId?: string
+  requestedByEmail?: string
   assignedTo?: string
   assignedToName?: string
   status: 'Open' | 'In Progress' | 'Resolved' | 'Closed' | 'Escalated'
@@ -290,6 +292,13 @@ export interface Inspection {
   checklistSnapshot?: ChecklistItemDef[]
   checklistResponses?: Record<string, { value: any; remarks?: string; photoUrl?: string }>
   inspectorRemarks?: string
+  // Overall inspection proof photo, and per-checklist-item required
+  // photos (keyed by checklist item id) -- kept separate from
+  // checklistResponses since that field's runtime shape is actually a
+  // plain Record<string, 'Pass'|'Fail'>, not the {value,remarks,photoUrl}
+  // object shape above.
+  photoUrl?: string
+  itemPhotos?: Record<string, string>
   completedAt?: string
   createdAt: string
 }

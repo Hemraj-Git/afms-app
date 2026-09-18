@@ -125,7 +125,7 @@ interface AFMSContextType {
   inspections: Inspection[]
   addInspection: (insp: Omit<Inspection, 'id' | 'createdAt'>) => void
   updateInspection: (id: string, updates: Partial<Inspection>) => void
-  completeInspection: (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any) => void
+  completeInspection: (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any, photoUrl?: string, itemPhotos?: Record<string, string>) => void
   
   // Service Requests (SR-YYYY-#### automatically generated, unchangeable)
   serviceRequests: ServiceRequest[]
@@ -223,6 +223,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('afms_logged_in', 'true')
       localStorage.setItem('afms_current_user_id', user.id)
     }
+    // The actual Supabase auth session is established server-side (see
+    // src/app/actions/auth.ts's Server Action), which this browser client
+    // has no way to observe on its own -- so re-run the same fetch that
+    // otherwise only ever runs once per real page mount. Without this, a
+    // user who first reached /login unauthenticated (every RLS-gated
+    // table came back empty on that one mount-time fetch) would see every
+    // page stay empty until a hard refresh happened to remount the
+    // provider with the session cookie already in place.
+    syncSupabase()
   }
 
   const logout = () => {
@@ -372,23 +381,44 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   // 1b. Synchronize 100% with Supabase PostgreSQL & Auth Session
-  React.useEffect(() => {
-    let isMounted = true
-    async function syncSupabase() {
+  //
+  // syncSupabase is stable (useCallback, empty deps -- it only calls
+  // setters and the module-level `supabase` client, neither of which
+  // change) so it can be invoked a second time from login() below, not
+  // just once on mount. Previously this only ran once per real page
+  // mount: the browser is usually first authenticated by a Server Action
+  // (see src/app/actions/auth.ts), which the client-side Supabase
+  // instance used here has no way to observe on its own -- so a user who
+  // reached /login unauthenticated (this one-time effect firing with no
+  // session, every RLS-gated table coming back empty) and then logged in
+  // via a client-side navigation (no full remount) would see every table
+  // stay empty until a hard refresh remounted the provider and reran this
+  // fetch with the now-existing session cookies. login() now explicitly
+  // re-invokes this same fetch instead of relying on a remount.
+  const isMountedRef = React.useRef(true)
+  const syncSupabase = React.useCallback(async () => {
       try {
         // Authenticated Session & Profile
         const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user && isMounted) {
+        if (session?.user && isMountedRef.current) {
           const { data: profile } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .maybeSingle()
 
-          if (profile && isMounted) {
+          if (profile && isMountedRef.current) {
             setCurrentUser({
               id: session.user.id,
-              email: session.user.email || '',
+              // profile.email, not session.user.email -- anonymous (Guest)
+              // sessions always have a null Auth email; a guest's real,
+              // self-reported email only ever lives in profiles.email.
+              // Reading session.user.email here silently wiped currentUser
+              // .email back to '' right after every guest login (login()
+              // calls this immediately), which broke both the "My Requests"
+              // history (requested_by_email never got stamped) and the
+              // "resume by email" RLS matching that depends on it.
+              email: profile.email || '',
               fullName: profile.full_name || 'Maritime Staff',
               role: (profile.role as UserRole) || 'Admin',
               department: profile.department || 'Operations',
@@ -400,7 +430,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 1. Users from profiles
         const { data: profRows } = await supabase.from('profiles').select('*')
-        if (isMounted && profRows && profRows.length > 0) {
+        if (isMountedRef.current && profRows && profRows.length > 0) {
           setUsers(prev => {
             const dbUsers: UserProfile[] = profRows.map(p => ({
               id: p.id,
@@ -409,6 +439,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
               role: (p.role as UserRole) || 'Faculty',
               department: p.department || '',
               phone: p.phone || '',
+              createdAt: p.created_at || undefined,
             }))
             // Merge dbUsers with mockUsers so standard demo accounts (admin, technician) are always accessible
             const combined = [...dbUsers]
@@ -423,7 +454,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 2. Departments
         const { data: deptRows } = await supabase.from('departments').select('*').order('name')
-        if (isMounted && deptRows) {
+        if (isMountedRef.current && deptRows) {
           setDepartments(deptRows.map(d => ({
             id: d.id,
             name: d.name,
@@ -435,7 +466,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 3. Campuses & Buildings
         const { data: cRows } = await supabase.from('campuses').select('*').order('name')
-        if (isMounted && cRows) {
+        if (isMountedRef.current && cRows) {
           setCampuses(cRows.map(c => ({
             id: c.id,
             name: c.name,
@@ -444,7 +475,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           })))
         }
         const { data: bRows } = await supabase.from('buildings').select('*').order('name')
-        if (isMounted && bRows) {
+        if (isMountedRef.current && bRows) {
           setBuildings(bRows.map(b => ({
             id: b.id,
             campusId: b.campus_id,
@@ -456,7 +487,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 4. Rooms
         const { data: rRows } = await supabase.from('rooms').select('*').order('room_number')
-        if (isMounted && rRows) {
+        if (isMountedRef.current && rRows) {
           setRooms(rRows.map(r => ({
             id: r.id,
             buildingId: r.building_id,
@@ -472,7 +503,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 5. Categories & Subcategories
         const { data: catRows } = await supabase.from('categories').select('*').order('name')
-        if (isMounted && catRows) {
+        if (isMountedRef.current && catRows) {
           setCategories(catRows.map(c => ({
             id: c.id,
             name: c.name,
@@ -481,7 +512,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           })))
         }
         const { data: subRows } = await supabase.from('sub_categories').select('*').order('name')
-        if (isMounted && subRows) {
+        if (isMountedRef.current && subRows) {
           setSubCategories(subRows.map(s => ({
             id: s.id,
             categoryId: s.category_id,
@@ -496,7 +527,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 6. Assets
         const { data: astRows } = await supabase.from('assets').select('*').order('created_at', { ascending: false })
-        if (isMounted && astRows) {
+        if (isMountedRef.current && astRows) {
           setAssets(astRows.map(a => ({
             id: a.id,
             assetId: a.asset_id,
@@ -530,7 +561,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 7. Work Orders
         const { data: woRows } = await supabase.from('work_orders').select('*').order('created_at', { ascending: false })
-        if (isMounted && woRows) {
+        if (isMountedRef.current && woRows) {
           setWorkOrders(woRows.map(w => ({
             id: w.id,
             woNumber: w.wo_number,
@@ -553,6 +584,17 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             issueLogged: w.issue_logged,
             solutionTaken: w.solution_taken,
             technicianRemarks: w.technician_remarks,
+            startPhotoUrl: w.start_photo_url || undefined,
+            completionPhotoUrl: w.completion_photo_url || undefined,
+            partsReplaced: w.parts_replaced || undefined,
+            vendorId: w.vendor_id || undefined,
+            vendorTicketNo: w.vendor_ticket_no || undefined,
+            vendorTechName: w.vendor_tech_name || undefined,
+            vendorTechPhone: w.vendor_tech_phone || undefined,
+            vendorServiceDate: w.vendor_service_date || undefined,
+            vendorJobSheetUrl: w.vendor_job_sheet_url || undefined,
+            vendorRemarks: w.vendor_remarks || undefined,
+            vendorCost: w.vendor_cost ?? undefined,
             createdAt: w.created_at,
             completedAt: w.completed_at,
           })))
@@ -560,7 +602,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 8. Service Requests
         const { data: srRows } = await supabase.from('service_requests').select('*').order('created_at', { ascending: false })
-        if (isMounted && srRows) {
+        if (isMountedRef.current && srRows) {
           setServiceRequests(srRows.map(sr => ({
             id: sr.id,
             ticketId: sr.ticket_id,
@@ -572,6 +614,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             requestedBy: sr.requested_by_name,
             requestedByRole: 'Staff',
             requestedByUserId: sr.requested_by_user_id || undefined,
+            requestedByEmail: sr.requested_by_email || undefined,
             assignedTo: sr.assigned_to,
             assignedToName: sr.assigned_to_name,
             status: sr.status || 'Open',
@@ -591,7 +634,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 9. Vendors
         const { data: vRows } = await supabase.from('vendors').select('*').order('name')
-        if (isMounted && vRows) {
+        if (isMountedRef.current && vRows) {
           setVendors(vRows.map(v => ({
             id: v.id,
             code: v.code || undefined,
@@ -610,7 +653,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 10. Checklist Templates
         const { data: tmplRows } = await supabase.from('checklist_templates').select('*').order('title')
-        if (isMounted && tmplRows) {
+        if (isMountedRef.current && tmplRows) {
           setChecklistTemplates(tmplRows.map(t => ({
             id: t.id,
             title: t.title,
@@ -623,7 +666,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 11. Inspections
         const { data: inspRows } = await supabase.from('inspections').select('*').order('created_at', { ascending: false })
-        if (isMounted && inspRows) {
+        if (isMountedRef.current && inspRows) {
           setInspections(inspRows.map(i => ({
             id: i.id,
             inspectionNumber: i.inspection_number,
@@ -638,6 +681,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             inspectorRemarks: i.remarks,
             checklistSnapshot: i.checklist_snapshot || [],
             checklistResponses: i.checklist_responses || {},
+            photoUrl: i.photo_url || undefined,
+            itemPhotos: i.item_photos || undefined,
             completedAt: i.conducted_at,
             createdAt: i.created_at,
           })))
@@ -645,7 +690,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 12. Documents
         const { data: docRows } = await supabase.from('documents').select('*').order('uploaded_at', { ascending: false })
-        if (isMounted && docRows) {
+        if (isMountedRef.current && docRows) {
           setDocuments(docRows.map(d => ({
             id: d.id,
             title: d.title,
@@ -660,7 +705,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 13. Inventory Items
         const { data: invRows } = await supabase.from('inventory_items').select('*').order('created_at', { ascending: false })
-        if (isMounted && invRows && invRows.length > 0) {
+        if (isMountedRef.current && invRows && invRows.length > 0) {
           setInventoryItems(invRows.map(inv => ({
             id: inv.id,
             inventoryNumber: inv.inventory_number || inv.id,
@@ -687,7 +732,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
         // 14. Reservations
         const { data: resRows } = await supabase.from('reservations').select('*').order('created_at', { ascending: false })
-        if (isMounted && resRows && resRows.length > 0) {
+        if (isMountedRef.current && resRows && resRows.length > 0) {
           setReservations(resRows.map(r => ({
             id: r.id,
             reservationNumber: r.reservation_number || r.id,
@@ -712,7 +757,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // date component, so sorting on it doesn't produce true
         // chronological order across different days.
         const { data: ralRows } = await supabase.from('room_access_logs').select('*').order('check_in_timestamp', { ascending: false })
-        if (isMounted && ralRows && ralRows.length > 0) {
+        if (isMountedRef.current && ralRows && ralRows.length > 0) {
           setRoomAccessLogs(ralRows.map(l => {
             // roomName was previously just set to the raw room_id (a UUID)
             // -- there's no room_name column on this table, so it needs to
@@ -747,7 +792,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // (e.g. "1/16/2026, 12:41:55 AM"), and sorting on it lexicographically
         // scrambles order across months/years, not just within a day.
         const { data: aalRows } = await supabase.from('asset_activity_logs').select('*').order('timestamp_epoch', { ascending: false, nullsFirst: false })
-        if (isMounted && aalRows && aalRows.length > 0) {
+        if (isMountedRef.current && aalRows && aalRows.length > 0) {
           setAssetActivityLogs(aalRows.map(l => ({
             id: l.id,
             assetId: l.asset_id,
@@ -762,12 +807,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.warn('Supabase sync notice:', e)
       }
-    }
+  }, [])
+
+  React.useEffect(() => {
+    isMountedRef.current = true
     syncSupabase()
     return () => {
-      isMounted = false
+      isMountedRef.current = false
     }
-  }, [])
+  }, [syncSupabase])
 
   // 2. Persist the two settings that are actually read back on init (see
   // above). Every other entity now lives in Supabase and is reloaded from
@@ -1668,7 +1716,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const updateAssetStatus = (assetId: string, status: Asset['status']) => {
     setAssets(prev => prev.map(a => (a.id === assetId ? { ...a, status } : a)))
-    supabase.from('assets').update({ status }).eq('id', assetId).then(({ error }) => {
+    // Via RPC, not a direct table .update() -- "Admin all on assets" is the
+    // only write policy on assets, so a Technician's direct update here
+    // silently no-ops under RLS. set_asset_status (0023) is role-gated
+    // (Admin or Technician) and only ever touches the status column.
+    supabase.rpc('set_asset_status', { p_asset_id: assetId, p_status: status }).then(({ error }) => {
       if (error) console.error('Supabase asset status update error:', error.message)
     })
   }
@@ -2021,7 +2073,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       // Stamped from the real session, not the caller — this is what the
       // RLS "own service_requests" policies key off, so it must always be
       // the actual signed-in user regardless of what a caller passes in.
+      // requested_by_email is what lets a returning Guest (fresh auth.uid()
+      // every login) read requests raised in a previous visit — see the
+      // "Guest read same-email service_requests" RLS policy.
       requested_by_user_id: currentUser.id,
+      requested_by_email: currentUser.email || null,
       sla_due_date: sr.slaDueDate || null,
       photo_urls: sr.photoUrls || [],
       created_at: new Date().toISOString(),
@@ -2037,6 +2093,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       ticketId: data.ticket_id,
       createdAt: data.created_at,
       requestedByUserId: currentUser.id,
+      requestedByEmail: currentUser.email || undefined,
     }
     setServiceRequests(prev => [newSr, ...prev])
 
@@ -2365,6 +2422,12 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       priority: newWo.priority || 'Medium',
       frequency: newWo.frequency || null,
       source: newWo.source || 'Scheduled',
+      // Was previously omitted entirely, even though the local optimistic
+      // state and the WorkOrder type both carry it correctly -- every
+      // service-request-linked work order's completion cascade
+      // (auto-resolve the ticket, in updateWorkOrderStatus) silently never
+      // fired once the page reloaded and re-fetched this as null.
+      source_ref_id: newWo.sourceRefId || null,
       due_date: newWo.dueDate || today,
       assigned_technician_id: newWo.assignedTechnicianId || null,
       assigned_technician_name: newWo.assignedTechnicianName || null,
@@ -2420,7 +2483,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
     if (mintedWoNumber) dbUpdates.wo_number = mintedWoNumber
     if (remarks !== undefined) dbUpdates.technician_remarks = remarks
-    if (status === 'Completed') {
+    // Only stamp completed_at on the actual transition into Completed, not
+    // on a redundant re-submission of an already-completed order -- see the
+    // matching guard below on the completion cascade for why.
+    if (status === 'Completed' && targetWoForMint?.status !== 'Completed') {
       dbUpdates.completed_at = getLocalDateStr()
     }
     if (extraUpdates) {
@@ -2438,6 +2504,21 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       if (extraUpdates.title !== undefined) dbUpdates.title = extraUpdates.title
       if (extraUpdates.roomId !== undefined) dbUpdates.room_id = extraUpdates.roomId
       if (extraUpdates.frequency !== undefined) dbUpdates.frequency = extraUpdates.frequency
+      // Previously omitted entirely -- the mobile execution form already
+      // collects all of these (photos, parts replaced, and the full
+      // Vendor-execution field set), but none of it ever reached the
+      // database (see supabase/migrations/0025_wo_inspection_photos_and_vendor_fields.sql).
+      if (extraUpdates.startPhotoUrl !== undefined) dbUpdates.start_photo_url = extraUpdates.startPhotoUrl
+      if (extraUpdates.completionPhotoUrl !== undefined) dbUpdates.completion_photo_url = extraUpdates.completionPhotoUrl
+      if (extraUpdates.partsReplaced !== undefined) dbUpdates.parts_replaced = extraUpdates.partsReplaced
+      if (extraUpdates.vendorId !== undefined) dbUpdates.vendor_id = extraUpdates.vendorId
+      if (extraUpdates.vendorTicketNo !== undefined) dbUpdates.vendor_ticket_no = extraUpdates.vendorTicketNo
+      if (extraUpdates.vendorTechName !== undefined) dbUpdates.vendor_tech_name = extraUpdates.vendorTechName
+      if (extraUpdates.vendorTechPhone !== undefined) dbUpdates.vendor_tech_phone = extraUpdates.vendorTechPhone
+      if (extraUpdates.vendorServiceDate !== undefined) dbUpdates.vendor_service_date = extraUpdates.vendorServiceDate
+      if (extraUpdates.vendorJobSheetUrl !== undefined) dbUpdates.vendor_job_sheet_url = extraUpdates.vendorJobSheetUrl
+      if (extraUpdates.vendorRemarks !== undefined) dbUpdates.vendor_remarks = extraUpdates.vendorRemarks
+      if (extraUpdates.vendorCost !== undefined) dbUpdates.vendor_cost = extraUpdates.vendorCost
     }
 
     // wo_number itself is re-minted server-side by a DB trigger (see
@@ -2487,7 +2568,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             woNumber: mintedWoNumber || w.woNumber,
             technicianRemarks: remarks || w.technicianRemarks,
           }
-          if (status === 'Completed') {
+          // w.status (not the new `status` param) is the PRE-update status --
+          // gating on it too makes completion idempotent. Without this, a
+          // second "Completed" call (e.g. a technician re-opening an
+          // already-completed task and hitting Complete again) would
+          // re-stamp completedAt to now, re-run every side effect, and for
+          // a Preventive WO mint a duplicate recurring PM work order.
+          if (status === 'Completed' && w.status !== 'Completed') {
             const completedDateIso = getLocalDateStr()
             updated.completedAt = completedDateIso
             if (w.assetId) {
@@ -2637,7 +2724,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     )
   }
 
-  const completeInspection = (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any) => {
+  const completeInspection = (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any, photoUrl?: string, itemPhotos?: Record<string, string>) => {
     // Attempt window policy check for Inspections
     const targetInsp = inspections.find(ins => ins.id === id || ins.inspectionNumber === id)
     if (targetInsp) {
@@ -2657,6 +2744,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       result,
       remarks,
       checklist_responses: responses,
+      photo_url: photoUrl || null,
+      item_photos: itemPhotos || null,
       conducted_at: completedDateIso,
     }).or(`id.eq.${id},inspection_number.eq.${id}`).then(({ error }) => {
       if (error) console.error('Supabase inspection complete update error:', error.message)
@@ -2673,6 +2762,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             result,
             inspectorRemarks: remarks,
             checklistResponses: responses,
+            photoUrl: photoUrl || undefined,
+            itemPhotos: itemPhotos || undefined,
             completedAt: completedDateIso,
           }
 

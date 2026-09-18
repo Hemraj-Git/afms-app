@@ -47,6 +47,20 @@ export async function signOutAction(): Promise<void> {
   await supabase.auth.signOut()
 }
 
+export type RequestPasswordResetResult = { success: true } | { success: false; error: string }
+
+// Always reports success regardless of whether the email matches an account
+// -- Supabase itself doesn't error for unknown emails either, so this avoids
+// letting the form be used to enumerate registered accounts. Requires the
+// Supabase Dashboard's "Reset Password" email template to point at
+// /auth/confirm?type=recovery (see /auth/confirm/route.ts), the same way
+// the "Invite user" template already points there.
+export async function requestPasswordReset(email: string): Promise<RequestPasswordResetResult> {
+  const supabase = await createClient()
+  await supabase.auth.resetPasswordForEmail(email.trim())
+  return { success: true }
+}
+
 export type GuestSignInResult =
   | { success: true; profile: { id: string; fullName: string; email: string; phone: string } }
   | { success: false; error: string }
@@ -54,8 +68,10 @@ export type GuestSignInResult =
 export async function guestSignIn(input: { fullName?: string; email: string; phone: string }): Promise<GuestSignInResult> {
   const supabase = await createClient()
 
-  const fullName = input.fullName?.trim() || 'Guest Visitor'
-  const email = input.email.trim()
+  const trimmedName = input.fullName?.trim() || ''
+  // Lower-cased so "John@x.com" and "john@x.com" are treated as the same
+  // returning guest everywhere history is grouped/matched by email.
+  const email = input.email.trim().toLowerCase()
   const phone = input.phone.trim()
 
   // `handle_new_user()` (a SECURITY DEFINER trigger on auth.users) auto-creates
@@ -65,7 +81,7 @@ export async function guestSignIn(input: { fullName?: string; email: string; pho
   const { data, error } = await supabase.auth.signInAnonymously({
     options: {
       data: {
-        full_name: fullName,
+        full_name: trimmedName || 'Guest Visitor',
         role: 'Guest',
         department: 'Visitor Services',
         phone,
@@ -76,12 +92,34 @@ export async function guestSignIn(input: { fullName?: string; email: string; pho
     return { success: false, error: error?.message || 'Could not start a guest session. Please try again.' }
   }
 
+  let fullName = trimmedName || 'Guest Visitor'
+  if (!trimmedName) {
+    // Returning guest left the Name field blank -- reuse the name from their
+    // most recent visit under this same email instead of overwriting it
+    // with the generic placeholder (which would also blank out their real
+    // name in the Admin Guests tab, grouped by email and showing the latest
+    // visit's name).
+    const { data: priorVisit } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('email', email)
+      .eq('role', 'Guest')
+      .neq('id', data.user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (priorVisit?.full_name) {
+      fullName = priorVisit.full_name
+    }
+  }
+
   // Anonymous auth.users rows always have a null email, so the trigger leaves
-  // profiles.email null. Fill in the guest's self-reported email as an
-  // ordinary authenticated update of their own row.
+  // profiles.email null. Fill in the guest's self-reported email (and, when
+  // the name was left blank, the reused prior name) as an ordinary
+  // authenticated update of their own row.
   const { error: profileError } = await supabase
     .from('profiles')
-    .update({ email })
+    .update({ email, full_name: fullName })
     .eq('id', data.user.id)
 
   if (profileError) {

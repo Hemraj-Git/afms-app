@@ -29,6 +29,7 @@ import {
 import { formatId, getNextSequence } from '@/lib/idGenerator'
 import { DocumentItem } from '@/types/afms'
 import { supabase } from '@/lib/supabase'
+import { uploadToStorage } from '@/lib/storageUpload'
 
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
 
@@ -231,31 +232,6 @@ function AddAssetForm() {
 
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isUploadingDoc, setIsUploadingDoc] = useState(false)
-
-  const uploadToStorage = async (file: File, bucket: 'asset-images' | 'documents'): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split('.').pop() || 'dat'
-      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-      const fileName = `${Date.now()}_${cleanName}`
-      const { error } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file, { cacheControl: '3600', upsert: true })
-
-      if (error) {
-        console.warn(`Supabase ${bucket} upload notice:`, error.message)
-        return null
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName)
-
-      return publicUrlData?.publicUrl || null
-    } catch (err) {
-      console.error(`Upload error to ${bucket}:`, err)
-      return null
-    }
-  }
 
   // Functional Image Upload Handlers
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -493,6 +469,11 @@ function AddAssetForm() {
   }
 
   const handleFinalSubmit = async () => {
+    if (isUploadingImage || isUploadingDoc) {
+      alert('Please wait for the upload to finish before submitting.')
+      return
+    }
+
     const finalImageUrl = imageUrl.trim() || DEFAULT_ASSET_PLACEHOLDER_IMAGE
 
     if (isEditMode && existingAsset) {
@@ -886,9 +867,10 @@ function AddAssetForm() {
                           {users
                             .filter(
                               u =>
-                                u.fullName.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-                                u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-                                (u.department && u.department.toLowerCase().includes(userSearchQuery.toLowerCase()))
+                                u.role !== 'Guest' &&
+                                (u.fullName.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                                  u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                                  (u.department && u.department.toLowerCase().includes(userSearchQuery.toLowerCase())))
                             )
                             .map(u => (
                               <div
@@ -943,9 +925,10 @@ function AddAssetForm() {
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="px-3 py-1.5 text-xs font-semibold text-blue-600 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition cursor-pointer shadow-2xs"
+                        disabled={isUploadingImage}
+                        className="px-3 py-1.5 text-xs font-semibold text-blue-600 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition cursor-pointer shadow-2xs disabled:opacity-60"
                       >
-                        Change Photo
+                        {isUploadingImage ? 'Uploading…' : 'Change Photo'}
                       </button>
                     </div>
                   ) : (
@@ -965,10 +948,11 @@ function AddAssetForm() {
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-xl transition cursor-pointer shadow-2xs"
+                          disabled={isUploadingImage}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-xl transition cursor-pointer shadow-2xs disabled:opacity-60"
                         >
                           <UploadCloud className="w-4 h-4 text-blue-600" />
-                          <span>Upload Image</span>
+                          <span>{isUploadingImage ? 'Uploading…' : 'Upload Image'}</span>
                         </button>
                       </div>
                     </div>
@@ -1366,9 +1350,12 @@ function AddAssetForm() {
                 <button
                   type="button"
                   onClick={handleFinalSubmit}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/25 transition"
+                  disabled={isUploadingImage || isUploadingDoc}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/25 transition disabled:opacity-60"
                 >
-                  {isEditMode ? `Save & Update Asset (${assetId})` : `Confirm & Create Asset (${assetId})`}
+                  {isUploadingImage || isUploadingDoc
+                    ? 'Uploading…'
+                    : isEditMode ? `Save & Update Asset (${assetId})` : `Confirm & Create Asset (${assetId})`}
                 </button>
               )}
             </div>
@@ -1550,15 +1537,17 @@ function AddAssetForm() {
                   <button
                     type="button"
                     onClick={() => setShowDocModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600"
+                    disabled={isUploadingDoc}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 disabled:opacity-40"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    disabled={isUploadingDoc}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs disabled:opacity-60"
                   >
-                    Upload & Attach
+                    {isUploadingDoc ? 'Uploading…' : 'Upload & Attach'}
                   </button>
                 </div>
               </form>

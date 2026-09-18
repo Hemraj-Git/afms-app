@@ -527,6 +527,19 @@ export default function ServiceRequestsPage() {
                     </p>
                   </div>
 
+                  {currentTicket.photoUrls && currentTicket.photoUrls.length > 0 && (
+                    <div>
+                      <p className="text-slate-400 uppercase font-bold text-[10px]">Photo Evidence</p>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {currentTicket.photoUrls.map((url, idx) => (
+                          <div key={idx} className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                            <img src={url} alt={`Request evidence ${idx + 1}`} className="h-32 w-auto object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                       <p className="text-slate-400 font-semibold text-[10px]">Status</p>
