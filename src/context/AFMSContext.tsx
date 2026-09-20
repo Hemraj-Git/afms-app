@@ -31,6 +31,7 @@ import { getLocalDateStr } from '@/lib/dateUtils'
 import { supabase } from '@/lib/supabase'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
+import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
 import { updateUserProfile, deleteUserAccount } from '@/app/actions/users'
 
 // Awaits a Supabase write and, if it failed OR matched no rows (which is what
@@ -212,9 +213,51 @@ interface AFMSContextType {
   isDataLoading: boolean
   dataLoadError: string | null
   reloadData: () => Promise<void>
+  // Connection state of the live-update channel ('off' while logged out,
+  // hidden for a while, or still loading).
+  realtimeStatus: RealtimeStatus
 }
 
 const AFMSContext = createContext<AFMSContextType | undefined>(undefined)
+
+// Wraps a Supabase query so its error is recorded. syncSupabase passes one that
+// collects failures for the "some data failed to load" banner; the Realtime
+// refetches use logLoadFailure, since a failed live refresh should not raise a
+// banner (the data on screen is merely a bit stale).
+type LoadTracker = <T extends { error: { message: string } | null }>(
+  label: string,
+  query: PromiseLike<T>
+) => Promise<T>
+
+const logLoadFailure: LoadTracker = async (label, query) => {
+  const result = await query
+  if (result.error) console.warn(`Live refresh of ${label} failed:`, result.error.message)
+  return result
+}
+
+// A row from the notifications table, in the shape the UI uses. Shared by the
+// fetch and the Realtime insert handler so the two can't drift.
+function mapNotificationRow(n: {
+  id: string
+  type: string
+  title: string
+  body?: string | null
+  ref_table?: string | null
+  ref_id?: string | null
+  is_read?: boolean | null
+  created_at: string
+}): AppNotification {
+  return {
+    id: n.id,
+    type: n.type as AppNotification['type'],
+    title: n.title,
+    body: n.body || undefined,
+    refTable: n.ref_table || undefined,
+    refId: n.ref_id || undefined,
+    isRead: Boolean(n.is_read),
+    createdAt: n.created_at,
+  }
+}
 
 function generateUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.randomUUID === 'function') {
@@ -338,21 +381,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       return
     }
     if (data) {
-      setNotifications(data.map(n => ({
-        id: n.id,
-        type: n.type,
-        title: n.title,
-        body: n.body || undefined,
-        refTable: n.ref_table || undefined,
-        refId: n.ref_id || undefined,
-        isRead: Boolean(n.is_read),
-        createdAt: n.created_at,
-      })))
+      setNotifications(data.map(mapNotificationRow))
     }
   }
 
   const refreshNotifications = () => {
     if (currentUser?.id) fetchNotifications(currentUser.id)
+  }
+
+  // A notification pushed by Realtime. De-duplicated by id: the row can also
+  // arrive through a fetch that raced the event.
+  const addNotification = (row: Parameters<typeof mapNotificationRow>[0]) => {
+    const mapped = mapNotificationRow(row)
+    setNotifications(prev => (prev.some(n => n.id === mapped.id) ? prev : [mapped, ...prev].slice(0, 50)))
   }
 
   const markNotificationRead = (id: string) => {
@@ -452,6 +493,109 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // Overlapping syncs (mount + login) must not let the older one clear the flag
   // while the newer one is still running.
   const syncRunRef = React.useRef(0)
+
+  // Per-table loaders. syncSupabase calls them for the full load; the Realtime
+  // hook calls them alone to refresh one table. They never touch isDataLoading,
+  // so a live refresh cannot bring the skeleton back.
+  const fetchWorkOrders = React.useCallback(async (track: LoadTracker = logLoadFailure) => {
+    const { data: woRows } = await track('work_orders', supabase.from('work_orders').select('*').order('created_at', { ascending: false }))
+    if (isMountedRef.current && woRows) {
+      setWorkOrders(woRows.map(w => ({
+        id: w.id,
+        woNumber: w.wo_number,
+        title: w.title || `${w.type || 'Maintenance'} Work Order`,
+        type: w.type as WorkOrder['type'],
+        assetId: w.asset_id,
+        roomId: w.room_id,
+        priority: w.priority,
+        source: w.source || 'Scheduled',
+        sourceRefId: w.source_ref_id,
+        frequency: w.frequency,
+        dueDate: w.due_date,
+        assignedTechnicianId: w.assigned_technician_id,
+        assignedTechnicianName: w.assigned_technician_name,
+        status: w.status as WorkOrder['status'],
+        checklistTemplateId: w.checklist_template_id,
+        checklistSnapshot: w.checklist_snapshot || [],
+        checklistResponses: w.checklist_responses || {},
+        executedBy: w.executed_by,
+        issueLogged: w.issue_logged,
+        solutionTaken: w.solution_taken,
+        technicianRemarks: w.technician_remarks,
+        startPhotoUrl: w.start_photo_url || undefined,
+        completionPhotoUrl: w.completion_photo_url || undefined,
+        partsReplaced: w.parts_replaced || undefined,
+        vendorId: w.vendor_id || undefined,
+        vendorTicketNo: w.vendor_ticket_no || undefined,
+        vendorTechName: w.vendor_tech_name || undefined,
+        vendorTechPhone: w.vendor_tech_phone || undefined,
+        vendorServiceDate: w.vendor_service_date || undefined,
+        vendorJobSheetUrl: w.vendor_job_sheet_url || undefined,
+        vendorRemarks: w.vendor_remarks || undefined,
+        vendorCost: w.vendor_cost ?? undefined,
+        createdAt: w.created_at,
+        completedAt: w.completed_at,
+      })))
+    }
+  }, [])
+
+  const fetchServiceRequests = React.useCallback(async (track: LoadTracker = logLoadFailure) => {
+    const { data: srRows } = await track('service_requests', supabase.from('service_requests').select('*').order('created_at', { ascending: false }))
+    if (isMountedRef.current && srRows) {
+      setServiceRequests(srRows.map(sr => ({
+        id: sr.id,
+        ticketId: sr.ticket_id,
+        title: sr.title,
+        description: sr.description || '',
+        requestType: sr.type || 'Maintenance',
+        roomId: sr.room_id,
+        assetId: sr.asset_id,
+        requestedBy: sr.requested_by_name,
+        requestedByRole: 'Staff',
+        requestedByUserId: sr.requested_by_user_id || undefined,
+        requestedByEmail: sr.requested_by_email || undefined,
+        assignedTo: sr.assigned_to,
+        assignedToName: sr.assigned_to_name,
+        status: sr.status || 'Open',
+        priority: sr.priority || 'Medium',
+        createdAt: sr.created_at,
+        slaDueDate: sr.sla_due_date,
+        photoUrls: sr.photo_urls || [],
+        workOrderNumber: sr.work_order_number,
+        workOrderId: sr.work_order_id,
+        workOrderType: sr.work_order_type,
+        dismissalReason: sr.dismissal_reason,
+        dismissedAt: sr.dismissed_at,
+        dismissedBy: sr.dismissed_by,
+        resolutionNotes: sr.resolution_notes || undefined,
+      })))
+    }
+  }, [])
+
+  const fetchInspections = React.useCallback(async (track: LoadTracker = logLoadFailure) => {
+    const { data: inspRows } = await track('inspections', supabase.from('inspections').select('*').order('created_at', { ascending: false }))
+    if (isMountedRef.current && inspRows) {
+      setInspections(inspRows.map(i => ({
+        id: i.id,
+        inspectionNumber: i.inspection_number,
+        assetId: i.asset_id,
+        templateId: i.template_id,
+        templateVersion: i.template_version || 1,
+        assignedInspectorId: i.conducted_by_user_id || i.assigned_inspector_id,
+        assignedInspectorName: i.conducted_by || i.assigned_inspector_name,
+        dueDate: i.due_date,
+        status: (i.status as any) || 'Scheduled',
+        result: i.result,
+        inspectorRemarks: i.remarks,
+        checklistSnapshot: i.checklist_snapshot || [],
+        checklistResponses: i.checklist_responses || {},
+        photoUrl: i.photo_url || undefined,
+        itemPhotos: i.item_photos || undefined,
+        completedAt: i.conducted_at,
+        createdAt: i.created_at,
+      })))
+    }
+  }, [])
 
   const syncSupabase = React.useCallback(async () => {
       const runId = ++syncRunRef.current
@@ -633,77 +777,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 7. Work Orders
-        const { data: woRows } = await tracked('work_orders', supabase.from('work_orders').select('*').order('created_at', { ascending: false }))
-        if (isMountedRef.current && woRows) {
-          setWorkOrders(woRows.map(w => ({
-            id: w.id,
-            woNumber: w.wo_number,
-            title: w.title || `${w.type || 'Maintenance'} Work Order`,
-            type: w.type as WorkOrder['type'],
-            assetId: w.asset_id,
-            roomId: w.room_id,
-            priority: w.priority,
-            source: w.source || 'Scheduled',
-            sourceRefId: w.source_ref_id,
-            frequency: w.frequency,
-            dueDate: w.due_date,
-            assignedTechnicianId: w.assigned_technician_id,
-            assignedTechnicianName: w.assigned_technician_name,
-            status: w.status as WorkOrder['status'],
-            checklistTemplateId: w.checklist_template_id,
-            checklistSnapshot: w.checklist_snapshot || [],
-            checklistResponses: w.checklist_responses || {},
-            executedBy: w.executed_by,
-            issueLogged: w.issue_logged,
-            solutionTaken: w.solution_taken,
-            technicianRemarks: w.technician_remarks,
-            startPhotoUrl: w.start_photo_url || undefined,
-            completionPhotoUrl: w.completion_photo_url || undefined,
-            partsReplaced: w.parts_replaced || undefined,
-            vendorId: w.vendor_id || undefined,
-            vendorTicketNo: w.vendor_ticket_no || undefined,
-            vendorTechName: w.vendor_tech_name || undefined,
-            vendorTechPhone: w.vendor_tech_phone || undefined,
-            vendorServiceDate: w.vendor_service_date || undefined,
-            vendorJobSheetUrl: w.vendor_job_sheet_url || undefined,
-            vendorRemarks: w.vendor_remarks || undefined,
-            vendorCost: w.vendor_cost ?? undefined,
-            createdAt: w.created_at,
-            completedAt: w.completed_at,
-          })))
-        }
+        await fetchWorkOrders(tracked)
 
         // 8. Service Requests
-        const { data: srRows } = await tracked('service_requests', supabase.from('service_requests').select('*').order('created_at', { ascending: false }))
-        if (isMountedRef.current && srRows) {
-          setServiceRequests(srRows.map(sr => ({
-            id: sr.id,
-            ticketId: sr.ticket_id,
-            title: sr.title,
-            description: sr.description || '',
-            requestType: sr.type || 'Maintenance',
-            roomId: sr.room_id,
-            assetId: sr.asset_id,
-            requestedBy: sr.requested_by_name,
-            requestedByRole: 'Staff',
-            requestedByUserId: sr.requested_by_user_id || undefined,
-            requestedByEmail: sr.requested_by_email || undefined,
-            assignedTo: sr.assigned_to,
-            assignedToName: sr.assigned_to_name,
-            status: sr.status || 'Open',
-            priority: sr.priority || 'Medium',
-            createdAt: sr.created_at,
-            slaDueDate: sr.sla_due_date,
-            photoUrls: sr.photo_urls || [],
-            workOrderNumber: sr.work_order_number,
-            workOrderId: sr.work_order_id,
-            workOrderType: sr.work_order_type,
-            dismissalReason: sr.dismissal_reason,
-            dismissedAt: sr.dismissed_at,
-            dismissedBy: sr.dismissed_by,
-            resolutionNotes: sr.resolution_notes || undefined,
-          })))
-        }
+        await fetchServiceRequests(tracked)
 
         // 9. Vendors
         const { data: vRows } = await tracked('vendors', supabase.from('vendors').select('*').order('name'))
@@ -738,28 +815,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 11. Inspections
-        const { data: inspRows } = await tracked('inspections', supabase.from('inspections').select('*').order('created_at', { ascending: false }))
-        if (isMountedRef.current && inspRows) {
-          setInspections(inspRows.map(i => ({
-            id: i.id,
-            inspectionNumber: i.inspection_number,
-            assetId: i.asset_id,
-            templateId: i.template_id,
-            templateVersion: i.template_version || 1,
-            assignedInspectorId: i.conducted_by_user_id || i.assigned_inspector_id,
-            assignedInspectorName: i.conducted_by || i.assigned_inspector_name,
-            dueDate: i.due_date,
-            status: (i.status as any) || 'Scheduled',
-            result: i.result,
-            inspectorRemarks: i.remarks,
-            checklistSnapshot: i.checklist_snapshot || [],
-            checklistResponses: i.checklist_responses || {},
-            photoUrl: i.photo_url || undefined,
-            itemPhotos: i.item_photos || undefined,
-            completedAt: i.conducted_at,
-            createdAt: i.created_at,
-          })))
-        }
+        await fetchInspections(tracked)
 
         // 12. Documents
         const { data: docRows } = await tracked('documents', supabase.from('documents').select('*').order('uploaded_at', { ascending: false }))
@@ -888,7 +944,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           setIsDataLoading(false)
         }
       }
-  }, [])
+  }, [fetchWorkOrders, fetchServiceRequests, fetchInspections])
 
   React.useEffect(() => {
     isMountedRef.current = true
@@ -897,6 +953,23 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       isMountedRef.current = false
     }
   }, [syncSupabase])
+
+  // Live updates. Starts once the first load has finished and a real profile is
+  // known (the pre-load placeholder user has id 'guest'), and stops on logout
+  // or user change, which removes the channel. See src/lib/realtime.
+  const realtimeStatus = useRealtimeSync({
+    enabled: isLoggedIn && !isDataLoading && currentUser.id !== 'guest',
+    userId: currentUser.id,
+    role: currentUser.role,
+    email: currentUser.email,
+    handlers: {
+      refetchWorkOrders: () => { fetchWorkOrders() },
+      refetchServiceRequests: () => { fetchServiceRequests() },
+      refetchInspections: () => { fetchInspections() },
+      refetchNotifications: refreshNotifications,
+      onNotification: addNotification,
+    },
+  })
 
   // 2. Persist the two settings that are actually read back on init (see
   // above). Every other entity now lives in Supabase and is reloaded from
@@ -3413,6 +3486,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         isDataLoading,
         dataLoadError,
         reloadData: syncSupabase,
+        realtimeStatus,
       }}
     >
       {children}
