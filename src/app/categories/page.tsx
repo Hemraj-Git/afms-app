@@ -53,10 +53,15 @@ export default function CategoriesPage() {
         description: description.trim(),
       })
     } else {
-      await addCategory({
-        name: name.trim(),
-        description: description.trim(),
-      })
+      try {
+        await addCategory({
+          name: name.trim(),
+          description: description.trim(),
+        })
+      } catch {
+        // Not saved (a toast already says why). Keep the form open so nothing typed is lost.
+        return
+      }
     }
     setShowModal(false)
   }

@@ -25,13 +25,18 @@ import {
   SlaPriority,
   AppNotification,
 } from '@/types/afms'
-import { formatId, formatYearlyId, formatCategoryId, formatSubCategoryId, formatTaxonomyIdFromName, getNextSequence, addIntervalToDate, makePendingWoNumber, isPendingWorkOrder } from '@/lib/idGenerator'
+import { formatId, formatYearlyId, getNextSequence, addIntervalToDate, makePendingWoNumber, isPendingWorkOrder } from '@/lib/idGenerator'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { getLocalDateStr } from '@/lib/dateUtils'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { generateUUID } from '@/lib/uuid'
 import { allocateVendor, useAddVendor, useDeleteVendor, useUpdateVendor, useVendors, vendorKeys } from '@/lib/queries/vendors'
+import { allocateDepartment, useAddDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from '@/lib/queries/departments'
+import { allocateCampus, campusKeys, useAddCampus, useCampuses, useDeleteCampus, useUpdateCampus } from '@/lib/queries/campuses'
+import { allocateBuilding, buildingKeys, useAddBuilding, useBuildings, useDeleteBuilding, useUpdateBuilding } from '@/lib/queries/buildings'
+import { allocateCategory, categoryKeys, useAddCategory, useCategories, useDeleteCategory, useUpdateCategory } from '@/lib/queries/categories'
+import { allocateSubCategory, subCategoryKeys, useAddSubCategory, useDeleteSubCategory, useSubCategories, useUpdateSubCategory } from '@/lib/queries/subCategories'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
@@ -292,6 +297,34 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const addVendorMutation = useAddVendor(currentUser.id)
   const updateVendorMutation = useUpdateVendor(currentUser.id)
   const deleteVendorMutation = useDeleteVendor(currentUser.id)
+  const departmentsQuery = useDepartments(currentUser.id, queriesEnabled)
+  const departments = departmentsQuery.departments
+  const addDepartmentMutation = useAddDepartment(currentUser.id)
+  const updateDepartmentMutation = useUpdateDepartment(currentUser.id)
+  const deleteDepartmentMutation = useDeleteDepartment(currentUser.id)
+  const campusesQuery = useCampuses(currentUser.id, queriesEnabled)
+  const campuses = campusesQuery.campuses
+  const addCampusMutation = useAddCampus(currentUser.id)
+  const updateCampusMutation = useUpdateCampus(currentUser.id)
+  const deleteCampusMutation = useDeleteCampus(currentUser.id)
+  const buildingsQuery = useBuildings(currentUser.id, queriesEnabled)
+  const buildings = buildingsQuery.buildings
+  const addBuildingMutation = useAddBuilding(currentUser.id)
+  const updateBuildingMutation = useUpdateBuilding(currentUser.id)
+  const deleteBuildingMutation = useDeleteBuilding(currentUser.id)
+  const categoriesQuery = useCategories(currentUser.id, queriesEnabled)
+  const categories = categoriesQuery.categories
+  const addCategoryMutation = useAddCategory(currentUser.id)
+  const updateCategoryMutation = useUpdateCategory(currentUser.id)
+  const deleteCategoryMutation = useDeleteCategory(currentUser.id)
+  const subCategoriesQuery = useSubCategories(currentUser.id, queriesEnabled)
+  const subCategories = subCategoriesQuery.subCategories
+  const addSubCategoryMutation = useAddSubCategory(currentUser.id)
+  const updateSubCategoryMutation = useUpdateSubCategory(currentUser.id)
+  const deleteSubCategoryMutation = useDeleteSubCategory(currentUser.id)
+  // Every migrated query, for the loading / error / reload plumbing below.
+  const migratedQueries = [vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery]
+  const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -336,13 +369,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   const [users, setUsers] = useState<UserProfile[]>(mockUsers)
-  const [departments, setDepartments] = useState<Department[]>([])
-  
-  const [campuses, setCampuses] = useState<Campus[]>([])
-  const [buildings, setBuildings] = useState<Building[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([])
   const [checklistTemplates, setChecklistTemplates] = useState<ChecklistTemplate[]>([])
   
   const [assets, setAssets] = useState<Asset[]>([])
@@ -674,39 +701,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           })
         }
 
-        // 2. Departments
-        const { data: deptRows } = await tracked('departments', supabase.from('departments').select('*').order('name'))
-        if (isMountedRef.current && deptRows) {
-          setDepartments(deptRows.map(d => ({
-            id: d.id,
-            name: d.name,
-            code: d.code,
-            description: d.description || '',
-            createdAt: d.created_at,
-          })))
-        }
-
-        // 3. Campuses & Buildings
-        const { data: cRows } = await tracked('campuses', supabase.from('campuses').select('*').order('name'))
-        if (isMountedRef.current && cRows) {
-          setCampuses(cRows.map(c => ({
-            id: c.id,
-            name: c.name,
-            code: c.code,
-            address: c.address || '',
-          })))
-        }
-        const { data: bRows } = await tracked('buildings', supabase.from('buildings').select('*').order('name'))
-        if (isMountedRef.current && bRows) {
-          setBuildings(bRows.map(b => ({
-            id: b.id,
-            campusId: b.campus_id,
-            name: b.name,
-            code: b.code,
-            totalFloors: b.total_floors || 1,
-          })))
-        }
-
         // 4. Rooms
         const { data: rRows } = await tracked('rooms', supabase.from('rooms').select('*').order('room_number'))
         if (isMountedRef.current && rRows) {
@@ -720,30 +714,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             qrCodeKey: r.qr_code_key || `ROOM-${r.room_number}`,
             status: (r.status as Room['status']) || 'Available',
             currentOccupant: r.current_occupant || undefined,
-          })))
-        }
-
-        // 5. Categories & Subcategories
-        const { data: catRows } = await tracked('categories', supabase.from('categories').select('*').order('name'))
-        if (isMountedRef.current && catRows) {
-          setCategories(catRows.map(c => ({
-            id: c.id,
-            name: c.name,
-            code: c.code,
-            description: c.description || '',
-          })))
-        }
-        const { data: subRows } = await tracked('sub_categories', supabase.from('sub_categories').select('*').order('name'))
-        if (isMountedRef.current && subRows) {
-          setSubCategories(subRows.map(s => ({
-            id: s.id,
-            categoryId: s.category_id,
-            name: s.name,
-            code: s.code,
-            description: s.description || '',
-            metadataFields: s.metadata_fields || [],
-            pmTemplateIds: s.pm_template_ids || (s.pm_template_id ? [s.pm_template_id] : []),
-            inspectionTemplateIds: s.inspection_template_ids || (s.inspection_template_id ? [s.inspection_template_id] : []),
           })))
         }
 
@@ -973,11 +943,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }, [isInitialized, slaConfig, roomTypes])
 
   const clearAllData = () => {
-    setCampuses([])
-    setBuildings([])
+    queryClient.setQueryData(campusKeys.list(currentUser.id), [])
+    queryClient.setQueryData(buildingKeys.list(currentUser.id), [])
     setRooms([])
-    setCategories([])
-    setSubCategories([])
+    queryClient.setQueryData(categoryKeys.list(currentUser.id), [])
+    queryClient.setQueryData(subCategoryKeys.list(currentUser.id), [])
     queryClient.setQueryData(vendorKeys.list(currentUser.id), [])
     setChecklistTemplates([])
     setAssets([])
@@ -1082,67 +1052,16 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 1b. Department: DEP-#### (Immutable ID, Deletion Protected by User Linkage)
+  // The add* functions reject if the save fails (after the list is rolled back and
+  // a toast shown), so callers can keep their form open.
   const addDepartment = async (deptData: Omit<Department, 'id'>): Promise<Department> => {
-    const nextSeq = getNextSequence(departments.map(d => d.code || d.id), 'DEP')
-    const displayCode = formatId('DEP', nextSeq)
-    const baseCode = deptData.code || displayCode
-
-    // deptData.code can come from free-text admin input or the create form's
-    // own "first 3 letters of the name" fallback — neither is checked
-    // against existing codes, so two departments (typed or name-derived)
-    // can collide against departments.code's UNIQUE constraint the same way
-    // categories/sub-categories did. Disambiguate the same way.
-    const { data: existingCodeRows } = await supabase.from('departments').select('code')
-    const knownCodes = new Set([
-      ...departments.map(d => d.code),
-      ...(existingCodeRows || []).map(r => r.code).filter(Boolean),
-    ])
-    let finalCode = baseCode
-    let suffix = 2
-    while (knownCodes.has(finalCode)) {
-      finalCode = `${baseCode}-${suffix}`
-      suffix++
-    }
-
-    const newUuid = generateUUID()
-    const today = getLocalDateStr()
-    const newDept: Department = {
-      ...deptData,
-      id: newUuid,
-      code: finalCode,
-      createdAt: today,
-    }
-    setDepartments(prev => [...prev, newDept])
-    const { error } = await supabase.from('departments').insert([{
-      id: newUuid,
-      name: newDept.name,
-      code: newDept.code,
-      description: newDept.description || '',
-      created_at: new Date().toISOString(),
-    }])
-    if (error) {
-      console.error('Supabase department insert error:', error.message)
-      if (typeof window !== 'undefined') {
-        alert(`Could not save this department: ${error.message}`)
-      }
-    }
+    const newDept = await allocateDepartment(deptData, departments)
+    await addDepartmentMutation.mutateAsync(newDept)
     return newDept
   }
 
   const updateDepartment = (id: string, deptData: Partial<Department>) => {
-    const { id: _, ...safeData } = deptData as any
-    const previous = departments.find(d => d.id === id)
-    setDepartments(prev => prev.map(d => (d.id === id ? { ...d, ...safeData } : d)))
-    const dbUpdates: Record<string, unknown> = {}
-    if (safeData.name !== undefined) dbUpdates.name = safeData.name
-    if (safeData.code !== undefined) dbUpdates.code = safeData.code
-    if (safeData.description !== undefined) dbUpdates.description = safeData.description
-    if (Object.keys(dbUpdates).length === 0) return
-    void persistWrite(
-      'Update department',
-      supabase.from('departments').update(dbUpdates).eq('id', id).select('id'),
-      () => { if (previous) setDepartments(prev => prev.map(d => (d.id === id ? previous : d))) }
-    )
+    updateDepartmentMutation.mutate({ id, changes: deptData })
   }
 
   const deleteDepartment = (id: string): { success: boolean; message?: string } => {
@@ -1163,131 +1082,34 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const index = departments.findIndex(d => d.id === id)
-    setDepartments(prev => prev.filter(d => d.id !== id))
-    void persistWrite(
-      'Delete department',
-      supabase.from('departments').delete().eq('id', id).select('id'),
-      () => restoreItem(setDepartments, targetDept, index)
-    )
+    deleteDepartmentMutation.mutate(id)
     return { success: true }
   }
 
   // 2. Campus: CAM-#### (Immutable ID)
   const addCampus = async (campus: Omit<Campus, 'id' | 'code'>): Promise<Campus> => {
-    // Query the DB fresh rather than trusting only local state — a stale or
-    // still-loading `campuses` array previously caused the next code to be
-    // computed from an incomplete list, silently colliding with a real
-    // existing campus's code (confirmed live: two campuses ended up sharing
-    // CAM-0001 this way). campuses.code now also has a UNIQUE constraint as
-    // a backstop, but this is the actual fix.
-    const { data: existingRows } = await supabase.from('campuses').select('code')
-    const knownCodes = [
-      ...campuses.map(c => c.code || c.id),
-      ...(existingRows || []).map(r => r.code).filter((c): c is string => Boolean(c)),
-    ]
-    const nextSeq = getNextSequence(knownCodes, 'CAM')
-    const displayCode = formatId('CAM', nextSeq)
-    const newUuid = generateUUID()
-    const newCampus: Campus = {
-      ...campus,
-      id: newUuid,
-      code: displayCode,
-    }
-    setCampuses(prev => [...prev, newCampus])
-    supabase.from('campuses').insert([{
-      id: newUuid,
-      name: newCampus.name,
-      code: newCampus.code,
-      address: newCampus.address || '',
-      created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) {
-        console.error('Supabase campus insert error:', error.message)
-      }
-    })
+    const newCampus = await allocateCampus(campus, campuses)
+    await addCampusMutation.mutateAsync(newCampus)
     return newCampus
   }
   const updateCampus = (id: string, campusData: Partial<Campus>) => {
-    const { id: _, code: __, ...safeData } = campusData as any
-    const previous = campuses.find(c => c.id === id)
-    setCampuses(prev => prev.map(c => (c.id === id ? { ...c, ...safeData } : c)))
-
-    const dbUpdates: Record<string, unknown> = {}
-    if (safeData.name !== undefined) dbUpdates.name = safeData.name
-    if (safeData.address !== undefined) dbUpdates.address = safeData.address
-
-    if (Object.keys(dbUpdates).length > 0) {
-      void persistWrite(
-        'Update campus',
-        supabase.from('campuses').update(dbUpdates).eq('id', id).select('id'),
-        () => { if (previous) setCampuses(prev => prev.map(c => (c.id === id ? previous : c))) }
-      )
-    }
+    updateCampusMutation.mutate({ id, changes: campusData })
   }
   const deleteCampus = (id: string) => {
-    const index = campuses.findIndex(c => c.id === id)
-    const removed = index >= 0 ? campuses[index] : undefined
-    setCampuses(prev => prev.filter(c => c.id !== id))
-    void persistWrite(
-      'Delete campus',
-      supabase.from('campuses').delete().eq('id', id).select('id'),
-      () => { if (removed) restoreItem(setCampuses, removed, index) }
-    )
+    deleteCampusMutation.mutate(id)
   }
 
   // 3. Building: BLD-#### (Immutable ID)
   const addBuilding = async (bld: Omit<Building, 'id' | 'code'>): Promise<Building> => {
-    // See addCampus — same fix for the same live-confirmed collision bug.
-    const { data: existingRows } = await supabase.from('buildings').select('code')
-    const knownCodes = [
-      ...buildings.map(b => b.code || b.id),
-      ...(existingRows || []).map(r => r.code).filter((c): c is string => Boolean(c)),
-    ]
-    const nextSeq = getNextSequence(knownCodes, 'BLD')
-    const displayCode = formatId('BLD', nextSeq)
-    const newUuid = generateUUID()
-    const newBld: Building = {
-      ...bld,
-      id: newUuid,
-      code: displayCode,
-    }
-    setBuildings(prev => [...prev, newBld])
-    supabase.from('buildings').insert([{
-      id: newUuid,
-      campus_id: newBld.campusId || null,
-      name: newBld.name,
-      code: newBld.code,
-      total_floors: newBld.totalFloors || 1,
-      created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase building insert error:', error.message)
-    })
+    const newBld = await allocateBuilding(bld, buildings)
+    await addBuildingMutation.mutateAsync(newBld)
     return newBld
   }
   const updateBuilding = (id: string, bldData: Partial<Building>) => {
-    const { id: _, code: __, ...safeData } = bldData as any
-    const previous = buildings.find(b => b.id === id)
-    setBuildings(prev => prev.map(b => (b.id === id ? { ...b, ...safeData } : b)))
-    const dbUpdates: Record<string, unknown> = {}
-    if (safeData.name !== undefined) dbUpdates.name = safeData.name
-    if (safeData.totalFloors !== undefined) dbUpdates.total_floors = safeData.totalFloors
-    if (Object.keys(dbUpdates).length === 0) return
-    void persistWrite(
-      'Update building',
-      supabase.from('buildings').update(dbUpdates).eq('id', id).select('id'),
-      () => { if (previous) setBuildings(prev => prev.map(b => (b.id === id ? previous : b))) }
-    )
+    updateBuildingMutation.mutate({ id, changes: bldData })
   }
   const deleteBuilding = (id: string) => {
-    const index = buildings.findIndex(b => b.id === id)
-    const removed = index >= 0 ? buildings[index] : undefined
-    setBuildings(prev => prev.filter(b => b.id !== id))
-    void persistWrite(
-      'Delete building',
-      supabase.from('buildings').delete().eq('id', id).select('id'),
-      () => { if (removed) restoreItem(setBuildings, removed, index) }
-    )
+    deleteBuildingMutation.mutate(id)
   }
 
   // 4. Room: ROM-#### (Immutable ID & QR Key)
@@ -1368,154 +1190,30 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   // 5. Category: 4-letter uppercase ID derived automatically from Name e.g. "Electrical" -> "ELEC"
   const addCategory = async (cat: Omit<Category, 'id' | 'code'>): Promise<Category> => {
-    const baseCode = formatCategoryId(cat.name)
-
-    // Same collision class confirmed live for sub-categories: formatCategoryId
-    // only uses the first 4 letters of the name, so e.g. "Electrical" and
-    // "Electronics" would both produce "ELEC" and silently fail against
-    // categories.code's UNIQUE constraint. Disambiguate the same way.
-    const { data: existingCodeRows } = await supabase.from('categories').select('code')
-    const knownCodes = new Set([
-      ...categories.map(c => c.code),
-      ...(existingCodeRows || []).map(r => r.code).filter(Boolean),
-    ])
-    let formattedCode = baseCode
-    let suffix = 2
-    while (knownCodes.has(formattedCode)) {
-      formattedCode = `${baseCode}-${suffix}`
-      suffix++
-    }
-
-    const newUuid = generateUUID()
-    const newCat: Category = {
-      ...cat,
-      id: newUuid,
-      code: formattedCode,
-    }
-    setCategories(prev => [...prev, newCat])
-    const { error } = await supabase.from('categories').insert([{
-      id: newUuid,
-      name: newCat.name,
-      code: newCat.code,
-      description: newCat.description || '',
-      created_at: new Date().toISOString(),
-    }])
-    if (error) {
-      console.error('Supabase category insert error:', error.message)
-      if (typeof window !== 'undefined') {
-        alert(`Could not save this category: ${error.message}`)
-      }
-    }
+    const newCat = await allocateCategory(cat, categories)
+    await addCategoryMutation.mutateAsync(newCat)
     return newCat
   }
   const updateCategory = (id: string, catData: Partial<Category>) => {
-    const { id: _, code: __, ...safeData } = catData as any
-    const previous = categories.find(c => c.id === id)
-    setCategories(prev => prev.map(c => (c.id === id ? { ...c, ...safeData } : c)))
-    const dbUpdates: Record<string, unknown> = {}
-    if (safeData.name !== undefined) dbUpdates.name = safeData.name
-    if (safeData.description !== undefined) dbUpdates.description = safeData.description
-    if (Object.keys(dbUpdates).length === 0) return
-    void persistWrite(
-      'Update category',
-      supabase.from('categories').update(dbUpdates).eq('id', id).select('id'),
-      () => { if (previous) setCategories(prev => prev.map(c => (c.id === id ? previous : c))) }
-    )
+    updateCategoryMutation.mutate({ id, changes: catData })
   }
   const deleteCategory = (id: string) => {
-    const index = categories.findIndex(c => c.id === id)
-    const removed = index >= 0 ? categories[index] : undefined
-    setCategories(prev => prev.filter(c => c.id !== id))
-    void persistWrite(
-      'Delete category',
-      supabase.from('categories').delete().eq('id', id).select('id'),
-      () => { if (removed) restoreItem(setCategories, removed, index) }
-    )
+    deleteCategoryMutation.mutate(id)
   }
 
   // 6. SubCategory: CategoryId-SubCategoryId derived automatically e.g. "ELEC-LIGH"
   const addSubCategory = async (sub: Omit<SubCategory, 'id' | 'code'>): Promise<SubCategory> => {
     const parentCat = categories.find(c => c.id === sub.categoryId)
     const parentCode = parentCat?.code || parentCat?.id || sub.categoryId || 'GENR'
-    const baseCode = formatSubCategoryId(parentCode, sub.name)
-
-    // formatSubCategoryId derives the code from only the first 4 letters of
-    // the name (e.g. "Office Table" and "Office Chair" both produce
-    // "FURN-OFFI" under the same parent) — confirmed live: this collided
-    // against sub_categories.code's UNIQUE constraint and the insert was
-    // silently rejected while the UI still showed it as created. Disambiguate
-    // by appending -2, -3, etc. against both local state and a fresh DB
-    // check (existing codes may not be loaded yet in local state).
-    const { data: existingCodeRows } = await supabase.from('sub_categories').select('code')
-    const knownCodes = new Set([
-      ...subCategories.map(s => s.code),
-      ...(existingCodeRows || []).map(r => r.code).filter(Boolean),
-    ])
-    let formattedCode = baseCode
-    let suffix = 2
-    while (knownCodes.has(formattedCode)) {
-      formattedCode = `${baseCode}-${suffix}`
-      suffix++
-    }
-
-    const newUuid = generateUUID()
-    const newSub: SubCategory = {
-      ...sub,
-      id: newUuid,
-      code: formattedCode,
-    }
-    setSubCategories(prev => [...prev, newSub])
-    const { error } = await supabase.from('sub_categories').insert([{
-      id: newUuid,
-      category_id: newSub.categoryId || null,
-      name: newSub.name,
-      code: newSub.code,
-      description: newSub.description || '',
-      metadata_fields: newSub.metadataFields || [],
-      pm_template_ids: Array.from(new Set(newSub.pmTemplateIds || (newSub.pmTemplateId ? [newSub.pmTemplateId] : []))),
-      inspection_template_ids: Array.from(new Set(newSub.inspectionTemplateIds || (newSub.inspectionTemplateId ? [newSub.inspectionTemplateId] : []))),
-      created_at: new Date().toISOString(),
-    }])
-    if (error) {
-      console.error('Supabase subcategory insert error:', error.message)
-      if (typeof window !== 'undefined') {
-        alert(`Could not save this sub-category: ${error.message}`)
-      }
-    }
+    const newSub = await allocateSubCategory(sub, parentCode, subCategories)
+    await addSubCategoryMutation.mutateAsync(newSub)
     return newSub
   }
   const updateSubCategory = (id: string, subData: Partial<SubCategory>) => {
-    const { id: _, code: __, ...safeData } = subData as any
-    const previous = subCategories.find(s => s.id === id)
-    setSubCategories(prev => prev.map(s => (s.id === id ? { ...s, ...safeData } : s)))
-
-    const updatePayload: any = {
-      name: safeData.name,
-      description: safeData.description,
-      metadata_fields: safeData.metadataFields,
-    }
-    if (safeData.pmTemplateIds !== undefined || safeData.pmTemplateId !== undefined) {
-      updatePayload.pm_template_ids = Array.from(new Set(safeData.pmTemplateIds || (safeData.pmTemplateId ? [safeData.pmTemplateId] : [])))
-    }
-    if (safeData.inspectionTemplateIds !== undefined || safeData.inspectionTemplateId !== undefined) {
-      updatePayload.inspection_template_ids = Array.from(new Set(safeData.inspectionTemplateIds || (safeData.inspectionTemplateId ? [safeData.inspectionTemplateId] : [])))
-    }
-
-    void persistWrite(
-      'Update sub-category',
-      supabase.from('sub_categories').update(updatePayload).eq('id', id).select('id'),
-      () => { if (previous) setSubCategories(prev => prev.map(s => (s.id === id ? previous : s))) }
-    )
+    updateSubCategoryMutation.mutate({ id, changes: subData })
   }
   const deleteSubCategory = (id: string) => {
-    const index = subCategories.findIndex(s => s.id === id)
-    const removed = index >= 0 ? subCategories[index] : undefined
-    setSubCategories(prev => prev.filter(s => s.id !== id))
-    void persistWrite(
-      'Delete sub-category',
-      supabase.from('sub_categories').delete().eq('id', id).select('id'),
-      () => { if (removed) restoreItem(setSubCategories, removed, index) }
-    )
+    deleteSubCategoryMutation.mutate(id)
   }
 
   // 7. Asset: AST-#### (Immutable ID)
@@ -3407,10 +3105,12 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         unreadNotificationCount,
         markNotificationRead,
         refreshNotifications,
-        isDataLoading: isDataLoading || vendorsQuery.isLoading,
-        dataLoadError: dataLoadError ?? (vendorsQuery.isError ? `Some data could not be loaded: vendors (${vendorsQuery.error.message}).` : null),
+        isDataLoading: isDataLoading || migratedQueries.some(q => q.isLoading),
+        dataLoadError:
+          dataLoadError ??
+          (queryLoadFailures.length > 0 ? `Some data could not be loaded: ${queryLoadFailures.join('; ')}.` : null),
         reloadData: async () => {
-          await Promise.all([syncSupabase(), vendorsQuery.refetch()])
+          await Promise.all([syncSupabase(), ...migratedQueries.map(q => q.refetch())])
         },
         realtimeStatus,
       }}

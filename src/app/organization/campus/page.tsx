@@ -38,7 +38,7 @@ export default function CampusPage() {
     setShowModal(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (editingCampus) {
       updateCampus(editingCampus.id, {
@@ -46,10 +46,15 @@ export default function CampusPage() {
         address,
       })
     } else {
-      addCampus({
-        name,
-        address,
-      })
+      try {
+        await addCampus({
+          name,
+          address,
+        })
+      } catch {
+        // Not saved (a toast already says why). Keep the form open so nothing typed is lost.
+        return
+      }
     }
     setShowModal(false)
   }

@@ -261,17 +261,22 @@ export default function SubCategoriesPage() {
         inspectionTemplateId: uniqueInspIds[0] || undefined,
       })
     } else {
-      await addSubCategory({
-        categoryId: selectedCategoryId,
-        name: subCategoryName.trim(),
-        description: description.trim(),
-        slaPriority,
-        metadataFields: cleanFields,
-        pmTemplateIds: uniquePmIds,
-        pmTemplateId: uniquePmIds[0] || undefined,
-        inspectionTemplateIds: uniqueInspIds,
-        inspectionTemplateId: uniqueInspIds[0] || undefined,
-      })
+      try {
+        await addSubCategory({
+          categoryId: selectedCategoryId,
+          name: subCategoryName.trim(),
+          description: description.trim(),
+          slaPriority,
+          metadataFields: cleanFields,
+          pmTemplateIds: uniquePmIds,
+          pmTemplateId: uniquePmIds[0] || undefined,
+          inspectionTemplateIds: uniqueInspIds,
+          inspectionTemplateId: uniqueInspIds[0] || undefined,
+        })
+      } catch {
+        // Not saved (a toast already says why). Keep the form open so nothing typed is lost.
+        return
+      }
     }
 
     setShowModal(false)

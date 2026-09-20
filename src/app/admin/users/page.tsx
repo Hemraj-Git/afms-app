@@ -228,12 +228,17 @@ export default function UsersAdminPage() {
         headOfDepartment: deptHead.trim() || undefined,
       })
     } else {
-      await addDepartment({
-        name: deptName.trim(),
-        code: deptCode.trim().toUpperCase() || deptName.substring(0, 3).toUpperCase(),
-        description: deptDescription.trim() || undefined,
-        headOfDepartment: deptHead.trim() || undefined,
-      })
+      try {
+        await addDepartment({
+          name: deptName.trim(),
+          code: deptCode.trim().toUpperCase() || deptName.substring(0, 3).toUpperCase(),
+          description: deptDescription.trim() || undefined,
+          headOfDepartment: deptHead.trim() || undefined,
+        })
+      } catch {
+        // Not saved (a toast already says why). Keep the form open so nothing typed is lost.
+        return
+      }
     }
     setShowDeptModal(false)
   }

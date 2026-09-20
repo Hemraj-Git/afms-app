@@ -43,7 +43,7 @@ export default function BuildingPage() {
     setShowModal(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (editingBld) {
       updateBuilding(editingBld.id, {
@@ -52,11 +52,16 @@ export default function BuildingPage() {
         totalFloors: parseInt(totalFloors) || 1,
       })
     } else {
-      addBuilding({
-        campusId,
-        name,
-        totalFloors: parseInt(totalFloors) || 1,
-      })
+      try {
+        await addBuilding({
+          campusId,
+          name,
+          totalFloors: parseInt(totalFloors) || 1,
+        })
+      } catch {
+        // Not saved (a toast already says why). Keep the form open so nothing typed is lost.
+        return
+      }
     }
     setShowModal(false)
   }
