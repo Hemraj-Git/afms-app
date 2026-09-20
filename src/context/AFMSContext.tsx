@@ -226,7 +226,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     id: 'guest',
     email: '',
     fullName: 'Maritime Staff',
-    role: 'Admin',
+    // Least privilege until the real profile loads. This used to be 'Admin', so
+    // a session whose profile never loaded (or a missing profile row) was
+    // treated as an Admin by the role checks on the mobile page and stamped
+    // 'Admin' onto the requests and check-ins it created.
+    role: 'Guest',
     department: 'Operations',
   }))
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -451,7 +455,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
               // "resume by email" RLS matching that depends on it.
               email: profile.email || '',
               fullName: profile.full_name || 'Maritime Staff',
-              role: (profile.role as UserRole) || 'Admin',
+              role: (profile.role as UserRole) || 'Guest',
               department: profile.department || 'Operations',
               phone: profile.phone || '',
             })
