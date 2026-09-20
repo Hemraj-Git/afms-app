@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { formatDateDisplay } from '@/lib/dateUtils'
-import { uploadToStorage, readFileAsDataUrl } from '@/lib/storageUpload'
+import { uploadToStorage, readFileAsDataUrl, validateUpload } from '@/lib/storageUpload'
 import {
   FileText,
   Upload,
@@ -67,6 +67,14 @@ export default function DocumentLibraryPage() {
     e.preventDefault()
     if (!selectedFile) {
       alert('Please select a file to upload.')
+      return
+    }
+
+    // Stop here for a bad file -- falling through would trigger the base64
+    // fallback below and store the rejected file in the database.
+    const invalid = validateUpload(selectedFile, 'facility-documents')
+    if (invalid) {
+      alert(invalid)
       return
     }
 

@@ -29,7 +29,7 @@ import {
 import { formatId, getNextSequence } from '@/lib/idGenerator'
 import { DocumentItem } from '@/types/afms'
 import { supabase } from '@/lib/supabase'
-import { uploadToStorage } from '@/lib/storageUpload'
+import { uploadToStorage, validateUpload } from '@/lib/storageUpload'
 
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
 
@@ -237,8 +237,9 @@ function AddAssetForm() {
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size exceeds 5MB. Please choose a smaller image.')
+      const invalid = validateUpload(file, 'asset-images')
+      if (invalid) {
+        alert(invalid)
         return
       }
       setIsUploadingImage(true)
@@ -260,8 +261,9 @@ function AddAssetForm() {
     e.preventDefault()
     const file = e.dataTransfer.files?.[0]
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size exceeds 5MB. Please choose a smaller image.')
+      const invalid = validateUpload(file, 'asset-images')
+      if (invalid) {
+        alert(invalid)
         return
       }
       setIsUploadingImage(true)
@@ -336,6 +338,11 @@ function AddAssetForm() {
     const rawFile = docFileInputRef.current?.files?.[0]
 
     if (rawFile) {
+      const invalid = validateUpload(rawFile, 'documents')
+      if (invalid) {
+        alert(invalid)
+        return
+      }
       setIsUploadingDoc(true)
       const uploadedUrl = await uploadToStorage(rawFile, 'documents')
       if (uploadedUrl) {

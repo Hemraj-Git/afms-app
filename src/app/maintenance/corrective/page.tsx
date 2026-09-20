@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
-import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
+import { formatDateDisplay } from '@/lib/dateUtils'
+import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import {
   AlertTriangle,
   Wrench,
@@ -170,7 +171,7 @@ export default function CorrectiveMaintenancePage() {
                   const asset = assets.find(a => a.id === wo.assetId)
                   const room = rooms.find(r => r.id === (wo.roomId || asset?.roomId))
                   const isPendingAssignment = !wo.assignedTechnicianName
-                  const isOverdue = wo.status !== 'Completed' && wo.dueDate && wo.dueDate < getLocalDateStr()
+                  const isOverdue = isWorkOrderOverdue(wo)
 
                   return (
                     <tr key={wo.id} className="hover:bg-slate-50/60 transition">

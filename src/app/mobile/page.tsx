@@ -59,7 +59,8 @@ import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { NotificationBell } from '@/components/mobile/NotificationBell'
 import { QrScanner } from '@/components/mobile/QrScanner'
-import { uploadToStorage, readFileAsDataUrl } from '@/lib/storageUpload'
+import { uploadToStorage, readFileAsDataUrl, validateUpload } from '@/lib/storageUpload'
+import { showToast as showAppToast } from '@/lib/toast'
 
 // Real device-camera photo capture, replacing every "Snap" button that
 // previously just set the exact same hardcoded stock-photo URL regardless
@@ -108,6 +109,12 @@ function CameraCaptureButton({
           const file = e.target.files?.[0]
           e.target.value = ''
           if (!file) return
+          // A file the bucket would reject must not reach the base64 fallback below.
+          const invalid = validateUpload(file, 'work-order-evidence')
+          if (invalid) {
+            showAppToast('error', invalid)
+            return
+          }
           setUploading(true)
           try {
             const uploadedUrl = await uploadToStorage(file, 'work-order-evidence')

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
+import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import {
   ClipboardList,
   Wrench,
@@ -80,13 +81,6 @@ export default function WorkOrdersHubPage() {
   const hkCount = realWorkOrders.filter(w => w.type === 'Housekeeping').length
   const inProgressCount = realWorkOrders.filter(w => w.status === 'In Progress').length
 
-  // Dynamic Work Order Overdue Check (Time-based on dueDate)
-  const isWorkOrderOverdue = (wo: WorkOrder) => {
-    if (wo.status === 'Completed' || wo.status === 'Cancelled') return false
-    if (!wo.dueDate) return false
-    const todayStr = getLocalDateStr()
-    return wo.dueDate < todayStr
-  }
   const overdueWoCount = realWorkOrders.filter(isWorkOrderOverdue).length
 
   // Filtered List

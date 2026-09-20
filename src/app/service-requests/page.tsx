@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
@@ -116,8 +116,16 @@ export default function ServiceRequestsPage() {
     return matchesTab && matchesSearch
   })
 
+  // The ref blocks a second click that lands before React re-renders with the
+  // disabled button; the state is what disables it and shows "Submitting…".
+  const isSubmittingRef = useRef(false)
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
+    setIsSubmittingRequest(true)
     const targetAsset = assets.find(a => a.id === newAssetId)
     const sub = targetAsset ? subCategories.find(s => s.id === targetAsset.subCategoryId) : undefined
     const finalPriority: SlaPriority = sub?.slaPriority || newPriority
@@ -146,6 +154,9 @@ export default function ServiceRequestsPage() {
       setNewDesc('')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to create service request. Please try again.')
+    } finally {
+      isSubmittingRef.current = false
+      setIsSubmittingRequest(false)
     }
   }
 
@@ -941,9 +952,10 @@ export default function ServiceRequestsPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    disabled={isSubmittingRequest}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-xs"
                   >
-                    Submit Service Request
+                    {isSubmittingRequest ? 'Submitting…' : 'Submit Service Request'}
                   </button>
                 </div>
               </form>

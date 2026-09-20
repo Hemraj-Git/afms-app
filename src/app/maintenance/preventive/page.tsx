@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
-import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
+import { formatDateDisplay } from '@/lib/dateUtils'
+import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import {
   Wrench,
   AlertTriangle,
@@ -125,7 +126,7 @@ export default function PreventiveMaintenancePage() {
                   pmOrders.map(wo => {
                     const asset = assets.find(a => a.id === wo.assetId || a.assetId === wo.assetId)
                     const isPendingAssignment = !wo.assignedTechnicianName
-                    const isOverdue = wo.status !== 'Completed' && wo.dueDate && wo.dueDate < getLocalDateStr()
+                    const isOverdue = isWorkOrderOverdue(wo)
                     const windowStatus = getAttemptWindowStatus(wo.dueDate, wo.frequency)
 
                     return (
