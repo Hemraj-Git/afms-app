@@ -193,18 +193,22 @@ function AddInventoryForm() {
       return
     }
 
-    const createdVendor = await addVendor({
-      name: newVendorName.trim(),
-      categorySupplied: activeCategory?.name || 'General Spares',
-      contactPerson: newVendorContact,
-      email: newVendorEmail,
-      phone: newVendorPhone,
-      address: newVendorAddress,
-      hasAmc: false,
-    })
+    try {
+      const createdVendor = await addVendor({
+        name: newVendorName.trim(),
+        categorySupplied: activeCategory?.name || 'General Spares',
+        contactPerson: newVendorContact,
+        email: newVendorEmail,
+        phone: newVendorPhone,
+        address: newVendorAddress,
+        hasAmc: false,
+      })
 
-    setPurchasedFromId(createdVendor.id)
-    setShowVendorModal(false)
+      setPurchasedFromId(createdVendor.id)
+      setShowVendorModal(false)
+    } catch {
+      // The vendor wasn't saved (already reported by a toast). Keep the form open.
+    }
   }
 
   // Handle In-Wizard Document Upload & Auto-link

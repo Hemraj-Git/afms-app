@@ -104,6 +104,8 @@ export default function VendorsPage() {
         contactPerson: supportPerson.trim(),
         categorySupplied: 'Vendor / Supplier',
         hasAmc: false,
+      }).catch(() => {
+        // Rolled back and reported by a toast already.
       })
     }
 

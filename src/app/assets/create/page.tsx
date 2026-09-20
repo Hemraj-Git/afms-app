@@ -306,23 +306,27 @@ function AddAssetForm() {
       return
     }
 
-    const createdVendor = await addVendor({
-      name: newVendorName.trim(),
-      categorySupplied: newVendorCategory || 'General Supply',
-      contactPerson: newVendorContact,
-      email: newVendorEmail,
-      phone: newVendorPhone,
-      address: newVendorAddress,
-      hasAmc: vendorModalTarget === 'amc',
-    })
+    try {
+      const createdVendor = await addVendor({
+        name: newVendorName.trim(),
+        categorySupplied: newVendorCategory || 'General Supply',
+        contactPerson: newVendorContact,
+        email: newVendorEmail,
+        phone: newVendorPhone,
+        address: newVendorAddress,
+        hasAmc: vendorModalTarget === 'amc',
+      })
 
-    if (vendorModalTarget === 'purchase') {
-      setPurchasedFromId(createdVendor.id)
-    } else {
-      setAmcVendorId(createdVendor.id)
+      if (vendorModalTarget === 'purchase') {
+        setPurchasedFromId(createdVendor.id)
+      } else {
+        setAmcVendorId(createdVendor.id)
+      }
+
+      setShowVendorModal(false)
+    } catch {
+      // The vendor wasn't saved (already reported by a toast). Keep the form open.
     }
-
-    setShowVendorModal(false)
   }
 
   // Handle Inline New Document Submission

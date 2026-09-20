@@ -29,6 +29,9 @@ import { formatId, formatYearlyId, formatCategoryId, formatSubCategoryId, format
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { getLocalDateStr } from '@/lib/dateUtils'
 import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
+import { generateUUID } from '@/lib/uuid'
+import { allocateVendor, useAddVendor, useDeleteVendor, useUpdateVendor, useVendors, vendorKeys } from '@/lib/queries/vendors'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
@@ -259,17 +262,6 @@ function mapNotificationRow(n: {
   }
 }
 
-function generateUUID(): string {
-  if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.randomUUID === 'function') {
-    return window.crypto.randomUUID()
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
-}
-
 export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => ({
     id: 'guest',
@@ -289,6 +281,17 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
     return false
   })
+
+  // Entities migrated to TanStack Query (see src/lib/queries). They start once a
+  // real profile is known -- the pre-load placeholder user has id 'guest' -- and
+  // are keyed by user, so a different sign-in never sees another user's cache.
+  const queryClient = useQueryClient()
+  const queriesEnabled = isLoggedIn && currentUser.id !== 'guest'
+  const vendorsQuery = useVendors(currentUser.id, queriesEnabled)
+  const vendors = vendorsQuery.vendors
+  const addVendorMutation = useAddVendor(currentUser.id)
+  const updateVendorMutation = useUpdateVendor(currentUser.id)
+  const deleteVendorMutation = useDeleteVendor(currentUser.id)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -316,10 +319,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // page stay empty until a hard refresh happened to remount the
     // provider with the session cookie already in place.
     syncSupabase()
+    // Anything cached before signing in was read without this session.
+    queryClient.invalidateQueries()
   }
 
   const logout = () => {
     setIsLoggedIn(false)
+    queryClient.clear()
     try {
       supabase.auth.signOut().catch(() => {})
     } catch (e) {}
@@ -337,7 +343,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const [rooms, setRooms] = useState<Room[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subCategories, setSubCategories] = useState<SubCategory[]>([])
-  const [vendors, setVendors] = useState<Vendor[]>([])
   const [checklistTemplates, setChecklistTemplates] = useState<ChecklistTemplate[]>([])
   
   const [assets, setAssets] = useState<Asset[]>([])
@@ -782,25 +787,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // 8. Service Requests
         await fetchServiceRequests(tracked)
 
-        // 9. Vendors
-        const { data: vRows } = await tracked('vendors', supabase.from('vendors').select('*').order('name'))
-        if (isMountedRef.current && vRows) {
-          setVendors(vRows.map(v => ({
-            id: v.id,
-            code: v.code || undefined,
-            name: v.name,
-            categorySupplied: v.category_supplied || '',
-            contactPerson: v.contact_person || '',
-            email: v.email || '',
-            phone: v.phone || '',
-            address: v.address || '',
-            hasAmc: Boolean(v.has_amc),
-            amcContractNo: v.amc_contract_no,
-            amcStartDate: v.amc_start_date,
-            amcEndDate: v.amc_end_date,
-          })))
-        }
-
         // 10. Checklist Templates
         const { data: tmplRows } = await tracked('checklist_templates', supabase.from('checklist_templates').select('*').order('title'))
         if (isMountedRef.current && tmplRows) {
@@ -992,7 +978,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setRooms([])
     setCategories([])
     setSubCategories([])
-    setVendors([])
+    queryClient.setQueryData(vendorKeys.list(currentUser.id), [])
     setChecklistTemplates([])
     setAssets([])
     setInventoryItems([])
@@ -2416,73 +2402,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   // 9. Vendor: VND-#### (Immutable ID)
   const addVendor = async (v: Omit<Vendor, 'id' | 'code'>): Promise<Vendor> => {
-    // Previously this scanned vendors.map(vnd => vnd.id) -- vendor `id` is a
-    // UUID, not a "VND-####" string, so the sequence regex never matched
-    // and the computed code (which also was never persisted or returned)
-    // would always have evaluated to "VND-0001". Fixed the same way as
-    // addCampus/addCategory/etc: derive from the real code field, checked
-    // fresh against the DB too.
-    const { data: existingCodeRows } = await supabase.from('vendors').select('code')
-    const knownCodes = [
-      ...vendors.map(vnd => vnd.code || vnd.id),
-      ...(existingCodeRows || []).map(r => r.code).filter((c): c is string => Boolean(c)),
-    ]
-    const nextSeq = getNextSequence(knownCodes, 'VND')
-    const newCode = formatId('VND', nextSeq)
-    const newUuid = generateUUID()
-    const newVendor: Vendor = { ...v, id: newUuid, code: newCode }
-    setVendors(prev => [...prev, newVendor])
+    const newVendor = await allocateVendor(v, vendors)
     // Awaited: assets.purchase_vendor_id/maintenance_vendor_id and
-    // inventory_items.vendor_id are real foreign keys to vendors.id. Both
-    // asset creation and inventory creation let you add a new vendor inline
-    // mid-wizard and then reference it a few steps later — the same
-    // FK-race shape already confirmed live for work_orders/inspections/
-    // documents, just against vendors this time.
-    const { error } = await supabase.from('vendors').insert([{
-      id: newUuid,
-      code: newVendor.code,
-      name: newVendor.name,
-      category_supplied: newVendor.categorySupplied || '',
-      contact_person: newVendor.contactPerson || '',
-      email: newVendor.email || '',
-      phone: newVendor.phone || '',
-      address: newVendor.address || '',
-      has_amc: Boolean(newVendor.hasAmc),
-      amc_contract_no: newVendor.amcContractNo || null,
-      amc_start_date: newVendor.amcStartDate || null,
-      amc_end_date: newVendor.amcEndDate || null,
-      created_at: new Date().toISOString(),
-    }])
-    if (error) {
-      console.error('Supabase vendor insert error:', error.message)
-      if (typeof window !== 'undefined') {
-        alert(`Could not save this vendor: ${error.message}\n\nIt will not persist after a page reload.`)
-      }
-    }
+    // inventory_items.vendor_id are real foreign keys to vendors.id, and asset
+    // and inventory creation add a vendor inline and reference it a few steps
+    // later. If the insert fails this rejects (after the list is rolled back and
+    // a toast shown) so callers don't go on to reference a vendor that isn't there.
+    await addVendorMutation.mutateAsync(newVendor)
     return newVendor
   }
 
   const updateVendor = (id: string, vendorData: Partial<Vendor>) => {
-    const { id: _, ...safeData } = vendorData as any
-    setVendors(prev => prev.map(v => (v.id === id ? { ...v, ...safeData } : v)))
-
-    const dbUpdates: Record<string, unknown> = {}
-    if (safeData.name !== undefined) dbUpdates.name = safeData.name
-    if (safeData.categorySupplied !== undefined) dbUpdates.category_supplied = safeData.categorySupplied
-    if (safeData.contactPerson !== undefined) dbUpdates.contact_person = safeData.contactPerson
-    if (safeData.email !== undefined) dbUpdates.email = safeData.email
-    if (safeData.phone !== undefined) dbUpdates.phone = safeData.phone
-    if (safeData.address !== undefined) dbUpdates.address = safeData.address
-    if (safeData.hasAmc !== undefined) dbUpdates.has_amc = safeData.hasAmc
-    if (safeData.amcContractNo !== undefined) dbUpdates.amc_contract_no = safeData.amcContractNo
-    if (safeData.amcStartDate !== undefined) dbUpdates.amc_start_date = safeData.amcStartDate
-    if (safeData.amcEndDate !== undefined) dbUpdates.amc_end_date = safeData.amcEndDate
-
-    if (Object.keys(dbUpdates).length > 0) {
-      supabase.from('vendors').update(dbUpdates).eq('id', id).then(({ error }) => {
-        if (error) console.error('Supabase vendor update error:', error.message)
-      })
-    }
+    updateVendorMutation.mutate({ id, changes: vendorData })
   }
 
   const deleteVendor = (id: string): { success: boolean; message?: string } => {
@@ -2496,14 +2427,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         message: `Cannot delete vendor. It is linked to asset ${linkedAsset.name} (${linkedAsset.id}).`,
       }
     }
-    const index = vendors.findIndex(v => v.id === id)
-    const removed = index >= 0 ? vendors[index] : undefined
-    setVendors(prev => prev.filter(v => v.id !== id))
-    void persistWrite(
-      'Delete vendor',
-      supabase.from('vendors').delete().eq('id', id).select('id'),
-      () => { if (removed) restoreItem(setVendors, removed, index) }
-    )
+    deleteVendorMutation.mutate(id)
     return { success: true }
   }
 
@@ -3483,9 +3407,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         unreadNotificationCount,
         markNotificationRead,
         refreshNotifications,
-        isDataLoading,
-        dataLoadError,
-        reloadData: syncSupabase,
+        isDataLoading: isDataLoading || vendorsQuery.isLoading,
+        dataLoadError: dataLoadError ?? (vendorsQuery.isError ? `Some data could not be loaded: vendors (${vendorsQuery.error.message}).` : null),
+        reloadData: async () => {
+          await Promise.all([syncSupabase(), vendorsQuery.refetch()])
+        },
         realtimeStatus,
       }}
     >
