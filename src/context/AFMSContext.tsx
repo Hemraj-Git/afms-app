@@ -30,6 +30,37 @@ import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { getLocalDateStr } from '@/lib/dateUtils'
 import { supabase } from '@/lib/supabase'
 import { mockUsers } from '@/data/mockData'
+import { showToast } from '@/lib/toast'
+import { updateUserProfile, deleteUserAccount } from '@/app/actions/users'
+
+// Awaits a Supabase write and, if it failed OR matched no rows (which is what
+// row-level security does to a write it doesn't allow -- no error, just 0
+// rows), runs `undo` to roll back the optimistic local change and tells the
+// user. Callers must chain `.select('id')` so a row count comes back.
+async function persistWrite(
+  label: string,
+  op: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+  undo: () => void
+): Promise<boolean> {
+  const { data, error } = await op
+  if (error || !data || data.length === 0) {
+    const reason = error?.message ?? 'nothing was changed (you may not have permission, or it no longer exists)'
+    console.error(`Supabase ${label} error:`, reason)
+    undo()
+    showToast('error', `${label} failed and was undone: ${reason}`)
+    return false
+  }
+  return true
+}
+
+// Puts a removed item back where it was after a failed delete.
+function restoreItem<T extends { id: string }>(
+  setter: React.Dispatch<React.SetStateAction<T[]>>,
+  item: T,
+  index: number
+) {
+  setter(prev => (prev.some(x => x.id === item.id) ? prev : [...prev.slice(0, index), item, ...prev.slice(index)]))
+}
 
 interface AFMSContextType {
   currentUser: UserProfile
@@ -43,8 +74,8 @@ interface AFMSContextType {
   // inviteUser Server Action, which owns the actual account/profile
   // creation) to local state so it shows up immediately without a refetch.
   addInvitedUser: (profile: UserProfile) => void
-  updateUser: (id: string, user: Partial<UserProfile>) => void
-  deleteUser: (id: string) => { success: boolean; message?: string }
+  updateUser: (id: string, user: Partial<UserProfile>) => Promise<{ success: boolean; message?: string }>
+  deleteUser: (id: string) => Promise<{ success: boolean; message?: string }>
   
   // Department Management (DEP-####)
   departments: Department[]
@@ -892,27 +923,52 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const addInvitedUser = (profile: UserProfile) => {
     setUsers(prev => (prev.some(u => u.id === profile.id) ? prev : [...prev, profile]))
   }
-  const updateUser = (id: string, userData: Partial<UserProfile>) => {
-    const { id: _, ...safeData } = userData as any // Enforce immutable ID
+  // Edits and deletes of another user go through Admin-verified Server Actions:
+  // the browser client can't do them (RLS only lets a user update their own
+  // profile row, and there is no delete policy), so the old direct write
+  // matched 0 rows while the screen showed it as done. Email is not editable
+  // here -- it is the login identity and lives in Supabase Auth.
+  const updateUser = async (id: string, userData: Partial<UserProfile>): Promise<{ success: boolean; message?: string }> => {
+    const { id: _, email: __, ...safeData } = userData as any // Enforce immutable ID; email isn't editable here
+    const previousUser = users.find(u => u.id === id)
+    const wasCurrentUser = currentUser.id === id
+    const previousCurrent = currentUser
+
     setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...safeData } : u)))
-    if (currentUser.id === id) {
+    if (wasCurrentUser) {
       setCurrentUser(prev => ({ ...prev, ...safeData }))
     }
-    
-    // Sync to Supabase profiles if record exists
-    supabase.from('profiles').update({
-      full_name: safeData.fullName,
+
+    const result = await updateUserProfile({
+      id,
+      fullName: safeData.fullName,
       role: safeData.role,
       department: safeData.department,
       phone: safeData.phone,
-    }).eq('id', id).then(() => {})
+    })
+    if (!result.success) {
+      if (previousUser) setUsers(prev => prev.map(u => (u.id === id ? previousUser : u)))
+      if (wasCurrentUser) setCurrentUser(previousCurrent)
+      showToast('error', `Could not update the user: ${result.error}`)
+      return { success: false, message: result.error }
+    }
+    return { success: true }
   }
-  const deleteUser = (id: string): { success: boolean; message?: string } => {
+  const deleteUser = async (id: string): Promise<{ success: boolean; message?: string }> => {
     if (id === currentUser.id) {
+      showToast('error', 'You cannot delete the account you are signed in with.')
       return { success: false, message: 'Cannot delete the active logged-in user profile.' }
     }
+    const index = users.findIndex(u => u.id === id)
+    const removed = index >= 0 ? users[index] : undefined
     setUsers(prev => prev.filter(u => u.id !== id))
-    supabase.from('profiles').delete().eq('id', id).then(() => {})
+
+    const result = await deleteUserAccount(id)
+    if (!result.success) {
+      if (removed) restoreItem(setUsers, removed, index)
+      showToast('error', `Could not delete the user: ${result.error}`)
+      return { success: false, message: result.error }
+    }
     return { success: true }
   }
 
@@ -966,12 +1022,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const updateDepartment = (id: string, deptData: Partial<Department>) => {
     const { id: _, ...safeData } = deptData as any
+    const previous = departments.find(d => d.id === id)
     setDepartments(prev => prev.map(d => (d.id === id ? { ...d, ...safeData } : d)))
-    supabase.from('departments').update({
-      name: safeData.name,
-      code: safeData.code,
-      description: safeData.description,
-    }).eq('id', id).then(() => {})
+    const dbUpdates: Record<string, unknown> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.code !== undefined) dbUpdates.code = safeData.code
+    if (safeData.description !== undefined) dbUpdates.description = safeData.description
+    if (Object.keys(dbUpdates).length === 0) return
+    void persistWrite(
+      'Update department',
+      supabase.from('departments').update(dbUpdates).eq('id', id).select('id'),
+      () => { if (previous) setDepartments(prev => prev.map(d => (d.id === id ? previous : d))) }
+    )
   }
 
   const deleteDepartment = (id: string): { success: boolean; message?: string } => {
@@ -992,8 +1054,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    const index = departments.findIndex(d => d.id === id)
     setDepartments(prev => prev.filter(d => d.id !== id))
-    supabase.from('departments').delete().eq('id', id).then(() => {})
+    void persistWrite(
+      'Delete department',
+      supabase.from('departments').delete().eq('id', id).select('id'),
+      () => restoreItem(setDepartments, targetDept, index)
+    )
     return { success: true }
   }
 
@@ -1034,6 +1101,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
   const updateCampus = (id: string, campusData: Partial<Campus>) => {
     const { id: _, code: __, ...safeData } = campusData as any
+    const previous = campuses.find(c => c.id === id)
     setCampuses(prev => prev.map(c => (c.id === id ? { ...c, ...safeData } : c)))
 
     const dbUpdates: Record<string, unknown> = {}
@@ -1041,14 +1109,22 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     if (safeData.address !== undefined) dbUpdates.address = safeData.address
 
     if (Object.keys(dbUpdates).length > 0) {
-      supabase.from('campuses').update(dbUpdates).eq('id', id).then(({ error }) => {
-        if (error) console.error('Supabase campus update error:', error.message)
-      })
+      void persistWrite(
+        'Update campus',
+        supabase.from('campuses').update(dbUpdates).eq('id', id).select('id'),
+        () => { if (previous) setCampuses(prev => prev.map(c => (c.id === id ? previous : c))) }
+      )
     }
   }
   const deleteCampus = (id: string) => {
+    const index = campuses.findIndex(c => c.id === id)
+    const removed = index >= 0 ? campuses[index] : undefined
     setCampuses(prev => prev.filter(c => c.id !== id))
-    supabase.from('campuses').delete().eq('id', id).then(() => {})
+    void persistWrite(
+      'Delete campus',
+      supabase.from('campuses').delete().eq('id', id).select('id'),
+      () => { if (removed) restoreItem(setCampuses, removed, index) }
+    )
   }
 
   // 3. Building: BLD-#### (Immutable ID)
@@ -1082,15 +1158,27 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
   const updateBuilding = (id: string, bldData: Partial<Building>) => {
     const { id: _, code: __, ...safeData } = bldData as any
+    const previous = buildings.find(b => b.id === id)
     setBuildings(prev => prev.map(b => (b.id === id ? { ...b, ...safeData } : b)))
-    supabase.from('buildings').update({
-      name: safeData.name,
-      total_floors: safeData.totalFloors,
-    }).eq('id', id).then(() => {})
+    const dbUpdates: Record<string, unknown> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.totalFloors !== undefined) dbUpdates.total_floors = safeData.totalFloors
+    if (Object.keys(dbUpdates).length === 0) return
+    void persistWrite(
+      'Update building',
+      supabase.from('buildings').update(dbUpdates).eq('id', id).select('id'),
+      () => { if (previous) setBuildings(prev => prev.map(b => (b.id === id ? previous : b))) }
+    )
   }
   const deleteBuilding = (id: string) => {
+    const index = buildings.findIndex(b => b.id === id)
+    const removed = index >= 0 ? buildings[index] : undefined
     setBuildings(prev => prev.filter(b => b.id !== id))
-    supabase.from('buildings').delete().eq('id', id).then(() => {})
+    void persistWrite(
+      'Delete building',
+      supabase.from('buildings').delete().eq('id', id).select('id'),
+      () => { if (removed) restoreItem(setBuildings, removed, index) }
+    )
   }
 
   // 4. Room: ROM-#### (Immutable ID & QR Key)
@@ -1137,17 +1225,29 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
   const updateRoom = (id: string, roomData: Partial<Room>) => {
     const { id: _, roomNumber: __, qrCodeKey: ___, ...safeData } = roomData as any
+    const previous = rooms.find(r => r.id === id)
     setRooms(prev => prev.map(r => (r.id === id ? { ...r, ...safeData } : r)))
-    supabase.from('rooms').update({
-      name: safeData.name,
-      type: safeData.type,
-      is_reservable: safeData.isReservable,
-      status: safeData.status,
-    }).eq('id', id).then(() => {})
+    const dbUpdates: Record<string, unknown> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.type !== undefined) dbUpdates.type = safeData.type
+    if (safeData.isReservable !== undefined) dbUpdates.is_reservable = safeData.isReservable
+    if (safeData.status !== undefined) dbUpdates.status = safeData.status
+    if (Object.keys(dbUpdates).length === 0) return
+    void persistWrite(
+      'Update room',
+      supabase.from('rooms').update(dbUpdates).eq('id', id).select('id'),
+      () => { if (previous) setRooms(prev => prev.map(r => (r.id === id ? previous : r))) }
+    )
   }
   const deleteRoom = (id: string) => {
+    const index = rooms.findIndex(r => r.id === id)
+    const removed = index >= 0 ? rooms[index] : undefined
     setRooms(prev => prev.filter(r => r.id !== id))
-    supabase.from('rooms').delete().eq('id', id).then(() => {})
+    void persistWrite(
+      'Delete room',
+      supabase.from('rooms').delete().eq('id', id).select('id'),
+      () => { if (removed) restoreItem(setRooms, removed, index) }
+    )
   }
 
   // Room Types
@@ -1201,15 +1301,27 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
   const updateCategory = (id: string, catData: Partial<Category>) => {
     const { id: _, code: __, ...safeData } = catData as any
+    const previous = categories.find(c => c.id === id)
     setCategories(prev => prev.map(c => (c.id === id ? { ...c, ...safeData } : c)))
-    supabase.from('categories').update({
-      name: safeData.name,
-      description: safeData.description,
-    }).eq('id', id).then(() => {})
+    const dbUpdates: Record<string, unknown> = {}
+    if (safeData.name !== undefined) dbUpdates.name = safeData.name
+    if (safeData.description !== undefined) dbUpdates.description = safeData.description
+    if (Object.keys(dbUpdates).length === 0) return
+    void persistWrite(
+      'Update category',
+      supabase.from('categories').update(dbUpdates).eq('id', id).select('id'),
+      () => { if (previous) setCategories(prev => prev.map(c => (c.id === id ? previous : c))) }
+    )
   }
   const deleteCategory = (id: string) => {
+    const index = categories.findIndex(c => c.id === id)
+    const removed = index >= 0 ? categories[index] : undefined
     setCategories(prev => prev.filter(c => c.id !== id))
-    supabase.from('categories').delete().eq('id', id).then(() => {})
+    void persistWrite(
+      'Delete category',
+      supabase.from('categories').delete().eq('id', id).select('id'),
+      () => { if (removed) restoreItem(setCategories, removed, index) }
+    )
   }
 
   // 6. SubCategory: CategoryId-SubCategoryId derived automatically e.g. "ELEC-LIGH"
@@ -1265,8 +1377,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
   const updateSubCategory = (id: string, subData: Partial<SubCategory>) => {
     const { id: _, code: __, ...safeData } = subData as any
+    const previous = subCategories.find(s => s.id === id)
     setSubCategories(prev => prev.map(s => (s.id === id ? { ...s, ...safeData } : s)))
-    
+
     const updatePayload: any = {
       name: safeData.name,
       description: safeData.description,
@@ -1279,13 +1392,21 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       updatePayload.inspection_template_ids = Array.from(new Set(safeData.inspectionTemplateIds || (safeData.inspectionTemplateId ? [safeData.inspectionTemplateId] : [])))
     }
 
-    supabase.from('sub_categories').update(updatePayload).eq('id', id).then(({ error }) => {
-      if (error) console.error('Supabase subcategory update error:', error.message)
-    })
+    void persistWrite(
+      'Update sub-category',
+      supabase.from('sub_categories').update(updatePayload).eq('id', id).select('id'),
+      () => { if (previous) setSubCategories(prev => prev.map(s => (s.id === id ? previous : s))) }
+    )
   }
   const deleteSubCategory = (id: string) => {
+    const index = subCategories.findIndex(s => s.id === id)
+    const removed = index >= 0 ? subCategories[index] : undefined
     setSubCategories(prev => prev.filter(s => s.id !== id))
-    supabase.from('sub_categories').delete().eq('id', id).then(() => {})
+    void persistWrite(
+      'Delete sub-category',
+      supabase.from('sub_categories').delete().eq('id', id).select('id'),
+      () => { if (removed) restoreItem(setSubCategories, removed, index) }
+    )
   }
 
   // 7. Asset: AST-#### (Immutable ID)
@@ -2252,8 +2373,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         message: `Cannot delete vendor. It is linked to asset ${linkedAsset.name} (${linkedAsset.id}).`,
       }
     }
+    const index = vendors.findIndex(v => v.id === id)
+    const removed = index >= 0 ? vendors[index] : undefined
     setVendors(prev => prev.filter(v => v.id !== id))
-    supabase.from('vendors').delete().eq('id', id).then(() => {})
+    void persistWrite(
+      'Delete vendor',
+      supabase.from('vendors').delete().eq('id', id).select('id'),
+      () => { if (removed) restoreItem(setVendors, removed, index) }
+    )
     return { success: true }
   }
 

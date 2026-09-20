@@ -153,16 +153,19 @@ export default function UsersAdminPage() {
     const deptNameStr = targetDept ? targetDept.name : ''
 
     if (editingUser) {
-      updateUser(editingUser.id, {
+      // Saved through an Admin-verified server action; on failure the change is
+      // rolled back, a toast explains why, and the modal stays open.
+      setIsInviting(true)
+      const res = await updateUser(editingUser.id, {
         fullName,
-        email,
         role,
         department: deptNameStr,
         departmentId: selectedDeptId || undefined,
         phone,
         avatarUrl: avatarUrl || undefined,
       })
-      setShowUserModal(false)
+      setIsInviting(false)
+      if (res.success) setShowUserModal(false)
       return
     }
 
@@ -198,13 +201,12 @@ export default function UsersAdminPage() {
   }
 
   // Handle User Delete
-  const handleDeleteUser = (id: string, name: string, e?: React.MouseEvent) => {
+  const handleDeleteUser = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
     if (confirm(`Are you sure you want to delete user "${name}"?`)) {
-      const res = deleteUser(id)
-      if (!res.success) {
-        alert(res.message || 'Could not delete user.')
-      } else if (viewingUser?.id === id) {
+      // deleteUser reports any failure itself (toast) and restores the row.
+      const res = await deleteUser(id)
+      if (res.success && viewingUser?.id === id) {
         setViewingUser(null)
       }
     }
@@ -1066,8 +1068,10 @@ export default function UsersAdminPage() {
                       required
                       value={email}
                       onChange={e => setEmail(e.target.value)}
+                      readOnly={!!editingUser}
+                      title={editingUser ? 'Email is the sign-in identity and cannot be changed here' : undefined}
                       placeholder="user@institute.edu"
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                      className={`w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 ${editingUser ? 'text-slate-500 cursor-not-allowed' : ''}`}
                     />
                   </div>
 

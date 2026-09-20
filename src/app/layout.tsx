@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AFMSProvider } from "@/context/AFMSContext";
+import { Toaster } from "@/components/ui/Toaster";
 
 export const metadata: Metadata = {
   title: "AFMS - Asset & Facility Management System | Hemraj Marines Services",
@@ -18,6 +19,7 @@ export default function RootLayout({
         <AFMSProvider>
           {children}
         </AFMSProvider>
+        <Toaster />
       </body>
     </html>
   );

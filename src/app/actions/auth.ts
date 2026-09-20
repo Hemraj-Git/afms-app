@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { UserRole } from '@/types/afms'
 
 export type AuthResult =
@@ -99,17 +100,26 @@ export async function guestSignIn(input: { fullName?: string; email: string; pho
     // with the generic placeholder (which would also blank out their real
     // name in the Admin Guests tab, grouped by email and showing the latest
     // visit's name).
-    const { data: priorVisit } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('email', email)
-      .eq('role', 'Guest')
-      .neq('id', data.user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (priorVisit?.full_name) {
-      fullName = priorVisit.full_name
+    // Looked up with the server-side admin client, not the guest's own session:
+    // a Guest can only read their own profile row (other guests' rows are
+    // deliberately hidden from them), so their session can't see a previous
+    // visit's row. Only the name is read, and only ever copied onto the caller's
+    // own new profile below.
+    try {
+      const { data: priorVisit } = await createAdminClient()
+        .from('profiles')
+        .select('full_name')
+        .eq('email', email)
+        .eq('role', 'Guest')
+        .neq('id', data.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (priorVisit?.full_name) {
+        fullName = priorVisit.full_name
+      }
+    } catch {
+      // Admin client not configured or lookup failed -- keep the placeholder name.
     }
   }
 
