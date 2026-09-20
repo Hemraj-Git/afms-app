@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { PageSkeleton } from '@/components/ui/Skeleton'
 import {
   Boxes,
   Plus,
@@ -223,7 +224,7 @@ export default function AssetsListPage() {
   }
 
   return (
-    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Asset Management' }, { label: 'Assets' }]}>
+    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Asset Management' }, { label: 'Assets' }]} loadingFallback={<PageSkeleton tiles={0} rows={10} cols={6} />}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

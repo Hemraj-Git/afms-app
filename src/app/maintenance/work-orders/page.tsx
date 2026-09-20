@@ -4,6 +4,8 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { useDefaultSelection } from '@/lib/useDefaultSelection'
+import { PageSkeleton } from '@/components/ui/Skeleton'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import {
@@ -61,8 +63,11 @@ export default function WorkOrdersHubPage() {
   const [type, setType] = useState<'Preventive' | 'Corrective' | 'Housekeeping'>('Preventive')
   const [title, setTitle] = useState('')
   const [assetId, setAssetId] = useState(assets[0]?.id || '')
+  useDefaultSelection(assetId, setAssetId, assets[0]?.id)
   const [roomId, setRoomId] = useState(rooms[0]?.id || '')
+  useDefaultSelection(roomId, setRoomId, rooms[0]?.id)
   const [assignedTechnicianId, setAssignedTechnicianId] = useState(users.find(u => u.role === 'Technician' || u.role === 'Housekeeping')?.id || users.find(u => u.role !== 'Guest')?.id || '')
+  useDefaultSelection(assignedTechnicianId, setAssignedTechnicianId, users.find(u => u.role === 'Technician' || u.role === 'Housekeeping')?.id || users.find(u => u.role !== 'Guest')?.id)
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Critical'>('Medium')
   const [dueDate, setDueDate] = useState(getLocalDateStr(new Date(Date.now() + 86400000 * 3)))
   const [issueLogged, setIssueLogged] = useState('')
@@ -140,7 +145,7 @@ export default function WorkOrdersHubPage() {
   }
 
   return (
-    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Maintenance' }, { label: 'Work Orders' }]}>
+    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Maintenance' }, { label: 'Work Orders' }]} loadingFallback={<PageSkeleton tiles={4} rows={8} cols={6} />}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

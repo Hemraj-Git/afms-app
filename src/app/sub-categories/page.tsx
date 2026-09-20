@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { useDefaultSelection } from '@/lib/useDefaultSelection'
 import {
   Tags,
   Plus,
@@ -46,7 +47,8 @@ export default function SubCategoriesPage() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1)
 
   // Step 1: Basic Information
-  const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || 'ELEC')
+  const [selectedCategoryId, setSelectedCategoryId] = useState('')
+  useDefaultSelection(selectedCategoryId, setSelectedCategoryId, categories[0]?.id)
   const [subCategoryName, setSubCategoryName] = useState('')
   const [description, setDescription] = useState('')
   const [slaPriority, setSlaPriority] = useState<SlaPriority>('Medium')

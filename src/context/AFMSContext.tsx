@@ -206,6 +206,12 @@ interface AFMSContextType {
   unreadNotificationCount: number
   markNotificationRead: (id: string) => void
   refreshNotifications: () => void
+  // True while the first (or post-login) load of all tables is in flight; used
+  // to show skeletons instead of empty states. dataLoadError is set when one
+  // or more tables failed to load. reloadData re-runs the whole load.
+  isDataLoading: boolean
+  dataLoadError: string | null
+  reloadData: () => Promise<void>
 }
 
 const AFMSContext = createContext<AFMSContextType | undefined>(undefined)
@@ -431,7 +437,39 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // fetch with the now-existing session cookies. login() now explicitly
   // re-invokes this same fetch instead of relying on a remount.
   const isMountedRef = React.useRef(true)
+
+  // "Is the initial (or post-login) load in flight?" -- drives the skeleton
+  // gate in AppLayout and the mobile app. Starts true so the server render and
+  // the first client render agree. Only a full sync flips it: it is set true at
+  // the start of syncSupabase, which only runs on mount and from login() --
+  // both happen while no AppLayout page is mounted (first load, or the /login
+  // page), so it never blanks a page the user is already looking at. If a
+  // future caller re-runs a full sync from inside a mounted page, give it a
+  // "silent" mode instead of reusing this flag. Later refreshes (e.g. Realtime)
+  // must not touch it, or every live update would bring the skeleton back.
+  const [isDataLoading, setIsDataLoading] = useState(true)
+  const [dataLoadError, setDataLoadError] = useState<string | null>(null)
+  // Overlapping syncs (mount + login) must not let the older one clear the flag
+  // while the newer one is still running.
+  const syncRunRef = React.useRef(0)
+
   const syncSupabase = React.useCallback(async () => {
+      const runId = ++syncRunRef.current
+      setIsDataLoading(true)
+      setDataLoadError(null)
+
+      // A failed query used to leave its table silently empty -- which looks
+      // exactly like "no records". Collect them so the UI can say so.
+      const failures: string[] = []
+      const tracked = async <T extends { error: { message: string } | null }>(
+        label: string,
+        query: PromiseLike<T>
+      ): Promise<T> => {
+        const result = await query
+        if (result.error) failures.push(`${label} (${result.error.message})`)
+        return result
+      }
+
       try {
         // Authenticated Session & Profile
         const { data: { session } } = await supabase.auth.getSession()
@@ -464,7 +502,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 1. Users from profiles
-        const { data: profRows } = await supabase.from('profiles').select('*')
+        const { data: profRows } = await tracked('profiles', supabase.from('profiles').select('*'))
         if (isMountedRef.current && profRows && profRows.length > 0) {
           setUsers(prev => {
             const dbUsers: UserProfile[] = profRows.map(p => ({
@@ -488,7 +526,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 2. Departments
-        const { data: deptRows } = await supabase.from('departments').select('*').order('name')
+        const { data: deptRows } = await tracked('departments', supabase.from('departments').select('*').order('name'))
         if (isMountedRef.current && deptRows) {
           setDepartments(deptRows.map(d => ({
             id: d.id,
@@ -500,7 +538,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 3. Campuses & Buildings
-        const { data: cRows } = await supabase.from('campuses').select('*').order('name')
+        const { data: cRows } = await tracked('campuses', supabase.from('campuses').select('*').order('name'))
         if (isMountedRef.current && cRows) {
           setCampuses(cRows.map(c => ({
             id: c.id,
@@ -509,7 +547,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             address: c.address || '',
           })))
         }
-        const { data: bRows } = await supabase.from('buildings').select('*').order('name')
+        const { data: bRows } = await tracked('buildings', supabase.from('buildings').select('*').order('name'))
         if (isMountedRef.current && bRows) {
           setBuildings(bRows.map(b => ({
             id: b.id,
@@ -521,7 +559,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 4. Rooms
-        const { data: rRows } = await supabase.from('rooms').select('*').order('room_number')
+        const { data: rRows } = await tracked('rooms', supabase.from('rooms').select('*').order('room_number'))
         if (isMountedRef.current && rRows) {
           setRooms(rRows.map(r => ({
             id: r.id,
@@ -537,7 +575,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 5. Categories & Subcategories
-        const { data: catRows } = await supabase.from('categories').select('*').order('name')
+        const { data: catRows } = await tracked('categories', supabase.from('categories').select('*').order('name'))
         if (isMountedRef.current && catRows) {
           setCategories(catRows.map(c => ({
             id: c.id,
@@ -546,7 +584,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             description: c.description || '',
           })))
         }
-        const { data: subRows } = await supabase.from('sub_categories').select('*').order('name')
+        const { data: subRows } = await tracked('sub_categories', supabase.from('sub_categories').select('*').order('name'))
         if (isMountedRef.current && subRows) {
           setSubCategories(subRows.map(s => ({
             id: s.id,
@@ -561,7 +599,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 6. Assets
-        const { data: astRows } = await supabase.from('assets').select('*').order('created_at', { ascending: false })
+        const { data: astRows } = await tracked('assets', supabase.from('assets').select('*').order('created_at', { ascending: false }))
         if (isMountedRef.current && astRows) {
           setAssets(astRows.map(a => ({
             id: a.id,
@@ -595,7 +633,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 7. Work Orders
-        const { data: woRows } = await supabase.from('work_orders').select('*').order('created_at', { ascending: false })
+        const { data: woRows } = await tracked('work_orders', supabase.from('work_orders').select('*').order('created_at', { ascending: false }))
         if (isMountedRef.current && woRows) {
           setWorkOrders(woRows.map(w => ({
             id: w.id,
@@ -636,7 +674,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 8. Service Requests
-        const { data: srRows } = await supabase.from('service_requests').select('*').order('created_at', { ascending: false })
+        const { data: srRows } = await tracked('service_requests', supabase.from('service_requests').select('*').order('created_at', { ascending: false }))
         if (isMountedRef.current && srRows) {
           setServiceRequests(srRows.map(sr => ({
             id: sr.id,
@@ -668,7 +706,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 9. Vendors
-        const { data: vRows } = await supabase.from('vendors').select('*').order('name')
+        const { data: vRows } = await tracked('vendors', supabase.from('vendors').select('*').order('name'))
         if (isMountedRef.current && vRows) {
           setVendors(vRows.map(v => ({
             id: v.id,
@@ -687,7 +725,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 10. Checklist Templates
-        const { data: tmplRows } = await supabase.from('checklist_templates').select('*').order('title')
+        const { data: tmplRows } = await tracked('checklist_templates', supabase.from('checklist_templates').select('*').order('title'))
         if (isMountedRef.current && tmplRows) {
           setChecklistTemplates(tmplRows.map(t => ({
             id: t.id,
@@ -700,7 +738,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 11. Inspections
-        const { data: inspRows } = await supabase.from('inspections').select('*').order('created_at', { ascending: false })
+        const { data: inspRows } = await tracked('inspections', supabase.from('inspections').select('*').order('created_at', { ascending: false }))
         if (isMountedRef.current && inspRows) {
           setInspections(inspRows.map(i => ({
             id: i.id,
@@ -724,7 +762,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 12. Documents
-        const { data: docRows } = await supabase.from('documents').select('*').order('uploaded_at', { ascending: false })
+        const { data: docRows } = await tracked('documents', supabase.from('documents').select('*').order('uploaded_at', { ascending: false }))
         if (isMountedRef.current && docRows) {
           setDocuments(docRows.map(d => ({
             id: d.id,
@@ -739,7 +777,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 13. Inventory Items
-        const { data: invRows } = await supabase.from('inventory_items').select('*').order('created_at', { ascending: false })
+        const { data: invRows } = await tracked('inventory_items', supabase.from('inventory_items').select('*').order('created_at', { ascending: false }))
         if (isMountedRef.current && invRows && invRows.length > 0) {
           setInventoryItems(invRows.map(inv => ({
             id: inv.id,
@@ -766,7 +804,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 14. Reservations
-        const { data: resRows } = await supabase.from('reservations').select('*').order('created_at', { ascending: false })
+        const { data: resRows } = await tracked('reservations', supabase.from('reservations').select('*').order('created_at', { ascending: false }))
         if (isMountedRef.current && resRows && resRows.length > 0) {
           setReservations(resRows.map(r => ({
             id: r.id,
@@ -791,7 +829,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // that's just a formatted "HH:MM:SS AM/PM" display string with no
         // date component, so sorting on it doesn't produce true
         // chronological order across different days.
-        const { data: ralRows } = await supabase.from('room_access_logs').select('*').order('check_in_timestamp', { ascending: false })
+        const { data: ralRows } = await tracked('room_access_logs', supabase.from('room_access_logs').select('*').order('check_in_timestamp', { ascending: false }))
         if (isMountedRef.current && ralRows && ralRows.length > 0) {
           setRoomAccessLogs(ralRows.map(l => {
             // roomName was previously just set to the raw room_id (a UUID)
@@ -826,7 +864,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // a locale-formatted new Date().toLocaleString() display string
         // (e.g. "1/16/2026, 12:41:55 AM"), and sorting on it lexicographically
         // scrambles order across months/years, not just within a day.
-        const { data: aalRows } = await supabase.from('asset_activity_logs').select('*').order('timestamp_epoch', { ascending: false, nullsFirst: false })
+        const { data: aalRows } = await tracked('asset_activity_logs', supabase.from('asset_activity_logs').select('*').order('timestamp_epoch', { ascending: false, nullsFirst: false }))
         if (isMountedRef.current && aalRows && aalRows.length > 0) {
           setAssetActivityLogs(aalRows.map(l => ({
             id: l.id,
@@ -841,6 +879,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         console.warn('Supabase sync notice:', e)
+        failures.push('unexpected error while loading')
+      } finally {
+        // Always clear the loading flag -- an exception must never leave a
+        // skeleton on screen forever -- but only for the newest sync.
+        if (isMountedRef.current && runId === syncRunRef.current) {
+          setDataLoadError(failures.length > 0 ? `Some data could not be loaded: ${failures.join(', ')}.` : null)
+          setIsDataLoading(false)
+        }
       }
   }, [])
 
@@ -3364,6 +3410,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         unreadNotificationCount,
         markNotificationRead,
         refreshNotifications,
+        isDataLoading,
+        dataLoadError,
+        reloadData: syncSupabase,
       }}
     >
       {children}

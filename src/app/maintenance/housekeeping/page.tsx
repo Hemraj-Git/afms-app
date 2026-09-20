@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { useDefaultSelection } from '@/lib/useDefaultSelection'
 import { getNextSequence, formatYearlyId } from '@/lib/idGenerator'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
@@ -32,8 +33,14 @@ export default function HousekeepingPage() {
   // Form fields for new Housekeeping Schedule
   const [title, setTitle] = useState('')
   const [roomId, setRoomId] = useState(rooms[0]?.id || '')
+  useDefaultSelection(roomId, setRoomId, rooms[0]?.id)
   const [assignedTechnicianId, setAssignedTechnicianId] = useState(
     users.find(u => u.role === 'Housekeeping')?.id || users.find(u => u.role === 'Admin')?.id || ''
+  )
+  useDefaultSelection(
+    assignedTechnicianId,
+    setAssignedTechnicianId,
+    users.find(u => u.role === 'Housekeeping')?.id || users.find(u => u.role === 'Admin')?.id
   )
   const [dueDate, setDueDate] = useState(getLocalDateStr())
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Low')

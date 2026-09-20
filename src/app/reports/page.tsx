@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { PageSkeleton } from '@/components/ui/Skeleton'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
@@ -811,7 +812,7 @@ export default function ReportsHubPage() {
   ])
 
   return (
-    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Reports & Analytics' }]}>
+    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Reports & Analytics' }]} loadingFallback={<PageSkeleton tiles={4} rows={6} cols={5} />}>
       <div className="space-y-6 max-w-7xl mx-auto pb-16">
         {/* Printable Official Header (Visible during Print/PDF export) */}
         <div className="hidden print:block mb-6 border-b pb-4">

@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { PageSkeleton } from '@/components/ui/Skeleton'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { formatDateDisplay, formatTimeDisplay } from '@/lib/dateUtils'
 import {
@@ -76,7 +77,7 @@ export default function DashboardPage() {
   const retiredPct = totalAssets > 0 ? Math.round((retiredCount / totalAssets) * 100) : 0
 
   return (
-    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Dashboard' }]}>
+    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Dashboard' }]} loadingFallback={<PageSkeleton tiles={4} rows={6} cols={4} />}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
         {/* Top Title & Quick Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

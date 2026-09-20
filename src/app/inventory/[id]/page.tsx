@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { useDefaultSelection } from '@/lib/useDefaultSelection'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import {
   Package,
@@ -50,6 +51,7 @@ export default function InventoryItemDetailPage() {
   // Deploy Modal State
   const [showDeployModal, setShowDeployModal] = useState(false)
   const [deployCampusId, setDeployCampusId] = useState(campuses[0]?.id || '')
+  useDefaultSelection(deployCampusId, setDeployCampusId, campuses[0]?.id)
   const [deployBuildingId, setDeployBuildingId] = useState('')
   const [deployRoomId, setDeployRoomId] = useState('')
   const [deployInstallDate, setDeployInstallDate] = useState(getLocalDateStr())

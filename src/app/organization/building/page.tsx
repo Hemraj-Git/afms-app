@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { useDefaultSelection } from '@/lib/useDefaultSelection'
 import {
   Layers,
   Building2,
@@ -22,6 +23,7 @@ export default function BuildingPage() {
 
   // Form fields
   const [campusId, setCampusId] = useState(campuses[0]?.id || '')
+  useDefaultSelection(campusId, setCampusId, campuses[0]?.id)
   const [name, setName] = useState('')
   const [totalFloors, setTotalFloors] = useState('3')
 

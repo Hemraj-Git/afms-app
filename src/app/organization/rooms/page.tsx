@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { useDefaultSelection } from '@/lib/useDefaultSelection'
 import {
   DoorOpen,
   Plus,
@@ -42,6 +43,7 @@ export default function RoomsPage() {
 
   // Cascading Form fields: Campus -> Building -> Floor & Room Size
   const [campusId, setCampusId] = useState(campuses[0]?.id || '')
+  useDefaultSelection(campusId, setCampusId, campuses[0]?.id)
   const [buildingId, setBuildingId] = useState(
     buildings.find(b => b.campusId === (campuses[0]?.id || ''))?.id || buildings[0]?.id || ''
   )

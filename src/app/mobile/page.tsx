@@ -61,6 +61,7 @@ import { NotificationBell } from '@/components/mobile/NotificationBell'
 import { QrScanner } from '@/components/mobile/QrScanner'
 import { uploadToStorage, readFileAsDataUrl, validateUpload } from '@/lib/storageUpload'
 import { showToast as showAppToast } from '@/lib/toast'
+import { Skeleton, SkeletonRegion, ListSkeleton } from '@/components/ui/Skeleton'
 
 // Real device-camera photo capture, replacing every "Snap" button that
 // previously just set the exact same hardcoded stock-photo URL regardless
@@ -197,6 +198,9 @@ function MobileFieldAppContent() {
     notifications,
     unreadNotificationCount,
     markNotificationRead,
+    isDataLoading,
+    dataLoadError,
+    reloadData,
   } = useAFMS()
 
   // Navigation Tab State (Dynamic per role)
@@ -1185,7 +1189,29 @@ function MobileFieldAppContent() {
 
         {/* Scrollable Screen Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          
+          {isDataLoading ? (
+            // Header, tabs and the bottom bar stay; only the content waits for
+            // the first load, so "loading" never reads as "nothing assigned".
+            <SkeletonRegion className="space-y-4">
+              <Skeleton tone="dark" className="h-4 w-40" />
+              <ListSkeleton rows={5} tone="dark" />
+            </SkeletonRegion>
+          ) : (
+          <>
+          {dataLoadError && (
+            <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-950/40 p-3 text-[12px] text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="flex-1">{dataLoadError} Some lists may look empty even though records exist.</p>
+              <button
+                type="button"
+                onClick={() => void reloadData()}
+                className="shrink-0 rounded-lg border border-amber-500/40 px-2.5 py-1 font-semibold text-amber-100 hover:bg-amber-900/40"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* TAB 1: TECHNICIAN TASKS & WORK ORDERS */}
           {activeTab === 'Tasks' && (
             <div className="space-y-4 animate-in fade-in">
@@ -2127,7 +2153,8 @@ function MobileFieldAppContent() {
               </button>
             </div>
           )}
-
+          </>
+          )}
         </div>
 
         {/* Bottom Tab Navigation Bar (Dynamic based on user role) */}

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
+import { useDefaultSelection } from '@/lib/useDefaultSelection'
+import { PageSkeleton } from '@/components/ui/Skeleton'
 import {
   MessageSquare,
   Clock,
@@ -60,7 +62,9 @@ export default function ServiceRequestsPage() {
   const [newDesc, setNewDesc] = useState('')
   const [newType, setNewType] = useState<'Maintenance' | 'Cleaning' | 'IT Support' | 'General'>('Maintenance')
   const [newRoomId, setNewRoomId] = useState(rooms[0]?.id || '')
+  useDefaultSelection(newRoomId, setNewRoomId, rooms[0]?.id)
   const [newAssetId, setNewAssetId] = useState(assets[0]?.id || '')
+  useDefaultSelection(newAssetId, setNewAssetId, assets[0]?.id)
   const [newPriority, setNewPriority] = useState<SlaPriority>('Medium')
 
   const handleAssetSelect = (assetId: string) => {
@@ -290,7 +294,7 @@ export default function ServiceRequestsPage() {
     : false
 
   return (
-    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Service Request' }]}>
+    <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Service Request' }]} loadingFallback={<PageSkeleton tiles={4} rows={8} cols={6} />}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

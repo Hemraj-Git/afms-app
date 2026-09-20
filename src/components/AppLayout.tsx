@@ -1,8 +1,11 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { AlertCircle } from 'lucide-react'
 import { Sidebar } from '@/components/Sidebar'
 import { Header } from '@/components/Header'
+import { PageSkeleton } from '@/components/ui/Skeleton'
+import { useAFMS } from '@/context/AFMSContext'
 
 // Auth/role gating for every route this layout wraps happens server-side in
 // proxy.ts (redirects unauthenticated requests to /login, non-Admin roles
@@ -12,13 +15,24 @@ import { Header } from '@/components/Header'
 // Next's own auth guide warns against (a layout "return null" gate doesn't
 // stop nested routes or Server Actions from executing) and, once proxy.ts
 // existed, was also fully redundant with it.
+//
+// The skeleton below is NOT that: it only reflects whether the app's data has
+// finished loading (isDataLoading) and says nothing about who may see what.
+// It replaces the page content -- not the sidebar or header -- while the first
+// load runs, so users see the shape of the page instead of "No data" messages
+// and zero counts. Note it swaps out the content only: the page component
+// itself (and any state it seeds from the data at mount) is already mounted.
 export function AppLayout({
   children,
   breadcrumbs = [{ label: 'Home', href: '/dashboard' }],
+  loadingFallback,
 }: {
   children: React.ReactNode
   breadcrumbs?: { label: string; href?: string }[]
+  // A skeleton shaped like this page; falls back to a generic one.
+  loadingFallback?: React.ReactNode
 }) {
+  const { isDataLoading, dataLoadError, reloadData } = useAFMS()
   // Sidebar collapsed state with localStorage persistence
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -80,7 +94,31 @@ export function AppLayout({
 
         {/* Scrollable Right-Side Main Content (Only this pane scrolls) */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 scrollbar-thin print:p-0 print:overflow-visible print:h-auto">
-          {children}
+          {isDataLoading ? (
+            loadingFallback ?? <PageSkeleton />
+          ) : (
+            <>
+              {dataLoadError && (
+                <div
+                  role="alert"
+                  className="mx-auto mb-5 flex max-w-7xl items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 print:hidden"
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <p className="flex-1">
+                    {dataLoadError} Some lists below may look empty even though records exist.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void reloadData()}
+                    className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1 font-semibold text-amber-800 hover:bg-amber-100"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {children}
+            </>
+          )}
         </main>
       </div>
     </div>
