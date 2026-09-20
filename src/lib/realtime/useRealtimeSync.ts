@@ -53,16 +53,16 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
 
   // Handlers change identity every render; keep the subscription itself stable.
   const handlersRef = useRef(handlers)
-  handlersRef.current = handlers
+  useEffect(() => {
+    handlersRef.current = handlers
+  })
 
   const isGuest = role === 'Guest'
+  // A guest is matched to their tickets by email; without one there is nothing to listen for.
+  const active = enabled && Boolean(userId) && !(isGuest && !email)
 
   useEffect(() => {
-    // A guest is matched to their tickets by email; without one there is nothing to listen for.
-    if (!enabled || !userId || (isGuest && !email)) {
-      setStatus('off')
-      return
-    }
+    if (!active) return
 
     let disposed = false
     let channel: RealtimeChannel | null = null
@@ -194,7 +194,7 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
       unsubscribe()
       setStatus('off')
     }
-  }, [enabled, userId, role, email, isGuest])
+  }, [active, userId, email, isGuest])
 
-  return status
+  return active ? status : 'off'
 }
