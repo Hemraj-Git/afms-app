@@ -1765,30 +1765,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const checkInDate = getLocalDateStr(now)
     const newUuid = generateUUID()
 
-    // AL-A#### is a real human-readable id (like assets.asset_id,
-    // rooms.room_number, etc) instead of the raw UUID. Checked fresh
-    // against the DB, same collision-safe pattern used for every other
-    // entity's code this session.
-    const { data: existingCodeRows } = await supabase.from('room_access_logs').select('activity_number')
-    const knownCodes = new Set([
-      ...roomAccessLogs.map(l => l.activityNumber).filter(Boolean),
-      ...(existingCodeRows || []).map(r => r.activity_number).filter(Boolean),
-    ] as string[])
-    let maxSeq = 0
-    knownCodes.forEach(code => {
-      const match = code.match(/^AL-A(\d+)$/)
-      if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10))
-    })
-    let seq = maxSeq + 1
-    let activityNumber = `AL-A${String(seq).padStart(4, '0')}`
-    while (knownCodes.has(activityNumber)) {
-      seq++
-      activityNumber = `AL-A${String(seq).padStart(4, '0')}`
-    }
-
+    // The AL-A#### check-in number is assigned by the database (see
+    // supabase/migrations/0038_server_side_activity_numbers.sql). It used to be
+    // worked out here from the logs this browser could see, and a Guest (who can read
+    // only their own logs) picked numbers other people already held. Until the list is
+    // re-read after the check-in below, this entry has no number of its own yet.
     const log: RoomAccessLog = {
       id: newUuid,
-      activityNumber,
       roomId: resolvedRoomId,
       roomName: room ? `${room.name} (${room.roomNumber || room.id})` : 'Room',
       userId: currentUser.id,
@@ -1817,7 +1800,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.rpc('room_check_in', {
       p_id: newUuid,
       p_room_id: resolvedRoomId,
-      p_activity_number: activityNumber,
+      p_activity_number: '', // ignored: the database assigns the number
       p_purpose: purpose,
       p_user_name: currentUser.fullName,
       p_user_role: currentUser.role,
