@@ -92,6 +92,8 @@ export default function DocumentLibraryPage() {
       fileSizeKb: Math.round(selectedFile.size / 1024),
       uploadedBy: currentUser.fullName,
       linkedAssetIds: newLinkedAssetIds,
+    }).catch(() => {
+      // Rolled back and reported by a toast already.
     })
     setShowUploadModal(false)
     setNewTitle('')

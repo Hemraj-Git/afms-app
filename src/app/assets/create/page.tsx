@@ -356,20 +356,24 @@ function AddAssetForm() {
       setIsUploadingDoc(false)
     }
 
-    const createdDoc = await addDocument({
-      title: newDocTitle.trim(),
-      fileType: newDocType,
-      fileUrl: finalFileUrl,
-      fileSizeKb: finalFileSize,
-      uploadedBy: currentUser.fullName,
-      linkedAssetIds: [],
-    })
+    try {
+      const createdDoc = await addDocument({
+        title: newDocTitle.trim(),
+        fileType: newDocType,
+        fileUrl: finalFileUrl,
+        fileSizeKb: finalFileSize,
+        uploadedBy: currentUser.fullName,
+        linkedAssetIds: [],
+      })
 
-    // Automatically select the newly created document
-    setSelectedDocIds(prev => [...prev, createdDoc.id])
-    setShowDocModal(false)
-    setNewDocTitle('')
-    setNewDocFileName('')
+      // Automatically select the newly created document
+      setSelectedDocIds(prev => [...prev, createdDoc.id])
+      setShowDocModal(false)
+      setNewDocTitle('')
+      setNewDocFileName('')
+    } catch {
+      // Not saved (a toast already says why). Keep the form open.
+    }
   }
 
   // Step Validation Logic (Mandatory vs Optional)

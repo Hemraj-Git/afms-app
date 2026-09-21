@@ -37,6 +37,10 @@ import { allocateCampus, campusKeys, useAddCampus, useCampuses, useDeleteCampus,
 import { allocateBuilding, buildingKeys, useAddBuilding, useBuildings, useDeleteBuilding, useUpdateBuilding } from '@/lib/queries/buildings'
 import { allocateCategory, categoryKeys, useAddCategory, useCategories, useDeleteCategory, useUpdateCategory } from '@/lib/queries/categories'
 import { allocateSubCategory, subCategoryKeys, useAddSubCategory, useDeleteSubCategory, useSubCategories, useUpdateSubCategory } from '@/lib/queries/subCategories'
+import { allocateRoom, fetchRooms, roomKeys, useAddRoom, useDeleteRoom, useRooms, useUpdateRoom } from '@/lib/queries/rooms'
+import { checklistTemplateKeys, newChecklistTemplate, useAddChecklistTemplate, useChecklistTemplates, useDeleteChecklistTemplate, useUpdateChecklistTemplate } from '@/lib/queries/checklistTemplates'
+import { allocateInventoryItem, inventoryKeys, useAddInventoryItem, useDeleteInventoryItem, useInventoryItems, useUpdateInventoryItem } from '@/lib/queries/inventory'
+import { documentKeys, newDocument, useAddDocument, useDocuments, useUpdateDocument, type DocumentEntity } from '@/lib/queries/documents'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
@@ -322,8 +326,30 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const addSubCategoryMutation = useAddSubCategory(currentUser.id)
   const updateSubCategoryMutation = useUpdateSubCategory(currentUser.id)
   const deleteSubCategoryMutation = useDeleteSubCategory(currentUser.id)
+  const roomsQuery = useRooms(currentUser.id, queriesEnabled)
+  const rooms = roomsQuery.rooms
+  const addRoomMutation = useAddRoom(currentUser.id)
+  const updateRoomMutation = useUpdateRoom(currentUser.id)
+  const deleteRoomMutation = useDeleteRoom(currentUser.id)
+  const checklistTemplatesQuery = useChecklistTemplates(currentUser.id, queriesEnabled)
+  const checklistTemplates = checklistTemplatesQuery.checklistTemplates
+  const addChecklistTemplateMutation = useAddChecklistTemplate(currentUser.id)
+  const updateChecklistTemplateMutation = useUpdateChecklistTemplate(currentUser.id)
+  const deleteChecklistTemplateMutation = useDeleteChecklistTemplate(currentUser.id)
+  const inventoryQuery = useInventoryItems(currentUser.id, queriesEnabled)
+  const inventoryItems = inventoryQuery.inventoryItems
+  const addInventoryMutation = useAddInventoryItem(currentUser.id)
+  const updateInventoryMutation = useUpdateInventoryItem(currentUser.id)
+  const deleteInventoryMutation = useDeleteInventoryItem(currentUser.id)
+  const documentsQuery = useDocuments(currentUser.id, queriesEnabled)
+  const documents = documentsQuery.documents
+  const addDocumentMutation = useAddDocument(currentUser.id)
+  const updateDocumentMutation = useUpdateDocument(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
-  const migratedQueries = [vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery]
+  const migratedQueries = [
+    vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery,
+    roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery,
+  ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
   useEffect(() => {
@@ -369,16 +395,12 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   const [users, setUsers] = useState<UserProfile[]>(mockUsers)
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [checklistTemplates, setChecklistTemplates] = useState<ChecklistTemplate[]>([])
   
   const [assets, setAssets] = useState<Asset[]>([])
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [inspections, setInspections] = useState<Inspection[]>([])
-  const [documents, setDocuments] = useState<DocumentItem[]>([])
   const [roomAccessLogs, setRoomAccessLogs] = useState<RoomAccessLog[]>([])
   const [assetActivityLogs, setAssetActivityLogs] = useState<AssetActivityLog[]>([])
   
@@ -701,22 +723,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           })
         }
 
-        // 4. Rooms
-        const { data: rRows } = await tracked('rooms', supabase.from('rooms').select('*').order('room_number'))
-        if (isMountedRef.current && rRows) {
-          setRooms(rRows.map(r => ({
-            id: r.id,
-            buildingId: r.building_id,
-            name: r.name,
-            roomNumber: r.room_number,
-            type: r.type || 'General',
-            isReservable: Boolean(r.is_reservable),
-            qrCodeKey: r.qr_code_key || `ROOM-${r.room_number}`,
-            status: (r.status as Room['status']) || 'Available',
-            currentOccupant: r.current_occupant || undefined,
-          })))
-        }
-
         // 6. Assets
         const { data: astRows } = await tracked('assets', supabase.from('assets').select('*').order('created_at', { ascending: false }))
         if (isMountedRef.current && astRows) {
@@ -757,63 +763,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // 8. Service Requests
         await fetchServiceRequests(tracked)
 
-        // 10. Checklist Templates
-        const { data: tmplRows } = await tracked('checklist_templates', supabase.from('checklist_templates').select('*').order('title'))
-        if (isMountedRef.current && tmplRows) {
-          setChecklistTemplates(tmplRows.map(t => ({
-            id: t.id,
-            title: t.title,
-            type: t.type,
-            description: t.description || '',
-            interval: t.interval || 'Quarterly',
-            items: t.items || [],
-          })))
-        }
-
         // 11. Inspections
         await fetchInspections(tracked)
-
-        // 12. Documents
-        const { data: docRows } = await tracked('documents', supabase.from('documents').select('*').order('uploaded_at', { ascending: false }))
-        if (isMountedRef.current && docRows) {
-          setDocuments(docRows.map(d => ({
-            id: d.id,
-            title: d.title,
-            fileType: (d.file_type as any) || 'Invoice',
-            fileUrl: d.file_url || '',
-            fileSizeKb: Math.round(((d as any).file_size_bytes || 102400) / 1024),
-            uploadedBy: (d as any).uploaded_by_user_name || 'Staff',
-            uploadedAt: d.uploaded_at,
-            linkedAssetIds: [(d as any).asset_id, (d as any).inventory_item_id].filter(Boolean),
-          })))
-        }
-
-        // 13. Inventory Items
-        const { data: invRows } = await tracked('inventory_items', supabase.from('inventory_items').select('*').order('created_at', { ascending: false }))
-        if (isMountedRef.current && invRows && invRows.length > 0) {
-          setInventoryItems(invRows.map(inv => ({
-            id: inv.id,
-            inventoryNumber: inv.inventory_number || inv.id,
-            name: inv.name,
-            subCategoryId: inv.sub_category_id || '',
-            manufacturer: inv.manufacturer || '',
-            modelNumber: inv.model_number || '',
-            serialNumber: inv.serial_number || undefined,
-            quantity: inv.quantity || 1,
-            unit: 'Units',
-            minStockThreshold: inv.min_stock_level !== null && inv.min_stock_level !== undefined ? Number(inv.min_stock_level) : undefined,
-            unitPrice: inv.unit_cost !== null && inv.unit_cost !== undefined ? Number(inv.unit_cost) : undefined,
-            purchaseDate: inv.purchase_date || undefined,
-            warrantyTill: inv.warranty_till || undefined,
-            storageLocation: inv.storage_location || '',
-            roomId: inv.room_id || undefined,
-            purchaseVendorId: inv.vendor_id || undefined,
-            dynamicSpecifications: inv.dynamic_specifications || {},
-            imageUrl: inv.image_url || undefined,
-            notes: inv.notes || undefined,
-            createdAt: inv.created_at ? inv.created_at.split('T')[0] : getLocalDateStr(),
-          })))
-        }
 
         // 14. Reservations
         const { data: resRows } = await tracked('reservations', supabase.from('reservations').select('*').order('created_at', { ascending: false }))
@@ -841,16 +792,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // that's just a formatted "HH:MM:SS AM/PM" display string with no
         // date component, so sorting on it doesn't produce true
         // chronological order across different days.
+        const roomList = session?.user
+          ? await queryClient.ensureQueryData({ queryKey: roomKeys.list(session.user.id), queryFn: fetchRooms }).catch(() => [])
+          : []
         const { data: ralRows } = await tracked('room_access_logs', supabase.from('room_access_logs').select('*').order('check_in_timestamp', { ascending: false }))
         if (isMountedRef.current && ralRows && ralRows.length > 0) {
           setRoomAccessLogs(ralRows.map(l => {
             // roomName was previously just set to the raw room_id (a UUID)
             // -- there's no room_name column on this table, so it needs to
-            // be resolved against the rooms just fetched above (step 4),
-            // not the `rooms` React state, which hasn't re-rendered with
-            // that fetch yet inside this same effect run.
-            const matchedRoom = rRows?.find(r => r.id === l.room_id)
-            const roomName = matchedRoom ? `${matchedRoom.name} (${matchedRoom.room_number || matchedRoom.id})` : l.room_id
+            // be resolved against the rooms as fetched (from the query cache,
+            // which the rooms query has usually filled by now, or this fetches
+            // them), not the `rooms` value captured by this closure.
+            const matchedRoom = roomList.find(r => r.id === l.room_id)
+            const roomName = matchedRoom ? `${matchedRoom.name} (${matchedRoom.roomNumber || matchedRoom.id})` : l.room_id
             return {
               id: l.id,
               activityNumber: l.activity_number || undefined,
@@ -900,7 +854,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           setIsDataLoading(false)
         }
       }
-  }, [fetchWorkOrders, fetchServiceRequests, fetchInspections])
+  }, [fetchWorkOrders, fetchServiceRequests, fetchInspections, queryClient])
 
   React.useEffect(() => {
     isMountedRef.current = true
@@ -945,18 +899,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const clearAllData = () => {
     queryClient.setQueryData(campusKeys.list(currentUser.id), [])
     queryClient.setQueryData(buildingKeys.list(currentUser.id), [])
-    setRooms([])
+    queryClient.setQueryData(roomKeys.list(currentUser.id), [])
     queryClient.setQueryData(categoryKeys.list(currentUser.id), [])
     queryClient.setQueryData(subCategoryKeys.list(currentUser.id), [])
     queryClient.setQueryData(vendorKeys.list(currentUser.id), [])
-    setChecklistTemplates([])
+    queryClient.setQueryData(checklistTemplateKeys.list(currentUser.id), [])
     setAssets([])
-    setInventoryItems([])
+    queryClient.setQueryData(inventoryKeys.list(currentUser.id), [])
     setReservations([])
     setServiceRequests([])
     setWorkOrders([])
     setInspections([])
-    setDocuments([])
+    queryClient.setQueryData(documentKeys.list(currentUser.id), [])
     setRoomAccessLogs([])
     setAssetActivityLogs([])
     try {
@@ -1114,71 +1068,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   // 4. Room: ROM-#### (Immutable ID & QR Key)
   const addRoom = async (room: Omit<Room, 'id' | 'roomNumber' | 'qrCodeKey'>): Promise<Room> => {
-    // roomNumber (ROM-####) is now used as the Room detail page's routing
-    // key, not just a display label -- a collision would make two rooms
-    // indistinguishable by URL. Query the DB fresh rather than trusting
-    // only local state, same fix already applied to addCampus/addBuilding/
-    // addCategory/addSubCategory/addDepartment this session, backed by a
-    // real UNIQUE constraint on rooms.room_number as a safety net.
-    const { data: existingRows } = await supabase.from('rooms').select('room_number')
-    const knownIds = [
-      ...rooms.map(r => r.roomNumber || r.id),
-      ...(existingRows || []).map(r => r.room_number).filter((n): n is string => Boolean(n)),
-    ]
-    const nextSeq = getNextSequence(knownIds, 'ROM')
-    const displayId = formatId('ROM', nextSeq)
-    const newUuid = generateUUID()
-    const newRoom: Room = {
-      ...room,
-      id: newUuid,
-      roomNumber: displayId,
-      qrCodeKey: displayId,
-    }
-    setRooms(prev => [...prev, newRoom])
-    const { error } = await supabase.from('rooms').insert([{
-      id: newUuid,
-      building_id: newRoom.buildingId || null,
-      name: newRoom.name,
-      room_number: newRoom.roomNumber,
-      type: newRoom.type || 'General',
-      is_reservable: Boolean(newRoom.isReservable),
-      qr_code_key: newRoom.qrCodeKey,
-      status: newRoom.status || 'Available',
-      created_at: new Date().toISOString(),
-    }])
-    if (error) {
-      console.error('Supabase room insert error:', error.message)
-      if (typeof window !== 'undefined') {
-        alert(`Could not save this room: ${error.message}\n\nIt will not persist after a page reload.`)
-      }
-    }
+    const newRoom = await allocateRoom(room, rooms)
+    await addRoomMutation.mutateAsync(newRoom)
     return newRoom
   }
   const updateRoom = (id: string, roomData: Partial<Room>) => {
-    const { id: _, roomNumber: __, qrCodeKey: ___, ...safeData } = roomData as any
-    const previous = rooms.find(r => r.id === id)
-    setRooms(prev => prev.map(r => (r.id === id ? { ...r, ...safeData } : r)))
-    const dbUpdates: Record<string, unknown> = {}
-    if (safeData.name !== undefined) dbUpdates.name = safeData.name
-    if (safeData.type !== undefined) dbUpdates.type = safeData.type
-    if (safeData.isReservable !== undefined) dbUpdates.is_reservable = safeData.isReservable
-    if (safeData.status !== undefined) dbUpdates.status = safeData.status
-    if (Object.keys(dbUpdates).length === 0) return
-    void persistWrite(
-      'Update room',
-      supabase.from('rooms').update(dbUpdates).eq('id', id).select('id'),
-      () => { if (previous) setRooms(prev => prev.map(r => (r.id === id ? previous : r))) }
-    )
+    updateRoomMutation.mutate({ id, changes: roomData })
   }
   const deleteRoom = (id: string) => {
-    const index = rooms.findIndex(r => r.id === id)
-    const removed = index >= 0 ? rooms[index] : undefined
-    setRooms(prev => prev.filter(r => r.id !== id))
-    void persistWrite(
-      'Delete room',
-      supabase.from('rooms').delete().eq('id', id).select('id'),
-      () => { if (removed) restoreItem(setRooms, removed, index) }
-    )
+    deleteRoomMutation.mutate(id)
   }
 
   // Room Types
@@ -1655,108 +1553,23 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   // 7b. Inventory Item: INV-#### (Immutable ID, No auto PM/Inspection)
   const addInventoryItem = async (itemData: Omit<InventoryItem, 'id' | 'inventoryNumber' | 'createdAt'>): Promise<InventoryItem> => {
-    // `id` is a real client-generated UUID (not a formatted INV-#### string),
-    // so computing the next sequence from it never matched the regex and
-    // silently produced INV-0001 for every item, colliding with the real
-    // unique constraint on inventory_number. Use inventoryNumber (the actual
-    // formatted id) and also check the DB fresh, matching the same fix
-    // already applied to addCampus/addBuilding/addCategory/etc.
-    const { data: existingRows } = await supabase.from('inventory_items').select('inventory_number')
-    const knownIds = [
-      ...inventoryItems.map(i => i.inventoryNumber || i.id),
-      ...(existingRows || []).map(r => r.inventory_number).filter((n): n is string => Boolean(n)),
-    ]
-    const nextSeq = getNextSequence(knownIds, 'INV')
-    const newId = formatId('INV', nextSeq)
-    const today = getLocalDateStr()
-    const newUuid = generateUUID()
-
-    const newItem: InventoryItem = {
-      ...itemData,
-      id: newUuid,
-      inventoryNumber: newId,
-      createdAt: today,
-    }
-
-    setInventoryItems(prev => [newItem, ...prev])
-
-    // Previously this insert only wrote 7 of the ~15 real fields — unit
-    // price, image, custom fields, warranty/purchase dates, serial number,
-    // storeroom, and notes all looked saved in the UI but silently never
-    // reached the database, vanishing on the next reload (confirmed live:
-    // several of these columns didn't even exist on inventory_items until
-    // migration 0010).
-    const { error } = await supabase.from('inventory_items').insert([{
-      id: newUuid,
-      inventory_number: newId,
-      name: newItem.name,
-      sub_category_id: newItem.subCategoryId || null,
-      manufacturer: newItem.manufacturer || null,
-      model_number: newItem.modelNumber || null,
-      serial_number: newItem.serialNumber || null,
-      quantity: newItem.quantity || 1,
-      min_stock_level: newItem.minStockThreshold ?? null,
-      unit_cost: newItem.unitPrice ?? null,
-      vendor_id: newItem.purchaseVendorId || null,
-      storage_location: newItem.storageLocation || null,
-      room_id: newItem.roomId || null,
-      purchase_date: newItem.purchaseDate || null,
-      warranty_till: newItem.warrantyTill || null,
-      dynamic_specifications: newItem.dynamicSpecifications || {},
-      image_url: newItem.imageUrl || null,
-      notes: newItem.notes || null,
-      created_at: new Date().toISOString(),
-    }])
-    if (error) {
-      console.error('Supabase inventory insert error:', error.message)
-      if (typeof window !== 'undefined') {
-        alert(`Could not save this spare part: ${error.message}\n\nIt will not persist after a page reload.`)
-      }
-    }
-
+    const newItem = await allocateInventoryItem(itemData, inventoryItems)
+    await addInventoryMutation.mutateAsync(newItem)
     return newItem
   }
 
+  // Callers pass either the row id or the INV-#### number.
+  const resolveInventoryId = (idOrNumber: string) =>
+    inventoryItems.find(item => item.id === idOrNumber || item.inventoryNumber === idOrNumber)?.id ?? idOrNumber
+
   const updateInventoryItem = async (id: string, itemData: Partial<InventoryItem>) => {
-    const { id: _, inventoryNumber: __, createdAt: ___, ...safeData } = itemData as any
-    setInventoryItems(prev =>
-      prev.map(item => (item.id === id || item.inventoryNumber === id ? { ...item, ...safeData } : item))
-    )
-
-    const dbUpdates: Record<string, unknown> = {}
-    if (safeData.name !== undefined) dbUpdates.name = safeData.name
-    if (safeData.subCategoryId !== undefined) dbUpdates.sub_category_id = safeData.subCategoryId
-    if (safeData.manufacturer !== undefined) dbUpdates.manufacturer = safeData.manufacturer
-    if (safeData.modelNumber !== undefined) dbUpdates.model_number = safeData.modelNumber
-    if (safeData.serialNumber !== undefined) dbUpdates.serial_number = safeData.serialNumber
-    if (safeData.quantity !== undefined) dbUpdates.quantity = safeData.quantity
-    if (safeData.minStockThreshold !== undefined) dbUpdates.min_stock_level = safeData.minStockThreshold
-    if (safeData.unitPrice !== undefined) dbUpdates.unit_cost = safeData.unitPrice
-    if (safeData.purchaseVendorId !== undefined) dbUpdates.vendor_id = safeData.purchaseVendorId
-    if (safeData.storageLocation !== undefined) dbUpdates.storage_location = safeData.storageLocation
-    if (safeData.roomId !== undefined) dbUpdates.room_id = safeData.roomId
-    if (safeData.purchaseDate !== undefined) dbUpdates.purchase_date = safeData.purchaseDate
-    if (safeData.warrantyTill !== undefined) dbUpdates.warranty_till = safeData.warrantyTill
-    if (safeData.dynamicSpecifications !== undefined) dbUpdates.dynamic_specifications = safeData.dynamicSpecifications
-    if (safeData.imageUrl !== undefined) dbUpdates.image_url = safeData.imageUrl
-    if (safeData.notes !== undefined) dbUpdates.notes = safeData.notes
-
-    if (Object.keys(dbUpdates).length > 0) {
-      const { error } = await supabase.from('inventory_items').update(dbUpdates).or(`id.eq.${id},inventory_number.eq.${id}`)
-      if (error) {
-        console.error('Supabase inventory update error:', error.message)
-        if (typeof window !== 'undefined') {
-          alert(`Could not save changes to this spare part: ${error.message}`)
-        }
-      }
-    }
+    // A failed save is rolled back and toasted by the mutation, so it is not
+    // rethrown here; callers carry on as they did when this only alerted.
+    await updateInventoryMutation.mutateAsync({ id: resolveInventoryId(id), changes: itemData }).catch(() => {})
   }
 
   const deleteInventoryItem = (id: string) => {
-    setInventoryItems(prev => prev.filter(item => item.id !== id && item.inventoryNumber !== id))
-    supabase.from('inventory_items').delete().or(`id.eq.${id},inventory_number.eq.${id}`).then(({ error }) => {
-      if (error) console.error('Supabase inventory delete error:', error.message)
-    })
+    deleteInventoryMutation.mutate(resolveInventoryId(id))
   }
 
   const convertInventoryToAsset = async (
@@ -2131,21 +1944,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   // 10. Document: DOC-YYYY-#### (Immutable ID)
   const addDocument = async (doc: Omit<DocumentItem, 'id' | 'uploadedAt'>): Promise<DocumentItem> => {
-    const nextSeq = getNextSequence(documents.map(d => d.id), 'DOC')
-    const displayId = formatYearlyId('DOC', nextSeq)
-    const newUuid = generateUUID()
-    // Full ISO instant, matching what the DB write below sends and what a
-    // reload reads back (documents/page.tsx:656) -- previously this used
-    // getLocalDateStr() (YYYY-MM-DD), so a freshly-uploaded document's card
-    // visibly changed date format the moment the page refreshed.
-    const uploadedAtIso = new Date().toISOString()
-    const newDoc: DocumentItem = {
-      ...doc,
-      id: newUuid,
-      uploadedAt: uploadedAtIso,
-    }
-    setDocuments(prev => [newDoc, ...prev])
-
     // Resolve the first linked id against assets first, then inventory
     // items — linkedAssetIds is a single flat list used for both, since
     // the wizard UI doesn't distinguish which kind of item it's attaching
@@ -2155,100 +1953,41 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const linkedInventoryItem = !linkedAsset && linkId
       ? inventoryItems.find(i => i.id === linkId || i.inventoryNumber === linkId)
       : undefined
-
+    const newDoc = newDocument(doc, {
+      assetId: linkedAsset?.id ?? null,
+      inventoryItemId: linkedInventoryItem?.id ?? null,
+    })
     // Awaited so callers that immediately link this document to something
     // else (e.g. the asset-creation wizard's "attach to this asset" step)
     // can be sure the row actually exists first, rather than racing an
-    // UPDATE against an insert that hasn't committed yet.
-    const { error } = await supabase.from('documents').insert([{
-      id: newUuid,
-      title: newDoc.title,
-      category: 'General',
-      file_name: newDoc.title.replace(/[^a-zA-Z0-9.-]/g, '_') + '.pdf',
-      file_type: newDoc.fileType || 'Invoice',
-      file_size_bytes: (newDoc.fileSizeKb || 100) * 1024,
-      file_url: newDoc.fileUrl,
-      uploaded_by_user_name: newDoc.uploadedBy || 'Staff',
-      uploaded_at: uploadedAtIso,
-      asset_id: linkedAsset?.id || null,
-      inventory_item_id: linkedInventoryItem?.id || null,
-    }])
-    if (error) {
-      console.error('Supabase document insert error:', error.message)
-      if (typeof window !== 'undefined') {
-        alert(`Could not save this document: ${error.message}\n\nIt will not persist after a page reload.`)
-      }
-    }
+    // UPDATE against an insert that hasn't committed yet. Rejects if the save
+    // fails (after rollback and a toast).
+    await addDocumentMutation.mutateAsync(newDoc)
     return newDoc
   }
 
   const updateDocument = async (id: string, updates: { assetId?: string | null; inventoryItemId?: string | null }) => {
-    const dbUpdates: Record<string, unknown> = {}
-    if (updates.assetId !== undefined) dbUpdates.asset_id = updates.assetId
-    if (updates.inventoryItemId !== undefined) dbUpdates.inventory_item_id = updates.inventoryItemId
-    const { error } = await supabase.from('documents').update(dbUpdates).eq('id', id)
-    if (error) {
-      console.error('Supabase document link update error:', error.message)
-      if (typeof window !== 'undefined') alert(`Could not update this document's link: ${error.message}`)
+    const changes: Partial<DocumentEntity> = {
+      linkedAssetIds: [updates.assetId, updates.inventoryItemId].filter(Boolean) as string[],
     }
-    setDocuments(prev => prev.map(d => d.id === id
-      ? { ...d, linkedAssetIds: [updates.assetId, updates.inventoryItemId].filter(Boolean) as string[] }
-      : d
-    ))
+    if (updates.assetId !== undefined) changes.assetId = updates.assetId
+    if (updates.inventoryItemId !== undefined) changes.inventoryItemId = updates.inventoryItemId
+    // Rolled back and toasted by the mutation; not rethrown (see updateInventoryItem).
+    await updateDocumentMutation.mutateAsync({ id, changes }).catch(() => {})
   }
 
   // Checklist Templates CRUD
   const addChecklistTemplate = (tmpl: Omit<ChecklistTemplate, 'id' | 'updatedAt'>) => {
-    const newUuid = generateUUID()
-    const today = getLocalDateStr()
-    const newTmpl: ChecklistTemplate = {
-      ...tmpl,
-      id: newUuid,
-      updatedAt: today,
-    }
-    setChecklistTemplates(prev => [newTmpl, ...prev])
-    supabase.from('checklist_templates').insert([{
-      id: newUuid,
-      title: newTmpl.title,
-      type: newTmpl.type,
-      description: newTmpl.description || '',
-      interval: newTmpl.interval || 'Quarterly',
-      items: newTmpl.items || [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase checklist_template insert error:', error.message)
-    })
+    // Built synchronously: callers use the new template right away.
+    const newTmpl = newChecklistTemplate(tmpl)
+    addChecklistTemplateMutation.mutate(newTmpl)
     return newTmpl
   }
   const updateChecklistTemplate = (id: string, tmplData: Partial<ChecklistTemplate>) => {
-    const today = getLocalDateStr()
-    setChecklistTemplates(prev =>
-      prev.map(t =>
-        t.id === id
-          ? {
-              ...t,
-              ...tmplData,
-              updatedAt: today,
-            }
-          : t
-      )
-    )
-    supabase.from('checklist_templates').update({
-      title: tmplData.title,
-      description: tmplData.description,
-      interval: tmplData.interval,
-      items: tmplData.items,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id).then(({ error }) => {
-      if (error) console.error('Supabase checklist_template update error:', error.message)
-    })
+    updateChecklistTemplateMutation.mutate({ id, changes: { ...tmplData, updatedAt: getLocalDateStr() } })
   }
   const deleteChecklistTemplate = (id: string) => {
-    setChecklistTemplates(prev => prev.filter(t => t.id !== id))
-    supabase.from('checklist_templates').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('Supabase checklist_template delete error:', error.message)
-    })
+    deleteChecklistTemplateMutation.mutate(id)
   }
 
   // Work Orders & Inspections status updates
@@ -2809,7 +2548,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // activeCheckIn is derived elsewhere (see the useEffect keyed on
     // roomAccessLogs/currentUser.id below) — no need to set it here.
     setRoomAccessLogs(prev => [log, ...prev])
-    setRooms(prev => prev.map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Occupied', currentOccupant: currentUser.fullName } : r)))
+    queryClient.setQueryData<Room[]>(roomKeys.list(currentUser.id), prev =>
+      (prev ?? []).map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Occupied', currentOccupant: currentUser.fullName } : r))
+    )
 
     // Both the log write and the room status flip happen atomically inside
     // this one RPC (see supabase/migrations/0015_room_self_service_checkin.sql)
@@ -2835,6 +2576,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         alert(`Could not save this check-in: ${error.message}`)
       }
     }
+    queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) })
   }
 
   const checkOutRoom = async (roomId: string) => {
@@ -2849,7 +2591,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setRoomAccessLogs(prev =>
       prev.map(l => ((l.roomId === resolvedRoomId || l.roomId === roomId) && l.userId === currentUser.id && !l.checkOutTime ? { ...l, checkOutTime: now, checkOutTimestamp: nowTimestamp } : l))
     )
-    setRooms(prev => prev.map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Available', currentOccupant: undefined } : r)))
+    queryClient.setQueryData<Room[]>(roomKeys.list(currentUser.id), prev =>
+      (prev ?? []).map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Available', currentOccupant: undefined } : r))
+    )
 
     // Same atomicity fix as checkInRoom above — one RPC, log update and
     // room status flip together (see
@@ -2868,6 +2612,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         alert(`Could not save this check-out: ${error.message}`)
       }
     }
+    queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) })
   }
 
   // Automated End-of-Day Check-Out at 11:59 PM
@@ -2939,10 +2684,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             p_auto_checkout_note: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
           }).then(({ error }) => {
             if (error) console.error('Supabase auto-checkout error:', error.message)
+            queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) })
           })
         })
-        setRooms(prevRooms =>
-          prevRooms.map(r =>
+        queryClient.setQueryData<Room[]>(roomKeys.list(currentUser.id), prevRooms =>
+          (prevRooms ?? []).map(r =>
             updatedRoomsToFree.has(r.id)
               ? { ...r, status: 'Available', currentOccupant: undefined }
               : r
@@ -2956,7 +2702,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
       return prevLogs
     })
-  }, [currentUser.id])
+  }, [currentUser.id, queryClient])
 
   // Auto-checkout scheduler effect
   React.useEffect(() => {

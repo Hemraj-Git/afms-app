@@ -157,15 +157,20 @@ export default function RoomsPage() {
         isReservable,
       })
     } else {
-      await addRoom({
-        buildingId,
-        name,
-        type,
-        floor,
-        roomSizeSqft: sizeNum,
-        isReservable,
-        status: 'Available',
-      })
+      try {
+        await addRoom({
+          buildingId,
+          name,
+          type,
+          floor,
+          roomSizeSqft: sizeNum,
+          isReservable,
+          status: 'Available',
+        })
+      } catch {
+        // Not saved (a toast already says why). Keep the form open so nothing typed is lost.
+        return
+      }
     }
     setShowModal(false)
   }

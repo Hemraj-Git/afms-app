@@ -21,19 +21,20 @@ type Rows = PromiseLike<{ data: unknown[] | null; error: DbError }>
 // generic helper the builder is used through this narrow shape instead, because
 // TypeScript cannot resolve the table-specific overloads for a generic table name.
 interface LooseTable {
-  select(columns: string): Rows & { order(column: string): Rows }
+  select(columns: string): Rows & { order(column: string, options?: { ascending: boolean }): Rows }
   insert(rows: unknown[]): PromiseLike<{ error: DbError }>
   update(patch: unknown): { eq(column: string, value: string): { select(columns: string): Rows } }
   delete(): { eq(column: string, value: string): { select(columns: string): Rows } }
 }
 
-const table = (name: TableName) => db.from(name) as unknown as LooseTable
+export const table = (name: TableName) => db.from(name) as unknown as LooseTable
 
 // Codes already stored, so a new one is never computed from a stale or
 // still-loading list on screen (that produced duplicate CAM-0001 codes once).
-export async function fetchExistingCodes(name: TableName): Promise<string[]> {
-  const { data } = await table(name).select('code')
-  return (data ?? []).map(r => (r as { code: string | null }).code).filter((c): c is string => Boolean(c))
+// `column` is 'code' unless the table calls it something else (room_number).
+export async function fetchExistingCodes(name: TableName, column = 'code'): Promise<string[]> {
+  const { data } = await table(name).select(column)
+  return (data ?? []).map(r => (r as Record<string, string | null>)[column]).filter((c): c is string => Boolean(c))
 }
 
 // `base`, or `base-2`, `base-3`... if that code is taken.
@@ -53,6 +54,8 @@ export interface EntityConfig<T extends { id: string }, K extends TableName> {
   // Shown in the toast: "Add vendor failed and was undone: ..."
   label: string
   orderBy: string
+  // Newest first (created_at / uploaded_at) rather than A-Z.
+  descending?: boolean
   fromRow: (row: TableRow<K>) => T
   toInsert: (item: T) => TableInsert<K>
   toUpdate: (changes: Partial<T>) => TableUpdate<K>
@@ -67,7 +70,7 @@ export function defineEntity<T extends { id: string }, K extends TableName>(cfg:
   const EMPTY: T[] = []
 
   async function fetchAll(): Promise<T[]> {
-    const { data, error } = await table(cfg.table).select('*').order(cfg.orderBy)
+    const { data, error } = await table(cfg.table).select('*').order(cfg.orderBy, { ascending: !cfg.descending })
     if (error) throw new Error(error.message)
     return (data ?? []).map(row => cfg.fromRow(row as TableRow<K>))
   }
@@ -152,5 +155,5 @@ export function defineEntity<T extends { id: string }, K extends TableName>(cfg:
     )
   }
 
-  return { key, fetchAll, useList, useAdd, useUpdate, useDelete }
+  return { key, fetchAll, useList, useAdd, useUpdate, useDelete, useWrite }
 }

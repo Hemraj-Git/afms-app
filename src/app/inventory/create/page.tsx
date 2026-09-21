@@ -219,19 +219,23 @@ function AddInventoryForm() {
       return
     }
 
-    const newDoc = await addDocument({
-      title: newDocTitle.trim(),
-      fileType: newDocType,
-      fileUrl: '/mock-documents/spec-sheet.pdf',
-      fileSizeKb: Math.floor(Math.random() * 800) + 120,
-      uploadedBy: currentUser.fullName,
-      linkedAssetIds: [inventoryId],
-    })
+    try {
+      const newDoc = await addDocument({
+        title: newDocTitle.trim(),
+        fileType: newDocType,
+        fileUrl: '/mock-documents/spec-sheet.pdf',
+        fileSizeKb: Math.floor(Math.random() * 800) + 120,
+        uploadedBy: currentUser.fullName,
+        linkedAssetIds: [inventoryId],
+      })
 
-    setSelectedDocIds(prev => [...prev, newDoc.id])
-    setShowDocModal(false)
-    setNewDocTitle('')
-    setNewDocFileName('')
+      setSelectedDocIds(prev => [...prev, newDoc.id])
+      setShowDocModal(false)
+      setNewDocTitle('')
+      setNewDocFileName('')
+    } catch {
+      // Not saved (a toast already says why). Keep the form open.
+    }
   }
 
   // Filtered documents list in Step 3
