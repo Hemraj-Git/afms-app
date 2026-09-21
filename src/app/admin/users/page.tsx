@@ -77,7 +77,7 @@ export default function UsersAdminPage() {
   const [deptName, setDeptName] = useState('')
   const [deptCode, setDeptCode] = useState('')
   const [deptDescription, setDeptDescription] = useState('')
-  const [deptHead, setDeptHead] = useState('')
+  const [deptHeadId, setDeptHeadId] = useState('')
 
   // User Detail Drawer / Modal State (Assigned Assets & Check-In Logs)
   const [viewingUser, setViewingUser] = useState<UserProfile | null>(null)
@@ -132,7 +132,7 @@ export default function UsersAdminPage() {
     setDeptName('')
     setDeptCode('')
     setDeptDescription('')
-    setDeptHead('')
+    setDeptHeadId('')
     setShowDeptModal(true)
   }
 
@@ -142,7 +142,7 @@ export default function UsersAdminPage() {
     setDeptName(d.name)
     setDeptCode(d.code)
     setDeptDescription(d.description || '')
-    setDeptHead(d.headOfDepartment || '')
+    setDeptHeadId(d.headUserId || '')
     setShowDeptModal(true)
   }
 
@@ -225,7 +225,7 @@ export default function UsersAdminPage() {
         name: deptName.trim(),
         code: deptCode.trim().toUpperCase() || deptName.substring(0, 3).toUpperCase(),
         description: deptDescription.trim() || undefined,
-        headOfDepartment: deptHead.trim() || undefined,
+        headUserId: deptHeadId || null,
       })
     } else {
       try {
@@ -233,7 +233,7 @@ export default function UsersAdminPage() {
           name: deptName.trim(),
           code: deptCode.trim().toUpperCase() || deptName.substring(0, 3).toUpperCase(),
           description: deptDescription.trim() || undefined,
-          headOfDepartment: deptHead.trim() || undefined,
+          headUserId: deptHeadId || null,
         })
       } catch {
         // Not saved (a toast already says why). Keep the form open so nothing typed is lost.
@@ -1211,13 +1211,22 @@ export default function UsersAdminPage() {
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">Head of Department</label>
-                    <input
-                      type="text"
-                      value={deptHead}
-                      onChange={e => setDeptHead(e.target.value)}
-                      placeholder="e.g. Dr. Rajesh Sharma"
+                    <select
+                      value={deptHeadId}
+                      onChange={e => setDeptHeadId(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
-                    />
+                    >
+                      <option value="">No head assigned</option>
+                      {users
+                        .filter(u => u.role !== 'Guest')
+                        .sort((a, b) => a.fullName.localeCompare(b.fullName))
+                        .map(u => (
+                          <option key={u.id} value={u.id}>
+                            {u.fullName} ({u.role})
+                          </option>
+                        ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">Choose from the registered users.</p>
                   </div>
                 </div>
 

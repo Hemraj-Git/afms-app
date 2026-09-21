@@ -5,6 +5,9 @@ export interface Department {
   name: string
   code: string
   description?: string
+  // The registered user who heads the department (profiles.id), and their name,
+  // which the context fills in from the users list.
+  headUserId?: string | null
   headOfDepartment?: string
   createdAt?: string
 }

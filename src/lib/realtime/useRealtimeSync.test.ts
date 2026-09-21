@@ -56,6 +56,8 @@ function makeHandlers(): RealtimeHandlers {
     refetchServiceRequests: vi.fn(),
     refetchInspections: vi.fn(),
     refetchNotifications: vi.fn(),
+    refetchRooms: vi.fn(),
+    refetchRoomAccessLogs: vi.fn(),
     onNotification: vi.fn(),
   }
 }
@@ -87,7 +89,7 @@ afterEach(() => {
 })
 
 describe('useRealtimeSync — staff', () => {
-  it('subscribes with the session token and listens to the four tables', async () => {
+  it('subscribes with the session token and listens to the six tables', async () => {
     const handlers = makeHandlers()
     renderHook(() => useRealtimeSync({ ...staff, handlers }))
     await flush()
@@ -99,7 +101,7 @@ describe('useRealtimeSync — staff', () => {
     const notif = ch.listeners.find(l => l.filter.table === 'notifications')
     expect(notif?.filter).toMatchObject({ event: 'INSERT', filter: 'user_id=eq.u1' })
     expect(ch.listeners.map(l => l.filter.table).sort()).toEqual(
-      ['inspections', 'notifications', 'service_requests', 'work_orders']
+      ['inspections', 'notifications', 'room_access_logs', 'rooms', 'service_requests', 'work_orders']
     )
   })
 
@@ -117,6 +119,25 @@ describe('useRealtimeSync — staff', () => {
     expect(handlers.refetchServiceRequests).toHaveBeenCalledTimes(1)
     expect(handlers.refetchInspections).toHaveBeenCalledTimes(1)
     expect(handlers.refetchNotifications).toHaveBeenCalledTimes(1)
+    expect(handlers.refetchRooms).toHaveBeenCalledTimes(1)
+    expect(handlers.refetchRoomAccessLogs).toHaveBeenCalledTimes(1)
+  })
+
+  it('a room or access-log change refreshes only that table (live occupancy)', async () => {
+    const handlers = makeHandlers()
+    renderHook(() => useRealtimeSync({ ...staff, handlers }))
+    await flush()
+
+    act(() => {
+      h.channels[0].fire('rooms')
+      h.channels[0].fire('rooms')
+      h.channels[0].fire('room_access_logs')
+    })
+    await advance(300)
+    expect(handlers.refetchRooms).toHaveBeenCalledTimes(1)
+    expect(handlers.refetchRoomAccessLogs).toHaveBeenCalledTimes(1)
+    expect(handlers.refetchWorkOrders).not.toHaveBeenCalled()
+    expect(handlers.refetchServiceRequests).not.toHaveBeenCalled()
   })
 
   it('collapses a burst of changes to one refetch', async () => {
@@ -208,7 +229,7 @@ describe('useRealtimeSync — guest', () => {
     await flush()
 
     const [ch] = h.channels
-    expect(ch.listeners).toHaveLength(1)
+    expect(ch.listeners).toHaveLength(1) // guests never subscribe to rooms or access logs
     expect(ch.listeners[0].filter).toMatchObject({
       event: '*', table: 'service_requests', filter: 'requested_by_email=eq.g@x.test',
     })

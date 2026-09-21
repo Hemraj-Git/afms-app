@@ -1,5 +1,5 @@
 // Generated from the live Supabase schema (Supabase MCP `generate_typescript_types`,
-// 20 Sep 2026, migrations up to 0034). Do not edit by hand -- regenerate after a
+// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 added by hand). Do not edit by hand -- regenerate after a
 // migration changes a table, e.g. `npx supabase gen types typescript --project-id <id>`.
 // Convenience aliases (Row/Insert/Update by table name) live in src/lib/supabase/typed.ts.
 
@@ -300,6 +300,7 @@ export type Database = {
           code: string
           created_at: string
           description: string | null
+          head_user_id: string | null
           id: string
           name: string
         }
@@ -307,6 +308,7 @@ export type Database = {
           code: string
           created_at?: string
           description?: string | null
+          head_user_id?: string | null
           id?: string
           name: string
         }
@@ -314,10 +316,19 @@ export type Database = {
           code?: string
           created_at?: string
           description?: string | null
+          head_user_id?: string | null
           id?: string
           name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "departments_head_user_id_fkey"
+            columns: ["head_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       documents: {
         Row: {

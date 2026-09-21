@@ -81,17 +81,24 @@ describe('code allocation checks the database as well as the screen', () => {
 
 describe('row mapping', () => {
   it('department: blank description, created date carried', () => {
-    expect(mapDepartmentRow({ id: '1', name: 'Ops', code: 'OPS', description: null, created_at: '2026-01-01' })).toEqual({
-      id: '1', name: 'Ops', code: 'OPS', description: '', createdAt: '2026-01-01',
+    expect(mapDepartmentRow({ id: '1', name: 'Ops', code: 'OPS', description: null, head_user_id: null, created_at: '2026-01-01' })).toEqual({
+      id: '1', name: 'Ops', code: 'OPS', description: '', headUserId: undefined, createdAt: '2026-01-01',
     })
-    expect(departmentToInsert({ id: '1', name: 'Ops', code: 'OPS', headOfDepartment: 'Sam' })).toEqual({
-      id: '1', name: 'Ops', code: 'OPS', description: '',
+    expect(mapDepartmentRow({ id: '1', name: 'Ops', code: 'OPS', description: null, head_user_id: 'user-7', created_at: 'x' })).toMatchObject({
+      headUserId: 'user-7',
     })
+    expect(departmentToInsert({ id: '1', name: 'Ops', code: 'OPS', headOfDepartment: 'typed text is never stored' })).toEqual({
+      id: '1', name: 'Ops', code: 'OPS', description: '', head_user_id: null,
+    })
+    expect(departmentToInsert({ id: '1', name: 'Ops', code: 'OPS', headUserId: 'user-7' })).toMatchObject({ head_user_id: 'user-7' })
   })
 
   it('department: a code change is allowed; nothing else is invented', () => {
     expect(departmentToUpdate({ code: 'NEW' })).toEqual({ code: 'NEW' })
     expect(departmentToUpdate({ headOfDepartment: 'Sam' })).toEqual({})
+    // choosing a head, and clearing one
+    expect(departmentToUpdate({ headUserId: 'user-7' })).toEqual({ head_user_id: 'user-7' })
+    expect(departmentToUpdate({ headUserId: null })).toEqual({ head_user_id: null })
   })
 
   it('campus, building and category updates only send editable fields', () => {
@@ -123,7 +130,7 @@ describe('sub-category mapping', () => {
 
   it('maps arrays, and blanks for missing ones', () => {
     const s = mapSubCategoryRow(row as never)
-    expect(s).toMatchObject({ categoryId: 'c1', description: '', pmTemplateIds: ['t1'], inspectionTemplateIds: [] })
+    expect(s).toMatchObject({ categoryId: 'c1', description: '', slaPriority: 'Medium', pmTemplateIds: ['t1'], inspectionTemplateIds: [] })
     expect(s.metadataFields).toHaveLength(1)
   })
 
@@ -132,8 +139,16 @@ describe('sub-category mapping', () => {
     expect(subCategoryToInsert(s)).toMatchObject({ pm_template_ids: ['a', 'b'], inspection_template_ids: ['i1'] })
   })
 
+  it('saves the SLA priority chosen for the sub-category, defaulting to Medium', () => {
+    const base: SubCategory = { id: '1', categoryId: 'c1', name: 'Light', code: 'ELEC-LIGH', metadataFields: [] }
+    expect(subCategoryToInsert({ ...base, slaPriority: 'Critical' })).toMatchObject({ sla_priority: 'Critical' })
+    expect(subCategoryToInsert(base)).toMatchObject({ sla_priority: 'Medium' })
+    expect(mapSubCategoryRow({ ...row, sla_priority: null } as never).slaPriority).toBeUndefined()
+  })
+
   it('update touches template arrays only when a template field was supplied', () => {
     expect(subCategoryToUpdate({ name: 'N' })).toEqual({ name: 'N' })
+    expect(subCategoryToUpdate({ slaPriority: 'Critical' })).toEqual({ sla_priority: 'Critical' })
     expect(subCategoryToUpdate({ pmTemplateId: 'p1' })).toEqual({ pm_template_ids: ['p1'] })
     expect(subCategoryToUpdate({ inspectionTemplateIds: [] })).toEqual({ inspection_template_ids: [] })
   })

@@ -27,6 +27,9 @@ export interface RealtimeHandlers {
   refetchServiceRequests: () => void
   refetchInspections: () => void
   refetchNotifications: () => void
+  // Live occupancy: room status and check-in / check-out entries.
+  refetchRooms: () => void
+  refetchRoomAccessLogs: () => void
   onNotification: (row: NotificationRow) => void
 }
 
@@ -38,7 +41,7 @@ interface Options {
   handlers: RealtimeHandlers
 }
 
-type Table = 'work_orders' | 'service_requests' | 'inspections' | 'notifications'
+type Table = 'work_orders' | 'service_requests' | 'inspections' | 'notifications' | 'rooms' | 'room_access_logs'
 
 // A burst of changes (an asset that schedules several work orders at once)
 // should cost one refetch, not one per row.
@@ -74,6 +77,8 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
       if (table === 'work_orders') h.refetchWorkOrders()
       else if (table === 'service_requests') h.refetchServiceRequests()
       else if (table === 'inspections') h.refetchInspections()
+      else if (table === 'rooms') h.refetchRooms()
+      else if (table === 'room_access_logs') h.refetchRoomAccessLogs()
       else h.refetchNotifications()
     }
 
@@ -91,7 +96,7 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
 
     const tables: Table[] = isGuest
       ? ['service_requests']
-      : ['work_orders', 'service_requests', 'inspections', 'notifications']
+      : ['work_orders', 'service_requests', 'inspections', 'notifications', 'rooms', 'room_access_logs']
     const refetchAll = () => tables.forEach(schedule)
 
     const unsubscribe = () => {
@@ -136,7 +141,9 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
             else if (row.type === 'inspection_assigned') schedule('inspections')
           }
         )
-        ;(['work_orders', 'service_requests', 'inspections'] as const).forEach(table => {
+        // Rooms and access logs drive live occupancy: a check-in flips a room and adds a log,
+        // and the nightly auto-checkout does the reverse with nobody's tab open.
+        ;(['work_orders', 'service_requests', 'inspections', 'rooms', 'room_access_logs'] as const).forEach(table => {
           ch.on('postgres_changes', { event: '*', schema: 'public', table }, () => schedule(table))
         })
       }

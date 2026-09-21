@@ -1,7 +1,7 @@
 import { formatSubCategoryId } from '@/lib/idGenerator'
 import { generateUUID } from '@/lib/uuid'
 import type { TableInsert, TableRow, TableUpdate } from '@/lib/supabase/typed'
-import type { MetadataFieldDef, SubCategory } from '@/types/afms'
+import type { MetadataFieldDef, SlaPriority, SubCategory } from '@/types/afms'
 import { defineEntity, fetchExistingCodes, uniqueCode } from './entity'
 
 // The template link is stored as arrays; the single-id fields on SubCategory are
@@ -16,6 +16,9 @@ export function mapSubCategoryRow(s: TableRow<'sub_categories'>): SubCategory {
     name: s.name,
     code: s.code,
     description: s.description || '',
+    // The priority every Maintenance request raised against an asset in this
+    // sub-category is locked to (see the request forms).
+    slaPriority: (s.sla_priority as SlaPriority | null) ?? undefined,
     metadataFields: (s.metadata_fields as unknown as MetadataFieldDef[] | null) || [],
     pmTemplateIds: s.pm_template_ids || [],
     inspectionTemplateIds: s.inspection_template_ids || [],
@@ -29,6 +32,7 @@ export function subCategoryToInsert(s: SubCategory): TableInsert<'sub_categories
     name: s.name,
     code: s.code,
     description: s.description || '',
+    sla_priority: s.slaPriority || 'Medium',
     metadata_fields: (s.metadataFields || []) as unknown as TableInsert<'sub_categories'>['metadata_fields'],
     pm_template_ids: templateIds(s.pmTemplateIds, s.pmTemplateId),
     inspection_template_ids: templateIds(s.inspectionTemplateIds, s.inspectionTemplateId),
@@ -39,6 +43,7 @@ export function subCategoryToUpdate(changes: Partial<SubCategory>): TableUpdate<
   const u: TableUpdate<'sub_categories'> = {}
   if (changes.name !== undefined) u.name = changes.name
   if (changes.description !== undefined) u.description = changes.description
+  if (changes.slaPriority !== undefined) u.sla_priority = changes.slaPriority
   if (changes.metadataFields !== undefined) {
     u.metadata_fields = changes.metadataFields as unknown as TableUpdate<'sub_categories'>['metadata_fields']
   }

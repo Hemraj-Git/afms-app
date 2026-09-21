@@ -6,14 +6,20 @@ import type { Department } from '@/types/afms'
 import { defineEntity, fetchExistingCodes, uniqueCode } from './entity'
 
 export function mapDepartmentRow(d: TableRow<'departments'>): Department {
-  return { id: d.id, name: d.name, code: d.code, description: d.description || '', createdAt: d.created_at }
+  return {
+    id: d.id,
+    name: d.name,
+    code: d.code,
+    description: d.description || '',
+    headUserId: d.head_user_id ?? undefined,
+    createdAt: d.created_at,
+  }
 }
 
-// headOfDepartment has no column in the departments table, so it is not saved --
-// as before; it used to survive only until the next reload, and now until the
-// list is next re-read.
+// The head is a registered user (head_user_id). The name shown next to it is looked
+// up from the users list by the context, so it is never stored as text.
 export function departmentToInsert(d: Department): TableInsert<'departments'> {
-  return { id: d.id, name: d.name, code: d.code, description: d.description || '' }
+  return { id: d.id, name: d.name, code: d.code, description: d.description || '', head_user_id: d.headUserId || null }
 }
 
 export function departmentToUpdate(changes: Partial<Department>): TableUpdate<'departments'> {
@@ -21,6 +27,7 @@ export function departmentToUpdate(changes: Partial<Department>): TableUpdate<'d
   if (changes.name !== undefined) u.name = changes.name
   if (changes.code !== undefined) u.code = changes.code
   if (changes.description !== undefined) u.description = changes.description
+  if (changes.headUserId !== undefined) u.head_user_id = changes.headUserId || null
   return u
 }
 

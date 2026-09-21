@@ -32,7 +32,7 @@ import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { generateUUID } from '@/lib/uuid'
 import { allocateVendor, useAddVendor, useDeleteVendor, useUpdateVendor, useVendors, vendorKeys } from '@/lib/queries/vendors'
-import { allocateDepartment, useAddDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from '@/lib/queries/departments'
+import { allocateDepartment, departmentKeys, useAddDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from '@/lib/queries/departments'
 import { allocateCampus, campusKeys, useAddCampus, useCampuses, useDeleteCampus, useUpdateCampus } from '@/lib/queries/campuses'
 import { allocateBuilding, buildingKeys, useAddBuilding, useBuildings, useDeleteBuilding, useUpdateBuilding } from '@/lib/queries/buildings'
 import { allocateCategory, categoryKeys, useAddCategory, useCategories, useDeleteCategory, useUpdateCategory } from '@/lib/queries/categories'
@@ -264,7 +264,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const updateVendorMutation = useUpdateVendor(currentUser.id)
   const deleteVendorMutation = useDeleteVendor(currentUser.id)
   const departmentsQuery = useDepartments(currentUser.id, queriesEnabled)
-  const departments = departmentsQuery.departments
   const addDepartmentMutation = useAddDepartment(currentUser.id)
   const updateDepartmentMutation = useUpdateDepartment(currentUser.id)
   const deleteDepartmentMutation = useDeleteDepartment(currentUser.id)
@@ -342,6 +341,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const updateWorkOrderMutation = useUpdateWorkOrder(currentUser.id)
   const usersQuery = useUsers(currentUser.id, queriesEnabled)
   const users = usersQuery.users
+  // A department stores its head as a user id; show that person's name.
+  const departments = React.useMemo(() => {
+    const nameById = new Map(users.map(u => [u.id, u.fullName]))
+    return departmentsQuery.departments.map(d => {
+      const head = d.headUserId ? nameById.get(d.headUserId) : undefined
+      return head === d.headOfDepartment ? d : { ...d, headOfDepartment: head }
+    })
+  }, [departmentsQuery.departments, users])
   const updateUserMutation = useUpdateUser(currentUser.id)
   const deleteUserMutation = useDeleteUser(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
@@ -622,6 +629,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       refetchWorkOrders: () => { queryClient.invalidateQueries({ queryKey: workOrderKeys.list(currentUser.id) }) },
       refetchServiceRequests: () => { queryClient.invalidateQueries({ queryKey: serviceRequestKeys.list(currentUser.id) }) },
       refetchInspections: () => { queryClient.invalidateQueries({ queryKey: inspectionKeys.list(currentUser.id) }) },
+      refetchRooms: () => { queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) }) },
+      refetchRoomAccessLogs: () => { queryClient.invalidateQueries({ queryKey: roomAccessLogKeys.list(currentUser.id) }) },
       refetchNotifications: refreshNotifications,
       onNotification: addNotification,
     },
@@ -730,6 +739,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       await deleteUserMutation.mutateAsync(id)
+      // If they headed a department, the database has cleared that link.
+      queryClient.invalidateQueries({ queryKey: departmentKeys.list(currentUser.id) })
       return { success: true }
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : 'Could not delete the user.' }
