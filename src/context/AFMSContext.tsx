@@ -44,6 +44,7 @@ import { documentKeys, newDocument, useAddDocument, useDocuments, useUpdateDocum
 import { allocateAssets, assetKeys, useAddAssets, useAssets, useUpdateAsset } from '@/lib/queries/assets'
 import { useAddReservations, useDeleteReservation, useReservations, useUpdateReservation, reservationKeys } from '@/lib/queries/reservations'
 import { roomAccessLogKeys, useRoomAccessLogs } from '@/lib/queries/roomAccessLogs'
+import { inspectionKeys, useAddInspections, useInspections, useUpdateInspection } from '@/lib/queries/inspections'
 import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs } from '@/lib/queries/assetActivityLogs'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
@@ -371,11 +372,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const assetActivityLogsQuery = useAssetActivityLogs(currentUser.id, queriesEnabled)
   const assetActivityLogs = assetActivityLogsQuery.assetActivityLogs
   const addAssetActivityLogsMutation = useAddAssetActivityLogs(currentUser.id)
+  const inspectionsQuery = useInspections(currentUser.id, queriesEnabled)
+  const inspections = inspectionsQuery.inspections
+  const addInspectionsMutation = useAddInspections(currentUser.id)
+  const updateInspectionMutation = useUpdateInspection(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
   const migratedQueries = [
     vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery,
     roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery, assetsQuery,
-    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery,
+    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery, inspectionsQuery,
   ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
@@ -425,7 +430,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
-  const [inspections, setInspections] = useState<Inspection[]>([])
   
   const [activeCheckIn, setActiveCheckIn] = useState<RoomAccessLog | null>(null)
 
@@ -649,31 +653,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const fetchInspections = React.useCallback(async (track: LoadTracker = logLoadFailure) => {
-    const { data: inspRows } = await track('inspections', supabase.from('inspections').select('*').order('created_at', { ascending: false }))
-    if (isMountedRef.current && inspRows) {
-      setInspections(inspRows.map(i => ({
-        id: i.id,
-        inspectionNumber: i.inspection_number,
-        assetId: i.asset_id,
-        templateId: i.template_id,
-        templateVersion: i.template_version || 1,
-        assignedInspectorId: i.conducted_by_user_id || i.assigned_inspector_id,
-        assignedInspectorName: i.conducted_by || i.assigned_inspector_name,
-        dueDate: i.due_date,
-        status: (i.status as any) || 'Scheduled',
-        result: i.result,
-        inspectorRemarks: i.remarks,
-        checklistSnapshot: i.checklist_snapshot || [],
-        checklistResponses: i.checklist_responses || {},
-        photoUrl: i.photo_url || undefined,
-        itemPhotos: i.item_photos || undefined,
-        completedAt: i.conducted_at,
-        createdAt: i.created_at,
-      })))
-    }
-  }, [])
-
   const syncSupabase = React.useCallback(async () => {
       const runId = ++syncRunRef.current
       setIsDataLoading(true)
@@ -752,9 +731,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // 8. Service Requests
         await fetchServiceRequests(tracked)
 
-        // 11. Inspections
-        await fetchInspections(tracked)
-
       } catch (e) {
         console.warn('Supabase sync notice:', e)
         failures.push('unexpected error while loading')
@@ -766,7 +742,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           setIsDataLoading(false)
         }
       }
-  }, [fetchWorkOrders, fetchServiceRequests, fetchInspections])
+  }, [fetchWorkOrders, fetchServiceRequests])
 
   React.useEffect(() => {
     isMountedRef.current = true
@@ -787,7 +763,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     handlers: {
       refetchWorkOrders: () => { fetchWorkOrders() },
       refetchServiceRequests: () => { fetchServiceRequests() },
-      refetchInspections: () => { fetchInspections() },
+      refetchInspections: () => { queryClient.invalidateQueries({ queryKey: inspectionKeys.list(currentUser.id) }) },
       refetchNotifications: refreshNotifications,
       onNotification: addNotification,
     },
@@ -821,7 +797,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     queryClient.setQueryData(reservationKeys.list(currentUser.id), [])
     setServiceRequests([])
     setWorkOrders([])
-    setInspections([])
+    queryClient.setQueryData(inspectionKeys.list(currentUser.id), [])
     queryClient.setQueryData(documentKeys.list(currentUser.id), [])
     queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
     queryClient.setQueryData(assetActivityLogKeys.list(currentUser.id), [])
@@ -850,7 +826,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const clearOperationalData = () => {
     setServiceRequests([])
     setWorkOrders([])
-    setInspections([])
+    queryClient.setQueryData(inspectionKeys.list(currentUser.id), [])
     queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
     queryClient.setQueryData(assetActivityLogKeys.list(currentUser.id), [])
     try {
@@ -1102,15 +1078,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
       const inspIds = Array.from(new Set(sub.inspectionTemplateIds && sub.inspectionTemplateIds.length > 0 ? sub.inspectionTemplateIds : (sub.inspectionTemplateId ? [sub.inspectionTemplateId] : []))).filter(Boolean)
       let inspSeq = getNextSequence(inspections.map(i => i.inspectionNumber), 'INSP')
-      inspIds.forEach((inspTmplId) => {
+      const newInspections: Inspection[] = inspIds.map((inspTmplId) => {
         const tmpl = checklistTemplates.find(t => t.id === inspTmplId)
         const interval = tmpl?.interval || 'Quarterly'
         const nextInspDueDate = addIntervalToDate(installDate, interval)
-        const inspUuid = generateUUID()
         const inspNumber = formatYearlyId('INSP', inspSeq++)
-
-        const newInsp: Inspection = {
-          id: inspUuid,
+        return {
+          id: generateUUID(),
           inspectionNumber: inspNumber,
           assetId: newUuid,
           templateId: inspTmplId,
@@ -1120,32 +1094,12 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           checklistSnapshot: tmpl?.items,
           createdAt: today,
         }
-        setInspections(prev => [newInsp, ...prev])
-
-        // inspection_number is re-minted server-side by a DB trigger (see
-        // supabase/migrations/0014_server_side_ticket_numbering.sql), which
-        // ignores whatever's sent here -- inspNumber above is only an
-        // optimistic guess for a snappy UI. Reconcile below if it differs.
-        supabase.from('inspections').insert([{
-          id: inspUuid,
-          inspection_number: inspNumber,
-          asset_id: newUuid,
-          template_id: inspTmplId || null,
-          template_version: 1,
-          due_date: nextInspDueDate,
-          status: 'Scheduled',
-          checklist_snapshot: tmpl?.items || [],
-          created_at: new Date().toISOString(),
-        }]).select().single().then(({ data, error }) => {
-          if (error) {
-            console.error('Supabase Inspection insert error:', error.message)
-            return
-          }
-          if (data && data.inspection_number !== inspNumber) {
-            setInspections(prev => prev.map(i => (i.id === inspUuid ? { ...i, inspectionNumber: data.inspection_number } : i)))
-          }
-        })
       })
+      // inspection_number is re-minted server-side by a DB trigger (see
+      // supabase/migrations/0014_server_side_ticket_numbering.sql), which
+      // ignores whatever is sent -- the number above is only the on-screen
+      // guess; the list is re-read as soon as the write settles.
+      if (newInspections.length > 0) addInspectionsMutation.mutate(newInspections)
     }
 
     // Must use the real UUID (createdAsset.id), not the formatted display
@@ -1196,7 +1150,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const newInspections: Inspection[] = []
     const newLogs: Omit<AssetActivityLog, 'id' | 'timestamp'>[] = []
     const woInsertRows: Record<string, unknown>[] = []
-    const inspInsertRows: Record<string, unknown>[] = []
 
     for (const createdAsset of createdAssets) {
       const newUuid = createdAsset.id
@@ -1267,17 +1220,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             createdAt: today,
           }
           newInspections.push(newInsp)
-          inspInsertRows.push({
-            id: inspUuid,
-            inspection_number: inspNumber,
-            asset_id: newUuid,
-            template_id: inspTmplId || null,
-            template_version: 1,
-            due_date: nextInspDueDate,
-            status: 'Scheduled',
-            checklist_snapshot: tmpl?.items || [],
-            created_at: new Date().toISOString(),
-          })
         })
       }
 
@@ -1296,18 +1238,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       setWorkOrders(prev => [...newWorkOrders, ...prev])
     }
     if (newInspections.length > 0) {
-      setInspections(prev => [...newInspections, ...prev])
+      // One insert for all of them; numbers are re-minted by the database and the
+      // list is re-read when the write settles.
+      addInspectionsMutation.mutate(newInspections)
     }
     addAssetLogs(newLogs)
 
     if (woInsertRows.length > 0) {
       supabase.from('work_orders').insert(woInsertRows).then(({ error }) => {
         if (error) console.error('Supabase bulk PM work order insert error:', error.message)
-      })
-    }
-    if (inspInsertRows.length > 0) {
-      supabase.from('inspections').insert(inspInsertRows).then(({ error }) => {
-        if (error) console.error('Supabase bulk inspection insert error:', error.message)
       })
     }
 
@@ -2043,57 +1982,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   const addInspection = (insp: Omit<Inspection, 'id' | 'createdAt'>) => {
-    const newUuid = generateUUID()
-    const today = getLocalDateStr()
-    const newInsp: Inspection = {
-      ...insp,
-      id: newUuid,
-      createdAt: today,
-    }
-    setInspections(prev => [newInsp, ...prev])
-
-    supabase.from('inspections').insert([{
-      id: newUuid,
-      inspection_number: newInsp.inspectionNumber || newInsp.id,
-      asset_id: newInsp.assetId || null,
-      template_id: newInsp.templateId || null,
-      template_version: newInsp.templateVersion || 1,
-      due_date: newInsp.dueDate || today,
-      status: newInsp.status || 'Scheduled',
-      result: newInsp.result || null,
-      remarks: newInsp.inspectorRemarks || null,
-      checklist_snapshot: newInsp.checklistSnapshot || [],
-      checklist_responses: newInsp.checklistResponses || {},
-      conducted_by: newInsp.assignedInspectorName || null,
-      conducted_by_user_id: newInsp.assignedInspectorId || null,
-      conducted_at: newInsp.completedAt || null,
-      created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase inspection insert error:', error.message)
-    })
+    addInspectionsMutation.mutate([{ ...insp, id: generateUUID(), createdAt: getLocalDateStr() }])
   }
 
+  // Callers pass either the row id or the INSP-YYYY-#### number.
+  const resolveInspectionId = (idOrNumber: string) =>
+    inspections.find(i => i.id === idOrNumber || i.inspectionNumber === idOrNumber)?.id ?? idOrNumber
+
   const updateInspection = (id: string, updates: Partial<Inspection>) => {
-    const dbUpdates: Record<string, any> = {}
-    if (updates.status !== undefined) dbUpdates.status = updates.status
-    if (updates.result !== undefined) dbUpdates.result = updates.result
-    if (updates.inspectorRemarks !== undefined) dbUpdates.remarks = updates.inspectorRemarks
-    if (updates.assignedInspectorId !== undefined) dbUpdates.conducted_by_user_id = updates.assignedInspectorId
-    if (updates.assignedInspectorName !== undefined) dbUpdates.conducted_by = updates.assignedInspectorName
-    if (updates.checklistResponses !== undefined) dbUpdates.checklist_responses = updates.checklistResponses
-    if (updates.checklistSnapshot !== undefined) dbUpdates.checklist_snapshot = updates.checklistSnapshot
-    if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate
-    if (updates.completedAt !== undefined) dbUpdates.conducted_at = updates.completedAt
-
-    if (Object.keys(dbUpdates).length > 0) {
-      supabase.from('inspections').update(dbUpdates).or(`id.eq.${id},inspection_number.eq.${id}`).then(({ error }) => {
-        if (error) console.error('Supabase inspection update error:', error.message)
-      })
-    }
-
-    setInspections(prev =>
-      prev.map(ins => (ins.id === id || ins.inspectionNumber === id ? { ...ins, ...updates } : ins))
-    )
+    updateInspectionMutation.mutate({ id: resolveInspectionId(id), changes: updates })
   }
 
   const completeInspection = (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any, photoUrl?: string, itemPhotos?: Record<string, string>) => {
@@ -2111,25 +2008,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
 
     const completedDateIso = getLocalDateStr()
-    supabase.from('inspections').update({
-      status: 'Completed',
-      result,
-      remarks,
-      checklist_responses: responses,
-      photo_url: photoUrl || null,
-      item_photos: itemPhotos || null,
-      conducted_at: completedDateIso,
-    }).or(`id.eq.${id},inspection_number.eq.${id}`).then(({ error }) => {
-      if (error) console.error('Supabase inspection complete update error:', error.message)
-    })
+    const realId = targetInsp?.id ?? id
 
-    setInspections(prev => {
-      let nextRecurringInsp: Inspection | null = null
-
-      const nextList = prev.map(ins => {
-        if (ins.id === id || ins.inspectionNumber === id) {
-          const updated: Inspection = {
-            ...ins,
+    // Mark it complete first: the screen shows it at once, and it is undone with
+    // a toast if the database refuses. The follow-on records (next cycle,
+    // corrective work order) are only created once that has saved -- before,
+    // they were created even when the completion failed, and from inside a state
+    // updater, which React may run twice in development.
+    void (async () => {
+      try {
+        await updateInspectionMutation.mutateAsync({
+          id: realId,
+          changes: {
             status: 'Completed',
             result,
             inspectorRemarks: remarks,
@@ -2137,125 +2027,96 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             photoUrl: photoUrl || undefined,
             itemPhotos: itemPhotos || undefined,
             completedAt: completedDateIso,
-          }
-
-          const tmpl = checklistTemplates.find(t => t.id === ins.templateId)
-          const interval = tmpl?.interval || 'Quarterly'
-          const baseDate = ins.dueDate || completedDateIso
-          const nextDueDate = addIntervalToDate(baseDate, interval)
-          const nextSeq = getNextSequence(prev.map(x => x.inspectionNumber), 'INSP')
-          const nextInspNumber = formatYearlyId('INSP', nextSeq)
-          const nextInspUuid = generateUUID()
-
-          // Auto-schedule next inspection cycle
-          nextRecurringInsp = {
-            id: nextInspUuid,
-            inspectionNumber: nextInspNumber,
-            assetId: ins.assetId,
-            templateId: ins.templateId,
-            templateVersion: ins.templateVersion || 1,
-            dueDate: nextDueDate,
-            status: 'Scheduled',
-            checklistSnapshot: ins.checklistSnapshot || tmpl?.items,
-            createdAt: completedDateIso,
-          }
-
-          // inspection_number is re-minted server-side by a DB trigger (see
-          // supabase/migrations/0014_server_side_ticket_numbering.sql),
-          // which ignores whatever's sent here -- nextInspNumber above is
-          // only an optimistic guess (computed from this technician's own
-          // RLS-scoped, possibly-incomplete view) for a snappy UI. Reconcile
-          // below if it differs, rather than letting a stale number persist
-          // in local state until the next full refresh.
-          supabase.from('inspections').insert([{
-            id: nextInspUuid,
-            inspection_number: nextInspNumber,
-            asset_id: ins.assetId,
-            template_id: ins.templateId || null,
-            template_version: ins.templateVersion || 1,
-            due_date: nextDueDate,
-            status: 'Scheduled',
-            checklist_snapshot: ins.checklistSnapshot || tmpl?.items || [],
-            created_at: new Date().toISOString(),
-          }]).select().single().then(({ data, error }) => {
-            if (error) {
-              console.error('Supabase recurring inspection insert error:', error.message)
-              return
-            }
-            if (data && data.inspection_number !== nextInspNumber) {
-              setInspections(prev2 => prev2.map(i => (i.id === nextInspUuid ? { ...i, inspectionNumber: data.inspection_number } : i)))
-            }
-          })
-
-          if (result === 'Fail') {
-            // Asset status intentionally does NOT flip to 'Under Maintenance'
-            // here anymore -- this Corrective record is unassigned (PENDING)
-            // until a technician picks it up, matching the same
-            // create-vs-assign split used for Service-Request-triggered
-            // Corrective Maintenance. It flips at first assignment instead
-            // (see updateWorkOrderStatus).
-            const correctiveWoUuid = generateUUID()
-            const correctiveWoNumber = makePendingWoNumber(correctiveWoUuid)
-            const newCorrectiveWo: WorkOrder = {
-              id: correctiveWoUuid,
-              woNumber: correctiveWoNumber,
-              type: 'Corrective',
-              assetId: ins.assetId,
-              source: 'Failed Inspection',
-              sourceRefId: ins.inspectionNumber,
-              dueDate: getLocalDateStr(new Date(Date.now() + 86400000 * 2)),
-              status: 'Scheduled',
-              issueLogged: `Failed inspection item during inspection: ${remarks}`,
-              createdAt: completedDateIso,
-            }
-            setWorkOrders(wos => [newCorrectiveWo, ...wos])
-
-            supabase.from('work_orders').insert([{
-              id: correctiveWoUuid,
-              wo_number: correctiveWoNumber,
-              title: `Corrective: Defect from ${ins.inspectionNumber}`,
-              type: 'Corrective',
-              asset_id: ins.assetId,
-              source: 'Failed Inspection',
-              source_ref_id: ins.inspectionNumber,
-              due_date: newCorrectiveWo.dueDate,
-              status: 'Scheduled',
-              issue_logged: newCorrectiveWo.issueLogged,
-              created_at: new Date().toISOString(),
-            }]).then(({ error }) => {
-              if (error) console.error('Supabase corrective WO insert error:', error.message)
-            })
-
-            addAssetLog({
-              assetId: ins.assetId,
-              action: 'Inspection Failed',
-              byUser: currentUser.fullName,
-              source: 'Manual',
-              referenceId: ins.inspectionNumber,
-              remarks: `Inspection failed. A corrective maintenance task has been raised, pending technician assignment.`,
-            })
-          } else {
-            updateAssetStatus(ins.assetId, 'Operational')
-            addAssetLog({
-              assetId: ins.assetId,
-              action: 'Inspection Done',
-              byUser: currentUser.fullName,
-              source: 'Manual',
-              referenceId: ins.inspectionNumber,
-              remarks: `Inspection passed with zero non-conformances.`,
-            })
-          }
-
-          return updated
-        }
-        return ins
-      })
-
-      if (nextRecurringInsp) {
-        return [nextRecurringInsp, ...nextList]
+          },
+        })
+      } catch {
+        return
       }
-      return nextList
-    })
+      const ins = targetInsp
+      if (!ins) return
+
+      const tmpl = checklistTemplates.find(t => t.id === ins.templateId)
+      const interval = tmpl?.interval || 'Quarterly'
+      const baseDate = ins.dueDate || completedDateIso
+      const nextDueDate = addIntervalToDate(baseDate, interval)
+      const nextSeq = getNextSequence(inspections.map(x => x.inspectionNumber), 'INSP')
+      const nextInspNumber = formatYearlyId('INSP', nextSeq)
+
+      // Auto-schedule next inspection cycle. inspection_number is re-minted
+      // server-side by a DB trigger (see
+      // supabase/migrations/0014_server_side_ticket_numbering.sql); the number
+      // here is only an on-screen guess, corrected when the list is re-read.
+      addInspectionsMutation.mutate([{
+        id: generateUUID(),
+        inspectionNumber: nextInspNumber,
+        assetId: ins.assetId,
+        templateId: ins.templateId,
+        templateVersion: ins.templateVersion || 1,
+        dueDate: nextDueDate,
+        status: 'Scheduled',
+        checklistSnapshot: ins.checklistSnapshot || tmpl?.items,
+        createdAt: completedDateIso,
+      }])
+
+      if (result === 'Fail') {
+        // Asset status intentionally does NOT flip to 'Under Maintenance'
+        // here anymore -- this Corrective record is unassigned (PENDING)
+        // until a technician picks it up, matching the same
+        // create-vs-assign split used for Service-Request-triggered
+        // Corrective Maintenance. It flips at first assignment instead
+        // (see updateWorkOrderStatus).
+        const correctiveWoUuid = generateUUID()
+        const correctiveWoNumber = makePendingWoNumber(correctiveWoUuid)
+        const newCorrectiveWo: WorkOrder = {
+          id: correctiveWoUuid,
+          woNumber: correctiveWoNumber,
+          type: 'Corrective',
+          assetId: ins.assetId,
+          source: 'Failed Inspection',
+          sourceRefId: ins.inspectionNumber,
+          dueDate: getLocalDateStr(new Date(Date.now() + 86400000 * 2)),
+          status: 'Scheduled',
+          issueLogged: `Failed inspection item during inspection: ${remarks}`,
+          createdAt: completedDateIso,
+        }
+        setWorkOrders(wos => [newCorrectiveWo, ...wos])
+
+        supabase.from('work_orders').insert([{
+          id: correctiveWoUuid,
+          wo_number: correctiveWoNumber,
+          title: `Corrective: Defect from ${ins.inspectionNumber}`,
+          type: 'Corrective',
+          asset_id: ins.assetId,
+          source: 'Failed Inspection',
+          source_ref_id: ins.inspectionNumber,
+          due_date: newCorrectiveWo.dueDate,
+          status: 'Scheduled',
+          issue_logged: newCorrectiveWo.issueLogged,
+          created_at: new Date().toISOString(),
+        }]).then(({ error }) => {
+          if (error) console.error('Supabase corrective WO insert error:', error.message)
+        })
+
+        addAssetLog({
+          assetId: ins.assetId,
+          action: 'Inspection Failed',
+          byUser: currentUser.fullName,
+          source: 'Manual',
+          referenceId: ins.inspectionNumber,
+          remarks: `Inspection failed. A corrective maintenance task has been raised, pending technician assignment.`,
+        })
+      } else {
+        updateAssetStatus(ins.assetId, 'Operational')
+        addAssetLog({
+          assetId: ins.assetId,
+          action: 'Inspection Done',
+          byUser: currentUser.fullName,
+          source: 'Manual',
+          referenceId: ins.inspectionNumber,
+          remarks: `Inspection passed with zero non-conformances.`,
+        })
+      }
+    })()
   }
 
   // Room Access Logs & Check-In/Out
