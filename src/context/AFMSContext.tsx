@@ -37,11 +37,14 @@ import { allocateCampus, campusKeys, useAddCampus, useCampuses, useDeleteCampus,
 import { allocateBuilding, buildingKeys, useAddBuilding, useBuildings, useDeleteBuilding, useUpdateBuilding } from '@/lib/queries/buildings'
 import { allocateCategory, categoryKeys, useAddCategory, useCategories, useDeleteCategory, useUpdateCategory } from '@/lib/queries/categories'
 import { allocateSubCategory, subCategoryKeys, useAddSubCategory, useDeleteSubCategory, useSubCategories, useUpdateSubCategory } from '@/lib/queries/subCategories'
-import { allocateRoom, fetchRooms, roomKeys, useAddRoom, useDeleteRoom, useRooms, useUpdateRoom } from '@/lib/queries/rooms'
+import { allocateRoom, roomKeys, useAddRoom, useDeleteRoom, useRooms, useUpdateRoom } from '@/lib/queries/rooms'
 import { checklistTemplateKeys, newChecklistTemplate, useAddChecklistTemplate, useChecklistTemplates, useDeleteChecklistTemplate, useUpdateChecklistTemplate } from '@/lib/queries/checklistTemplates'
 import { allocateInventoryItem, inventoryKeys, useAddInventoryItem, useDeleteInventoryItem, useInventoryItems, useUpdateInventoryItem } from '@/lib/queries/inventory'
 import { documentKeys, newDocument, useAddDocument, useDocuments, useUpdateDocument, type DocumentEntity } from '@/lib/queries/documents'
 import { allocateAssets, assetKeys, useAddAssets, useAssets, useUpdateAsset } from '@/lib/queries/assets'
+import { useAddReservations, useDeleteReservation, useReservations, useUpdateReservation, reservationKeys } from '@/lib/queries/reservations'
+import { roomAccessLogKeys, useRoomAccessLogs } from '@/lib/queries/roomAccessLogs'
+import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs } from '@/lib/queries/assetActivityLogs'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
@@ -350,10 +353,29 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const assets = assetsQuery.assets
   const addAssetsMutation = useAddAssets(currentUser.id)
   const updateAssetMutation = useUpdateAsset(currentUser.id)
+  const reservationsQuery = useReservations(currentUser.id, queriesEnabled)
+  const reservations = reservationsQuery.reservations
+  const addReservationsMutation = useAddReservations(currentUser.id)
+  const updateReservationMutation = useUpdateReservation(currentUser.id)
+  const deleteReservationMutation = useDeleteReservation(currentUser.id)
+  const roomAccessLogsQuery = useRoomAccessLogs(currentUser.id, queriesEnabled)
+  // The table has no room name; resolve it against the current rooms, so it also
+  // follows a renamed room.
+  const roomAccessLogs = React.useMemo(() => {
+    const roomById = new Map(rooms.map(r => [r.id, r]))
+    return roomAccessLogsQuery.roomAccessLogs.map(l => {
+      const room = roomById.get(l.roomId)
+      return room ? { ...l, roomName: `${room.name} (${room.roomNumber || room.id})` } : l
+    })
+  }, [roomAccessLogsQuery.roomAccessLogs, rooms])
+  const assetActivityLogsQuery = useAssetActivityLogs(currentUser.id, queriesEnabled)
+  const assetActivityLogs = assetActivityLogsQuery.assetActivityLogs
+  const addAssetActivityLogsMutation = useAddAssetActivityLogs(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
   const migratedQueries = [
     vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery,
     roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery, assetsQuery,
+    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery,
   ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
@@ -401,12 +423,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const [users, setUsers] = useState<UserProfile[]>(mockUsers)
   
-  const [reservations, setReservations] = useState<Reservation[]>([])
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [inspections, setInspections] = useState<Inspection[]>([])
-  const [roomAccessLogs, setRoomAccessLogs] = useState<RoomAccessLog[]>([])
-  const [assetActivityLogs, setAssetActivityLogs] = useState<AssetActivityLog[]>([])
   
   const [activeCheckIn, setActiveCheckIn] = useState<RoomAccessLog | null>(null)
 
@@ -736,83 +755,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // 11. Inspections
         await fetchInspections(tracked)
 
-        // 14. Reservations
-        const { data: resRows } = await tracked('reservations', supabase.from('reservations').select('*').order('created_at', { ascending: false }))
-        if (isMountedRef.current && resRows && resRows.length > 0) {
-          setReservations(resRows.map(r => ({
-            id: r.id,
-            reservationNumber: r.reservation_number || r.id,
-            roomId: r.room_id,
-            roomName: r.room_name || '',
-            userId: r.user_id,
-            userName: r.user_name,
-            userRole: r.user_role || 'Staff',
-            departmentName: r.department_name,
-            date: r.date,
-            slotHour: r.slot_hour,
-            timeSlot: r.time_slot,
-            purpose: r.purpose || '',
-            status: r.status as Reservation['status'],
-            createdAt: r.created_at ? r.created_at.split('T')[0] : getLocalDateStr(),
-          })))
-        }
-
-        // 15. Room Access Logs
-        // Ordered by check_in_timestamp (a real epoch), not check_in_time --
-        // that's just a formatted "HH:MM:SS AM/PM" display string with no
-        // date component, so sorting on it doesn't produce true
-        // chronological order across different days.
-        const roomList = session?.user
-          ? await queryClient.ensureQueryData({ queryKey: roomKeys.list(session.user.id), queryFn: fetchRooms }).catch(() => [])
-          : []
-        const { data: ralRows } = await tracked('room_access_logs', supabase.from('room_access_logs').select('*').order('check_in_timestamp', { ascending: false }))
-        if (isMountedRef.current && ralRows && ralRows.length > 0) {
-          setRoomAccessLogs(ralRows.map(l => {
-            // roomName was previously just set to the raw room_id (a UUID)
-            // -- there's no room_name column on this table, so it needs to
-            // be resolved against the rooms as fetched (from the query cache,
-            // which the rooms query has usually filled by now, or this fetches
-            // them), not the `rooms` value captured by this closure.
-            const matchedRoom = roomList.find(r => r.id === l.room_id)
-            const roomName = matchedRoom ? `${matchedRoom.name} (${matchedRoom.roomNumber || matchedRoom.id})` : l.room_id
-            return {
-              id: l.id,
-              activityNumber: l.activity_number || undefined,
-              roomId: l.room_id,
-              roomName,
-              userId: l.user_id,
-              userName: l.user_name,
-              userRole: l.user_role || 'Staff',
-              checkInTime: l.check_in_time,
-              checkInDate: l.check_in_date,
-              checkInTimestamp: l.check_in_timestamp,
-              checkOutTime: l.check_out_time,
-              checkOutTimestamp: l.check_out_timestamp,
-              purpose: l.purpose || '',
-              isForceCheckout: Boolean(l.is_force_checkout),
-              autoCheckOutNote: l.auto_checkout_note,
-            }
-          }))
-        }
-
-        // 16. Asset Activity Logs
-        // Ordered by timestamp_epoch (a real epoch), not timestamp -- that's
-        // a locale-formatted new Date().toLocaleString() display string
-        // (e.g. "1/16/2026, 12:41:55 AM"), and sorting on it lexicographically
-        // scrambles order across months/years, not just within a day.
-        const { data: aalRows } = await tracked('asset_activity_logs', supabase.from('asset_activity_logs').select('*').order('timestamp_epoch', { ascending: false, nullsFirst: false }))
-        if (isMountedRef.current && aalRows && aalRows.length > 0) {
-          setAssetActivityLogs(aalRows.map(l => ({
-            id: l.id,
-            assetId: l.asset_id,
-            byUser: l.by_user,
-            action: l.action,
-            remarks: l.remarks,
-            source: (l.source as any) || 'Manual',
-            timestamp: l.timestamp,
-            timestampEpoch: l.timestamp_epoch || undefined,
-          })))
-        }
       } catch (e) {
         console.warn('Supabase sync notice:', e)
         failures.push('unexpected error while loading')
@@ -824,7 +766,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           setIsDataLoading(false)
         }
       }
-  }, [fetchWorkOrders, fetchServiceRequests, fetchInspections, queryClient])
+  }, [fetchWorkOrders, fetchServiceRequests, fetchInspections])
 
   React.useEffect(() => {
     isMountedRef.current = true
@@ -876,13 +818,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     queryClient.setQueryData(checklistTemplateKeys.list(currentUser.id), [])
     queryClient.setQueryData(assetKeys.list(currentUser.id), [])
     queryClient.setQueryData(inventoryKeys.list(currentUser.id), [])
-    setReservations([])
+    queryClient.setQueryData(reservationKeys.list(currentUser.id), [])
     setServiceRequests([])
     setWorkOrders([])
     setInspections([])
     queryClient.setQueryData(documentKeys.list(currentUser.id), [])
-    setRoomAccessLogs([])
-    setAssetActivityLogs([])
+    queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
+    queryClient.setQueryData(assetActivityLogKeys.list(currentUser.id), [])
     try {
       localStorage.removeItem('afms_campuses')
       localStorage.removeItem('afms_buildings')
@@ -909,8 +851,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setServiceRequests([])
     setWorkOrders([])
     setInspections([])
-    setRoomAccessLogs([])
-    setAssetActivityLogs([])
+    queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
+    queryClient.setQueryData(assetActivityLogKeys.list(currentUser.id), [])
     try {
       localStorage.removeItem('afms_service_requests')
       localStorage.removeItem('afms_work_orders')
@@ -1356,7 +1298,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     if (newInspections.length > 0) {
       setInspections(prev => [...newInspections, ...prev])
     }
-    newLogs.forEach(log => addAssetLog(log))
+    addAssetLogs(newLogs)
 
     if (woInsertRows.length > 0) {
       supabase.from('work_orders').insert(woInsertRows).then(({ error }) => {
@@ -1486,6 +1428,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // 7c. Reservations: RSV-YYYY-#### (Conflict detection & multi-date range support)
+  // These stay synchronous (callers use the result at once); the save happens
+  // behind the scenes and is undone with a toast if the database refuses it.
   const addReservation = (
     resData: Omit<Reservation, 'id' | 'reservationNumber' | 'createdAt'>
   ): { success: boolean; reservation?: Reservation; message?: string } => {
@@ -1523,26 +1467,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       createdAt: today,
     }
 
-    setReservations(prev => [newRes, ...prev])
-
-    supabase.from('reservations').insert([{
-      id: newUuid,
-      reservation_number: resNumber,
-      room_id: resolvedRoomId,
-      room_name: resolvedRoomName,
-      user_id: newRes.userId,
-      user_name: newRes.userName,
-      user_role: newRes.userRole || 'Staff',
-      department_name: newRes.departmentName || null,
-      date: newRes.date,
-      slot_hour: newRes.slotHour,
-      time_slot: newRes.timeSlot,
-      purpose: newRes.purpose || 'Room Reservation',
-      status: newRes.status || 'Confirmed',
-      created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase reservation insert error:', error.message)
-    })
+    addReservationsMutation.mutate([newRes])
 
     return { success: true, reservation: newRes }
   }
@@ -1559,7 +1484,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const validToCreate: Reservation[] = []
     let conflictCount = 0
 
-    let currentReservations = [...reservations]
+    const currentReservations = [...reservations]
 
     reservationsData.forEach(resData => {
       // Reject past date or passed slot on current day
@@ -1602,31 +1527,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (validToCreate.length > 0) {
-      setReservations(prev => [...validToCreate, ...prev])
-
-      const inserts = validToCreate.map(r => {
-        const targetRoom = rooms.find(rm => rm.id === r.roomId || rm.roomNumber === r.roomId)
-        return {
-          id: r.id,
-          reservation_number: r.reservationNumber,
-          room_id: targetRoom ? targetRoom.id : r.roomId,
-          room_name: r.roomName || targetRoom?.name || 'Room',
-          user_id: r.userId,
-          user_name: r.userName,
-          user_role: r.userRole || 'Staff',
-          department_name: r.departmentName || null,
-          date: r.date,
-          slot_hour: r.slotHour,
-          time_slot: r.timeSlot,
-          purpose: r.purpose || 'Room Reservation',
-          status: r.status || 'Confirmed',
-          created_at: new Date().toISOString(),
-        }
-      })
-
-      supabase.from('reservations').insert(inserts).then(({ error }) => {
-        if (error) console.error('Supabase bulk reservations insert error:', error.message)
-      })
+      // One insert for the whole booking: all of its slots land, or none do.
+      addReservationsMutation.mutate(validToCreate)
     }
 
     return {
@@ -1640,18 +1542,16 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Callers pass either the row id or the RSV-YYYY-#### number.
+  const resolveReservationId = (idOrNumber: string) =>
+    reservations.find(r => r.id === idOrNumber || r.reservationNumber === idOrNumber)?.id ?? idOrNumber
+
   const updateReservationStatus = (id: string, status: Reservation['status']) => {
-    setReservations(prev => prev.map(r => (r.id === id || r.reservationNumber === id ? { ...r, status } : r)))
-    supabase.from('reservations').update({ status }).or(`id.eq.${id},reservation_number.eq.${id}`).then(({ error }) => {
-      if (error) console.error('Supabase reservation status update error:', error.message)
-    })
+    updateReservationMutation.mutate({ id: resolveReservationId(id), changes: { status } })
   }
 
   const deleteReservation = (id: string) => {
-    setReservations(prev => prev.filter(r => r.id !== id && r.reservationNumber !== id))
-    supabase.from('reservations').delete().or(`id.eq.${id},reservation_number.eq.${id}`).then(({ error }) => {
-      if (error) console.error('Supabase reservation delete error:', error.message)
-    })
+    deleteReservationMutation.mutate(resolveReservationId(id))
   }
 
   // 8. Service Request: SR-YYYY-#### (minted server-side by a DB trigger —
@@ -2408,7 +2308,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
     // activeCheckIn is derived elsewhere (see the useEffect keyed on
     // roomAccessLogs/currentUser.id below) — no need to set it here.
-    setRoomAccessLogs(prev => [log, ...prev])
+    queryClient.setQueryData<RoomAccessLog[]>(roomAccessLogKeys.list(currentUser.id), prev => [log, ...(prev ?? [])])
     queryClient.setQueryData<Room[]>(roomKeys.list(currentUser.id), prev =>
       (prev ?? []).map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Occupied', currentOccupant: currentUser.fullName } : r))
     )
@@ -2437,7 +2337,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         alert(`Could not save this check-in: ${error.message}`)
       }
     }
+    // Re-read both, so a failed check-in doesn't leave the room shown as occupied.
     queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) })
+    queryClient.invalidateQueries({ queryKey: roomAccessLogKeys.list(currentUser.id) })
   }
 
   const checkOutRoom = async (roomId: string) => {
@@ -2449,8 +2351,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // Scoped to the caller's own open log only — previously this matched
     // by room alone, so checking out could close a DIFFERENT user's still-
     // open session in a shared room.
-    setRoomAccessLogs(prev =>
-      prev.map(l => ((l.roomId === resolvedRoomId || l.roomId === roomId) && l.userId === currentUser.id && !l.checkOutTime ? { ...l, checkOutTime: now, checkOutTimestamp: nowTimestamp } : l))
+    queryClient.setQueryData<RoomAccessLog[]>(roomAccessLogKeys.list(currentUser.id), prev =>
+      (prev ?? []).map(l => ((l.roomId === resolvedRoomId || l.roomId === roomId) && l.userId === currentUser.id && !l.checkOutTime ? { ...l, checkOutTime: now, checkOutTimestamp: nowTimestamp } : l))
     )
     queryClient.setQueryData<Room[]>(roomKeys.list(currentUser.id), prev =>
       (prev ?? []).map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Available', currentOccupant: undefined } : r))
@@ -2474,6 +2376,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       }
     }
     queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) })
+    queryClient.invalidateQueries({ queryKey: roomAccessLogKeys.list(currentUser.id) })
   }
 
   // Automated End-of-Day Check-Out at 11:59 PM
@@ -2500,69 +2403,70 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const currentDayCutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 0, 0)
     const isPast1159Today = now.getTime() >= currentDayCutoff.getTime()
 
-    setRoomAccessLogs(prevLogs => {
-      let hasChanges = false
-      const updatedRoomsToFree = new Set<string>()
-      const staleRoomIds: string[] = []
+    const logsKey = roomAccessLogKeys.list(currentUser.id)
+    const prevLogs = queryClient.getQueryData<RoomAccessLog[]>(logsKey) ?? []
+    let hasChanges = false
+    const updatedRoomsToFree = new Set<string>()
+    const staleRoomIds: string[] = []
 
-      const newLogs = prevLogs.map(log => {
-        if (log.checkOutTime) return log
-        // Only this session's own open logs -- the RPC below is scoped to
-        // auth.uid() regardless of caller role, so that's the most this
-        // client can ever actually persist; the server cron is what
-        // handles everyone else's stale sessions.
-        if (log.userId !== currentUser.id) return log
+    const newLogs = prevLogs.map(log => {
+      if (log.checkOutTime) return log
+      // Only this session's own open logs -- the RPC below is scoped to
+      // auth.uid() regardless of caller role, so that's the most this
+      // client can ever actually persist; the server cron is what
+      // handles everyone else's stale sessions.
+      if (log.userId !== currentUser.id) return log
 
-        const logDateStr = log.checkInDate || currentDateStr
-        const isPastLogDate = logDateStr < currentDateStr
-        const isSameDayPastCutoff = logDateStr === currentDateStr && isPast1159Today
+      const logDateStr = log.checkInDate || currentDateStr
+      const isPastLogDate = logDateStr < currentDateStr
+      const isSameDayPastCutoff = logDateStr === currentDateStr && isPast1159Today
 
-        if (isPastLogDate || isSameDayPastCutoff) {
-          hasChanges = true
-          updatedRoomsToFree.add(log.roomId)
-          staleRoomIds.push(log.roomId)
-          return {
-            ...log,
-            checkOutTime: '11:59 PM',
-            checkOutTimestamp: nowTimestamp,
-            isForceCheckout: true,
-            autoCheckOutNote: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
-          }
+      if (isPastLogDate || isSameDayPastCutoff) {
+        hasChanges = true
+        updatedRoomsToFree.add(log.roomId)
+        staleRoomIds.push(log.roomId)
+        return {
+          ...log,
+          checkOutTime: '11:59 PM',
+          checkOutTimestamp: nowTimestamp,
+          isForceCheckout: true,
+          autoCheckOutNote: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
         }
-        return log
-      })
-
-      if (hasChanges) {
-        // One RPC per stale room — atomic log + room status update
-        // together (see room_check_out,
-        // supabase/migrations/0020_room_check_out_force_params.sql).
-        staleRoomIds.forEach(roomId => {
-          supabase.rpc('room_check_out', {
-            p_room_id: roomId,
-            p_check_out_time: '11:59 PM',
-            p_check_out_timestamp: nowTimestamp,
-            p_is_force_checkout: true,
-            p_auto_checkout_note: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
-          }).then(({ error }) => {
-            if (error) console.error('Supabase auto-checkout error:', error.message)
-            queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) })
-          })
-        })
-        queryClient.setQueryData<Room[]>(roomKeys.list(currentUser.id), prevRooms =>
-          (prevRooms ?? []).map(r =>
-            updatedRoomsToFree.has(r.id)
-              ? { ...r, status: 'Available', currentOccupant: undefined }
-              : r
-          )
-        )
-        // activeCheckIn is derived elsewhere (see the useEffect keyed on
-        // roomAccessLogs/currentUser.id) — it will automatically clear
-        // once the corresponding log above gets its checkOutTime set.
-        return newLogs
       }
-
-      return prevLogs
+      return log
     })
+
+    if (!hasChanges) return
+
+    // One RPC per stale room — atomic log + room status update
+    // together (see room_check_out,
+    // supabase/migrations/0020_room_check_out_force_params.sql).
+    // These used to fire from inside a state updater, which React may run
+    // twice in development; they now run exactly once per sweep.
+    staleRoomIds.forEach(roomId => {
+      supabase.rpc('room_check_out', {
+        p_room_id: roomId,
+        p_check_out_time: '11:59 PM',
+        p_check_out_timestamp: nowTimestamp,
+        p_is_force_checkout: true,
+        p_auto_checkout_note: 'System Auto Check-Out at 11:59 PM (End of Day Cutoff)',
+      }).then(({ error }) => {
+        if (error) console.error('Supabase auto-checkout error:', error.message)
+        queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) })
+        queryClient.invalidateQueries({ queryKey: logsKey })
+      })
+    })
+    queryClient.setQueryData<Room[]>(roomKeys.list(currentUser.id), prevRooms =>
+      (prevRooms ?? []).map(r =>
+        updatedRoomsToFree.has(r.id)
+          ? { ...r, status: 'Available', currentOccupant: undefined }
+          : r
+      )
+    )
+    // activeCheckIn is derived elsewhere (see the useEffect keyed on
+    // roomAccessLogs/currentUser.id) — it will automatically clear
+    // once the corresponding log above gets its checkOutTime set.
+    queryClient.setQueryData<RoomAccessLog[]>(logsKey, newLogs)
   }, [currentUser.id, queryClient])
 
   // Auto-checkout scheduler effect
@@ -2591,35 +2495,25 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }, [evaluateAutoCheckouts])
 
   // Activity Logs
-  const addAssetLog = (log: Omit<AssetActivityLog, 'id' | 'timestamp'>) => {
-    const newUuid = generateUUID()
+  const addAssetLogs = (logs: Array<Omit<AssetActivityLog, 'id' | 'timestamp'>>) => {
+    if (logs.length === 0) return
     const timestamp = new Date().toLocaleString()
     const timestampEpoch = Date.now()
-    const targetAsset = assets.find(a => a.id === log.assetId || a.assetId === log.assetId)
-    const resolvedAssetId = targetAsset ? targetAsset.id : log.assetId
-
-    const newLog: AssetActivityLog = {
-      ...log,
-      id: newUuid,
-      assetId: resolvedAssetId,
-      timestamp,
-      timestampEpoch,
-    }
-    setAssetActivityLogs(prev => [newLog, ...prev])
-
-    supabase.from('asset_activity_logs').insert([{
-      id: newUuid,
-      asset_id: resolvedAssetId,
-      by_user: log.byUser,
-      action: log.action,
-      remarks: log.remarks || null,
-      source: log.source || 'Manual',
-      timestamp,
-      timestamp_epoch: timestampEpoch,
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase asset_activity_log insert error:', error.message)
+    const created: AssetActivityLog[] = logs.map(log => {
+      const targetAsset = assets.find(a => a.id === log.assetId || a.assetId === log.assetId)
+      return {
+        ...log,
+        id: generateUUID(),
+        assetId: targetAsset ? targetAsset.id : log.assetId,
+        timestamp,
+        timestampEpoch,
+      }
     })
+    // One insert for however many logs (a bulk import writes one per asset).
+    addAssetActivityLogsMutation.mutate(created)
   }
+
+  const addAssetLog = (log: Omit<AssetActivityLog, 'id' | 'timestamp'>) => addAssetLogs([log])
 
   return (
     <AFMSContext.Provider
