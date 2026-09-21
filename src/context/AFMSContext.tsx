@@ -639,6 +639,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       refetchInspections: () => { queryClient.invalidateQueries({ queryKey: inspectionKeys.list(currentUser.id) }) },
       refetchRooms: () => { queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) }) },
       refetchRoomAccessLogs: () => { queryClient.invalidateQueries({ queryKey: roomAccessLogKeys.list(currentUser.id) }) },
+      refetchAssets: () => { queryClient.invalidateQueries({ queryKey: assetKeys.list(currentUser.id) }) },
+      refetchAssetActivityLogs: () => { queryClient.invalidateQueries({ queryKey: assetActivityLogKeys.list(currentUser.id) }) },
       refetchNotifications: refreshNotifications,
       onNotification: addNotification,
     },

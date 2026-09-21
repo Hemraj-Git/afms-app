@@ -30,6 +30,9 @@ export interface RealtimeHandlers {
   // Live occupancy: room status and check-in / check-out entries.
   refetchRooms: () => void
   refetchRoomAccessLogs: () => void
+  // Asset status (Under Maintenance <-> Operational) and its activity timeline.
+  refetchAssets: () => void
+  refetchAssetActivityLogs: () => void
   onNotification: (row: NotificationRow) => void
 }
 
@@ -41,7 +44,15 @@ interface Options {
   handlers: RealtimeHandlers
 }
 
-type Table = 'work_orders' | 'service_requests' | 'inspections' | 'notifications' | 'rooms' | 'room_access_logs'
+type Table =
+  | 'work_orders'
+  | 'service_requests'
+  | 'inspections'
+  | 'notifications'
+  | 'rooms'
+  | 'room_access_logs'
+  | 'assets'
+  | 'asset_activity_logs'
 
 // A burst of changes (an asset that schedules several work orders at once)
 // should cost one refetch, not one per row.
@@ -79,6 +90,8 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
       else if (table === 'inspections') h.refetchInspections()
       else if (table === 'rooms') h.refetchRooms()
       else if (table === 'room_access_logs') h.refetchRoomAccessLogs()
+      else if (table === 'assets') h.refetchAssets()
+      else if (table === 'asset_activity_logs') h.refetchAssetActivityLogs()
       else h.refetchNotifications()
     }
 
@@ -96,7 +109,7 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
 
     const tables: Table[] = isGuest
       ? ['service_requests']
-      : ['work_orders', 'service_requests', 'inspections', 'notifications', 'rooms', 'room_access_logs']
+      : ['work_orders', 'service_requests', 'inspections', 'notifications', 'rooms', 'room_access_logs', 'assets', 'asset_activity_logs']
     const refetchAll = () => tables.forEach(schedule)
 
     const unsubscribe = () => {
@@ -143,7 +156,9 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
         )
         // Rooms and access logs drive live occupancy: a check-in flips a room and adds a log,
         // and the nightly auto-checkout does the reverse with nobody's tab open.
-        ;(['work_orders', 'service_requests', 'inspections', 'rooms', 'room_access_logs'] as const).forEach(table => {
+        // Assets and their timeline: completing a work order flips the asset back to Operational
+        // (often from a technician's phone) and logs it, and an open Assets page must follow.
+        ;(['work_orders', 'service_requests', 'inspections', 'rooms', 'room_access_logs', 'assets', 'asset_activity_logs'] as const).forEach(table => {
           ch.on('postgres_changes', { event: '*', schema: 'public', table }, () => schedule(table))
         })
       }
