@@ -47,40 +47,10 @@ import { roomAccessLogKeys, useRoomAccessLogs } from '@/lib/queries/roomAccessLo
 import { inspectionKeys, useAddInspections, useInspections, useUpdateInspection } from '@/lib/queries/inspections'
 import { serviceRequestKeys, useAddServiceRequest, useServiceRequests, useUpdateServiceRequest } from '@/lib/queries/serviceRequests'
 import { useAddWorkOrders, useUpdateWorkOrder, useWorkOrders, workOrderKeys } from '@/lib/queries/workOrders'
+import { addInvitedUserToCache, useDeleteUser, useUpdateUser, useUsers } from '@/lib/queries/users'
 import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs } from '@/lib/queries/assetActivityLogs'
-import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
-import { updateUserProfile, deleteUserAccount } from '@/app/actions/users'
-
-// Awaits a Supabase write and, if it failed OR matched no rows (which is what
-// row-level security does to a write it doesn't allow -- no error, just 0
-// rows), runs `undo` to roll back the optimistic local change and tells the
-// user. Callers must chain `.select('id')` so a row count comes back.
-async function persistWrite(
-  label: string,
-  op: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
-  undo: () => void
-): Promise<boolean> {
-  const { data, error } = await op
-  if (error || !data || data.length === 0) {
-    const reason = error?.message ?? 'nothing was changed (you may not have permission, or it no longer exists)'
-    console.error(`Supabase ${label} error:`, reason)
-    undo()
-    showToast('error', `${label} failed and was undone: ${reason}`)
-    return false
-  }
-  return true
-}
-
-// Puts a removed item back where it was after a failed delete.
-function restoreItem<T extends { id: string }>(
-  setter: React.Dispatch<React.SetStateAction<T[]>>,
-  item: T,
-  index: number
-) {
-  setter(prev => (prev.some(x => x.id === item.id) ? prev : [...prev.slice(0, index), item, ...prev.slice(index)]))
-}
 
 interface AFMSContextType {
   currentUser: UserProfile
@@ -370,11 +340,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const workOrders = workOrdersQuery.workOrders
   const addWorkOrdersMutation = useAddWorkOrders(currentUser.id)
   const updateWorkOrderMutation = useUpdateWorkOrder(currentUser.id)
+  const usersQuery = useUsers(currentUser.id, queriesEnabled)
+  const users = usersQuery.users
+  const updateUserMutation = useUpdateUser(currentUser.id)
+  const deleteUserMutation = useDeleteUser(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
   const migratedQueries = [
     vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery,
     roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery, assetsQuery,
-    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery, inspectionsQuery, serviceRequestsQuery, workOrdersQuery,
+    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery, inspectionsQuery, serviceRequestsQuery, workOrdersQuery, usersQuery,
   ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
@@ -420,7 +394,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const [users, setUsers] = useState<UserProfile[]>(mockUsers)
   
   
   const [activeCheckIn, setActiveCheckIn] = useState<RoomAccessLog | null>(null)
@@ -582,17 +555,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       setIsDataLoading(true)
       setDataLoadError(null)
 
-      // A failed query used to leave its table silently empty -- which looks
-      // exactly like "no records". Collect them so the UI can say so.
       const failures: string[] = []
-      const tracked = async <T extends { error: { message: string } | null }>(
-        label: string,
-        query: PromiseLike<T>
-      ): Promise<T> => {
-        const result = await query
-        if (result.error) failures.push(`${label} (${result.error.message})`)
-        return result
-      }
 
       try {
         // Authenticated Session & Profile
@@ -625,29 +588,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // 1. Users from profiles
-        const { data: profRows } = await tracked('profiles', supabase.from('profiles').select('*'))
-        if (isMountedRef.current && profRows && profRows.length > 0) {
-          setUsers(prev => {
-            const dbUsers: UserProfile[] = profRows.map(p => ({
-              id: p.id,
-              email: p.email,
-              fullName: p.full_name,
-              role: (p.role as UserRole) || 'Faculty',
-              department: p.department || '',
-              phone: p.phone || '',
-              createdAt: p.created_at || undefined,
-            }))
-            // Merge dbUsers with mockUsers so standard demo accounts (admin, technician) are always accessible
-            const combined = [...dbUsers]
-            mockUsers.forEach(mu => {
-              if (!combined.some(u => u.email.toLowerCase() === mu.email.toLowerCase())) {
-                combined.push(mu)
-              }
-            })
-            return combined
-          })
-        }
 
       } catch (e) {
         console.warn('Supabase sync notice:', e)
@@ -760,55 +700,40 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   // 1. User: USR-#### (Immutable ID)
   const addInvitedUser = (profile: UserProfile) => {
-    setUsers(prev => (prev.some(u => u.id === profile.id) ? prev : [...prev, profile]))
+    addInvitedUserToCache(queryClient, currentUser.id, profile)
   }
   // Edits and deletes of another user go through Admin-verified Server Actions:
   // the browser client can't do them (RLS only lets a user update their own
   // profile row, and there is no delete policy), so the old direct write
   // matched 0 rows while the screen showed it as done. Email is not editable
-  // here -- it is the login identity and lives in Supabase Auth.
+  // here -- it is the login identity and lives in Supabase Auth. The change
+  // shows at once and is undone (with a toast) if the action refuses it.
   const updateUser = async (id: string, userData: Partial<UserProfile>): Promise<{ success: boolean; message?: string }> => {
-    const { id: _, email: __, ...safeData } = userData as any // Enforce immutable ID; email isn't editable here
-    const previousUser = users.find(u => u.id === id)
+    const { id: _id, email: _email, ...safeData } = userData // Enforce immutable ID; email isn't editable here
     const wasCurrentUser = currentUser.id === id
     const previousCurrent = currentUser
-
-    setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...safeData } : u)))
     if (wasCurrentUser) {
       setCurrentUser(prev => ({ ...prev, ...safeData }))
     }
-
-    const result = await updateUserProfile({
-      id,
-      fullName: safeData.fullName,
-      role: safeData.role,
-      department: safeData.department,
-      phone: safeData.phone,
-    })
-    if (!result.success) {
-      if (previousUser) setUsers(prev => prev.map(u => (u.id === id ? previousUser : u)))
+    try {
+      await updateUserMutation.mutateAsync({ id, changes: safeData })
+      return { success: true }
+    } catch (err) {
       if (wasCurrentUser) setCurrentUser(previousCurrent)
-      showToast('error', `Could not update the user: ${result.error}`)
-      return { success: false, message: result.error }
+      return { success: false, message: err instanceof Error ? err.message : 'Could not update the user.' }
     }
-    return { success: true }
   }
   const deleteUser = async (id: string): Promise<{ success: boolean; message?: string }> => {
     if (id === currentUser.id) {
       showToast('error', 'You cannot delete the account you are signed in with.')
       return { success: false, message: 'Cannot delete the active logged-in user profile.' }
     }
-    const index = users.findIndex(u => u.id === id)
-    const removed = index >= 0 ? users[index] : undefined
-    setUsers(prev => prev.filter(u => u.id !== id))
-
-    const result = await deleteUserAccount(id)
-    if (!result.success) {
-      if (removed) restoreItem(setUsers, removed, index)
-      showToast('error', `Could not delete the user: ${result.error}`)
-      return { success: false, message: result.error }
+    try {
+      await deleteUserMutation.mutateAsync(id)
+      return { success: true }
+    } catch (err) {
+      return { success: false, message: err instanceof Error ? err.message : 'Could not delete the user.' }
     }
-    return { success: true }
   }
 
   // 1b. Department: DEP-#### (Immutable ID, Deletion Protected by User Linkage)
