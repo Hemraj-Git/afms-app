@@ -33,7 +33,7 @@ vi.mock('@/lib/toast', () => ({ showToast: toast }))
 
 import { mapReservationRow, reservationKeys, reservationToInsert, reservationToUpdate, useAddReservations } from './reservations'
 import { mapRoomAccessLogRow, useRoomAccessLogs } from './roomAccessLogs'
-import { assetActivityLogToInsert, mapAssetActivityLogRow, useAddAssetActivityLogs, useAssetActivityLogs, assetActivityLogKeys } from './assetActivityLogs'
+import { assetActivityLogToInsert, mapAssetActivityLogRow, useAddAssetActivityLogs, useAssetActivityLogs, assetActivityLogKeys, withoutRepeats } from './assetActivityLogs'
 
 function makeWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -122,10 +122,35 @@ describe('room access logs', () => {
 describe('asset activity logs', () => {
   const log: AssetActivityLog = { id: 'a1', assetId: 'asset1', action: 'Asset Created', byUser: 'Sam', source: 'Manual', timestamp: '9/20/2026', timestampEpoch: 5 }
 
+  it('saves and reads the reference number (WO / inspection / ticket), which had no column before', () => {
+    expect(assetActivityLogToInsert({ ...log, referenceId: 'WO-CR-2026-0007' })).toMatchObject({ reference_id: 'WO-CR-2026-0007' })
+    expect(assetActivityLogToInsert(log)).toMatchObject({ reference_id: null })
+    expect(
+      mapAssetActivityLogRow({ id: 'a1', asset_id: 'x', action: 'x', by_user: 'Sam', remarks: null, reference_id: 'INSP-2026-0003', source: 'Manual', timestamp: 't', timestamp_epoch: 1 })
+    ).toMatchObject({ referenceId: 'INSP-2026-0003' })
+  })
+
+  it('the same event for the same record is never recorded twice', () => {
+    const done: AssetActivityLog = { ...log, action: 'Corrective Maintenance Completed', referenceId: 'WO-CR-2026-0007' }
+    // already on screen or saved -> dropped
+    expect(withoutRepeats([done], [{ ...done, id: 'a2' }])).toEqual([])
+    // repeated inside one batch -> only the first goes through
+    expect(withoutRepeats([], [{ ...done, id: 'a2' }, { ...done, id: 'a3' }]).map(l => l.id)).toEqual(['a2'])
+    // a different record, a different asset, or a different action is a different event
+    expect(withoutRepeats([done], [{ ...done, id: 'b1', referenceId: 'WO-CR-2026-0008' }])).toHaveLength(1)
+    expect(withoutRepeats([done], [{ ...done, id: 'b2', assetId: 'other' }])).toHaveLength(1)
+    expect(withoutRepeats([done], [{ ...done, id: 'b3', action: 'Under Maintenance' }])).toHaveLength(1)
+  })
+
+  it('events with no reference (asset created / updated) always go through, however often', () => {
+    const updated: AssetActivityLog = { ...log, action: 'Asset Updated', referenceId: undefined }
+    expect(withoutRepeats([updated], [{ ...updated, id: 'u2' }, { ...updated, id: 'u3' }])).toHaveLength(2)
+  })
+
   it('maps rows both ways', () => {
     expect(assetActivityLogToInsert({ ...log, remarks: '' })).toMatchObject({ asset_id: 'asset1', remarks: null, timestamp_epoch: 5 })
     expect(
-      mapAssetActivityLogRow({ id: 'a1', asset_id: null, action: 'x', by_user: 'Sam', remarks: null, source: 'System', timestamp: 't', timestamp_epoch: null })
+      mapAssetActivityLogRow({ id: 'a1', asset_id: null, action: 'x', by_user: 'Sam', remarks: null, reference_id: null, source: 'System', timestamp: 't', timestamp_epoch: null })
     ).toMatchObject({ assetId: '', remarks: undefined, source: 'System', timestampEpoch: undefined })
   })
 

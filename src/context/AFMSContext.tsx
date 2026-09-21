@@ -48,7 +48,7 @@ import { inspectionKeys, useAddInspections, useInspections, useUpdateInspection 
 import { serviceRequestKeys, useAddServiceRequest, useServiceRequests, useUpdateServiceRequest } from '@/lib/queries/serviceRequests'
 import { useAddWorkOrders, useUpdateWorkOrder, useWorkOrders, workOrderKeys } from '@/lib/queries/workOrders'
 import { addInvitedUserToCache, useDeleteUser, useUpdateUser, useUsers } from '@/lib/queries/users'
-import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs } from '@/lib/queries/assetActivityLogs'
+import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs, withoutRepeats } from '@/lib/queries/assetActivityLogs'
 import { showToast } from '@/lib/toast'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
 
@@ -1995,8 +1995,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         timestampEpoch,
       }
     })
+    // The latest list, including entries still being saved, so the same event
+    // (e.g. a work order completing) can never be recorded twice.
+    const latest = queryClient.getQueryData<AssetActivityLog[]>(assetActivityLogKeys.list(currentUser.id)) ?? assetActivityLogs
+    const fresh = withoutRepeats(latest, created)
+    if (fresh.length === 0) return
     // One insert for however many logs (a bulk import writes one per asset).
-    addAssetActivityLogsMutation.mutate(created)
+    addAssetActivityLogsMutation.mutate(fresh)
   }
 
   const addAssetLog = (log: Omit<AssetActivityLog, 'id' | 'timestamp'>) => addAssetLogs([log])

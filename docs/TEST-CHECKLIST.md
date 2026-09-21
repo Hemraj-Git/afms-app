@@ -112,6 +112,10 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
 
 ---
 
+- [ ] **6.4 Asset activity timeline** — open an asset's *Activity & History* tab. Complete a work order for it **once** → exactly **one** "…Maintenance Completed" entry appears. Complete another inspection → one "Inspection Done/Failed". Each shows `Ref: #` with the **real** number (e.g. `WO-CR-2026-0007`, `INSP-2026-0003`) and it is **still the same after a reload** (it used to change to made-up `EVT-101…` labels). "Asset Created" / "Asset Updated" entries show no Ref. Older entries from before 21 Sep may show no Ref, and a few old ones are duplicated (see `PENDING-WORK.md` 4.5).
+
+---
+
 ## 7. Features built before the roadmap (worth showing the client)
 
 - [ ] **Guest login by email** — sign in again with the same email (name left blank) → same name, earlier requests visible; a different phone number doesn't rename them.
@@ -125,7 +129,7 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
 
 ## 8. Not built (don't demo as working)
 
-- [ ] The **header search bar** is a placeholder — it does nothing.
+- [ ] The **header search bar** is hidden — there is no global search yet.
 - [ ] No table pagination / sorting controls yet (TanStack Table is a later stage).
 - [ ] Modals still close only by their button (no Escape-to-close yet).
 

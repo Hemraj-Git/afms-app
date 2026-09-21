@@ -1,5 +1,5 @@
 // Generated from the live Supabase schema (Supabase MCP `generate_typescript_types`,
-// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 added by hand). Do not edit by hand -- regenerate after a
+// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037 added by hand). Do not edit by hand -- regenerate after a
 // migration changes a table, e.g. `npx supabase gen types typescript --project-id <id>`.
 // Convenience aliases (Row/Insert/Update by table name) live in src/lib/supabase/typed.ts.
 
@@ -25,6 +25,7 @@ export type Database = {
           asset_id: string | null
           by_user: string
           id: string
+          reference_id: string | null
           remarks: string | null
           source: string
           timestamp: string
@@ -35,6 +36,7 @@ export type Database = {
           asset_id?: string | null
           by_user: string
           id: string
+          reference_id?: string | null
           remarks?: string | null
           source: string
           timestamp: string
@@ -45,6 +47,7 @@ export type Database = {
           asset_id?: string | null
           by_user?: string
           id?: string
+          reference_id?: string | null
           remarks?: string | null
           source?: string
           timestamp?: string

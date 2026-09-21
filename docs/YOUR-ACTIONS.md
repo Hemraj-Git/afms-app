@@ -10,7 +10,7 @@ Things only you can do (dashboards, accounts, decisions). Code and database work
    - **Department heads.** Open *Admin → Users → Departments* and choose a head for each department from the registered users. Nothing is assigned yet.
    - Make sure you have one account for each role you will show: **Admin, Technician, Housekeeping, Faculty**, plus a guest email for the QR/mobile flow.
    - Check rooms, assets (with a sub-category that has maintenance and inspection templates), and a few open tickets so the dashboard is not empty.
-3. **Decide on the header search bar.** It is a text box that does nothing. For the demo either (a) leave it and don't click it, or (b) ask me to hide it (a few minutes), or (c) ask me to build a real search (a small project). I recommend (b) for the demo.
+3. ~~Header search bar~~ — **done: hidden** until a real global search is built (`PENDING-WORK.md` 2.2).
 4. **Use two browser windows** for the live parts: an Admin window and a Technician (or guest phone) window, to show live assignment, live ticket status and live room occupancy.
 
 ## B. Supabase dashboard (project: your AFMS project)
@@ -23,7 +23,7 @@ Things only you can do (dashboards, accounts, decisions). Code and database work
 | Anonymous sign-ins | Authentication → Providers | Must stay **enabled** (guests use it). |
 | Realtime limits | Project Settings → (Realtime / Usage) | The app uses one live connection per open browser tab. Check your plan's concurrent connection limit if many people will have the app open. |
 
-**No SQL to run.** All migrations (`0028`–`0036`) were applied to the live project as they were built. The files are in `supabase/migrations/` for the record.
+**No SQL to run.** All migrations (`0028`–`0037`) were applied to the live project as they were built. The files are in `supabase/migrations/` for the record.
 
 ## C. Vercel (the `afms-prod` project)
 
@@ -44,6 +44,6 @@ The database is already ahead of production, so deploy soon after testing.
 
 ## E. Decisions I need from you (any time)
 
-- Header search: hide it, leave it, or build it (see A.3).
 - Whether to add TanStack Table + pagination now or after the demo (you said later).
-- Whether to remove the two anonymous write policies (`PENDING-WORK.md` 3.1, 3.2) — I need to confirm the QR flow with you first.
+- **Remove the three anonymous write policies?** (`PENDING-WORK.md` 3.1). I reviewed them: nothing in the app uses them and they let anyone with the public key insert fake access logs or spam tickets. Say "drop them" and I apply it (a small migration; tested to leave guest check-in and ticket raising working).
+- **Delete the 9 duplicate rows in the asset timeline?** (`PENDING-WORK.md` 4.5). They are old artefacts from development. Say "clean the timeline" and I remove only those 9, keeping one copy of each, and show you the result.

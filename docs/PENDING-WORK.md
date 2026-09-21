@@ -24,14 +24,14 @@ Priority: **H** = do soon, **M** = next release, **L** = later / optional.
 | # | Item | Pri | Notes |
 |---|---|---|---|
 | 2.1 | **TanStack Table + pagination** | L | Not installed; every table is hand-written markup showing the full list. Two parts: the table UI (sorting, paging, column visibility) and **server-side paging** (`.range()` in the queries), which matters more. First candidates: activity logs and room access logs (they grow on every action). Search, filters and the dashboard counts read full in-memory lists today, so paging changes those too. |
-| 2.2 | **Header search bar does nothing** | M | It is only a text box: no results, no Enter handler, and the ⌘K hint has no shortcut. Either build a global search (assets, work orders, tickets, rooms, users) with a ⌘K palette, or hide it. Decide before the demo (see `YOUR-ACTIONS.md`). |
+| 2.2 | **Global search** | M | The header search bar was only a text box (no results, no Enter handler, no ⌘K), so it is **hidden** for now. Build a real one (assets, work orders, tickets, rooms, users, with a ⌘K palette) and put it back in `src/components/Header.tsx`. |
 
 ## 3. Security follow-ups
 
 | # | Item | Pri | Notes |
 |---|---|---|---|
-| 3.1 | **Anonymous write policies on `room_access_logs`** | H | Two policies let the *anon* role (no login) insert and update access logs (`Public insert room log for guest checkin`, `Public update room log for guest checkout`, both `true`/open-session). Guest check-in now uses an authenticated (anonymous-auth) session, so these are probably obsolete. Confirm the QR flow, then drop them. |
-| 3.2 | **Anonymous insert on `service_requests`** | H | `Public insert service request from QR` (anon, `with check true`). Same question: probably obsolete since guests are signed in. |
+| 3.1 | **Anonymous write policies (3): remove** | H | `Public insert room log for guest checkin` and `Public update room log for guest checkout` on `room_access_logs`, and `Public insert service request from QR` on `service_requests`. Reviewed 21 Sep: **nothing uses them** (every page needs a session, `/qr` redirects a logged-out scan to login, guests sign in with Supabase anonymous auth which is the *authenticated* role, check-in/out use database functions `anon` cannot run, and the last 24 h of API traffic had **zero anonymous writes**). Today anyone holding the public anon key can insert fake access logs or spam tickets. Verified in a rolled-back test that removing all three blocks anonymous writes while a signed-in guest can still raise a ticket and check in. **Awaiting your go-ahead to apply.** (The read-only `Public read rooms/assets for QR scan` policies are separate and left alone.) |
+| 3.2 | *(merged into 3.1)* | — | |
 | 3.3 | **Leaked-password protection** | H | Dashboard toggle; only you can switch it on (see `YOUR-ACTIONS.md`). |
 | 3.4 | **Guest re-login is an email lookup with no verification** | M | Accepted tradeoff (anyone who knows a guest's email can resume their history). Options later: emailed one-time code. |
 | 3.5 | `SECURITY DEFINER` functions callable by signed-in users | L | `current_user_role`, `room_check_in`, `room_check_out`, `set_asset_status`. Intentional (they are the controlled write paths); listed so it is a known, reviewed warning. |
@@ -44,6 +44,8 @@ Priority: **H** = do soon, **M** = next release, **L** = later / optional.
 | 4.2 | 24 "multiple permissive policies" warnings | L | Expected with "Admin all" + own-row policies. Merge only if performance needs it. |
 | 4.3 | Test guest profiles from development | L | ~22 `Guest` profiles exist, mostly from testing. Clean before a real rollout. |
 | 4.4 | `unit` on inventory items has no column | L | Every item reads back as "Units". Add a column if units matter. |
+| 4.5 | **Duplicate asset-timeline rows from before 21 Sep** | M | 9 rows (8 "Corrective Maintenance Completed" + 1 "Inspection Done") were written twice by the old code (React ran a state update twice in development; pairs have identical or 1–2 ms apart timestamps). New events are recorded once and can no longer repeat. Deleting the old copies is a data change to the activity log, so it waits for your approval; the exact rows are in the 21 Sep review and can be listed again. |
+| 4.6 | Older timeline entries have no reference number | L | `asset_activity_logs.reference_id` is new (migration 0037); events recorded before it show no "Ref". Backfill from work orders / inspections only if needed. |
 
 ## 5. Product behaviour worth a decision later
 

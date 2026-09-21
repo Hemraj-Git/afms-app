@@ -676,9 +676,13 @@ export default function AssetDetailPage() {
                         <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-1.5 hover:border-blue-300 transition shadow-2xs">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                             <span className="font-bold text-xs text-slate-900">{item.action}</span>
-                            <span className="text-[10px] font-mono text-slate-400 font-medium">
-                              Ref: #{item.referenceId || `EVT-${idx + 101}`}
-                            </span>
+                            {/* Only a real reference (work order / inspection / ticket number).
+                                Events without one -- created, updated -- show nothing. */}
+                            {item.referenceId && (
+                              <span className="text-[10px] font-mono text-slate-400 font-medium">
+                                Ref: #{item.referenceId}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-slate-600">
                             {item.remarks || item.newValue || 'Lifecycle event recorded on asset.'}

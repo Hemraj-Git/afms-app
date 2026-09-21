@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useAFMS } from '@/context/AFMSContext'
 import { formatDateDisplay } from '@/lib/dateUtils'
 import {
-  Search,
   Menu,
   PanelLeftOpen,
   Smartphone,
@@ -37,7 +36,6 @@ export function Header({
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
 
   // New service requests with status 'Open'
   const openServiceRequests = (serviceRequests || []).filter(sr => sr.status === 'Open')
@@ -90,23 +88,10 @@ export function Header({
         </div>
       </div>
 
-      {/* Middle: Quick Search Command Bar */}
-      <div className="flex-1 max-w-md mx-6 hidden md:block">
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search or type command..."
-            className="w-full pl-10 pr-12 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-          />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs">
-            <span>⌘</span>
-            <span>K</span>
-          </div>
-        </div>
-      </div>
+      {/* The quick-search bar that used to sit here was only a text box (no results, no shortcut),
+          so it is hidden until a real global search exists. The spacer keeps the right-hand
+          controls where they were. */}
+      <div className="flex-1" />
 
       {/* Right: Role Switcher Demo Tool + Mobile QR Mode + Notifications + User Avatar */}
       <div className="flex items-center gap-3">
