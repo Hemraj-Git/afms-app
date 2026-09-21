@@ -41,6 +41,7 @@ import { allocateRoom, fetchRooms, roomKeys, useAddRoom, useDeleteRoom, useRooms
 import { checklistTemplateKeys, newChecklistTemplate, useAddChecklistTemplate, useChecklistTemplates, useDeleteChecklistTemplate, useUpdateChecklistTemplate } from '@/lib/queries/checklistTemplates'
 import { allocateInventoryItem, inventoryKeys, useAddInventoryItem, useDeleteInventoryItem, useInventoryItems, useUpdateInventoryItem } from '@/lib/queries/inventory'
 import { documentKeys, newDocument, useAddDocument, useDocuments, useUpdateDocument, type DocumentEntity } from '@/lib/queries/documents'
+import { allocateAssets, assetKeys, useAddAssets, useAssets, useUpdateAsset } from '@/lib/queries/assets'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
@@ -345,10 +346,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const documents = documentsQuery.documents
   const addDocumentMutation = useAddDocument(currentUser.id)
   const updateDocumentMutation = useUpdateDocument(currentUser.id)
+  const assetsQuery = useAssets(currentUser.id, queriesEnabled)
+  const assets = assetsQuery.assets
+  const addAssetsMutation = useAddAssets(currentUser.id)
+  const updateAssetMutation = useUpdateAsset(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
   const migratedQueries = [
     vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery,
-    roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery,
+    roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery, assetsQuery,
   ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
@@ -396,7 +401,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const [users, setUsers] = useState<UserProfile[]>(mockUsers)
   
-  const [assets, setAssets] = useState<Asset[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -723,40 +727,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           })
         }
 
-        // 6. Assets
-        const { data: astRows } = await tracked('assets', supabase.from('assets').select('*').order('created_at', { ascending: false }))
-        if (isMountedRef.current && astRows) {
-          setAssets(astRows.map(a => ({
-            id: a.id,
-            assetId: a.asset_id,
-            name: a.name,
-            subCategoryId: a.sub_category_id,
-            roomId: a.room_id,
-            manufacturer: a.manufacturer,
-            modelNumber: a.model_number,
-            serialNumber: a.serial_number,
-            price: a.price ? Number(a.price) : undefined,
-            installationDate: a.installation_date,
-            purchaseDate: a.purchase_date,
-            lastServicedDate: a.last_serviced_date || undefined,
-            warrantyTill: a.warranty_till,
-            maintenanceBy: a.maintenance_by || 'In House',
-            purchaseVendorId: a.purchase_vendor_id || undefined,
-            maintenanceVendorId: a.maintenance_vendor_id || undefined,
-            amcStartDate: a.amc_start_date || undefined,
-            amcEndDate: a.amc_end_date || undefined,
-            assignedToUserId: a.assigned_to_user_id || undefined,
-            assignedToUserName: a.assigned_to_user_name || undefined,
-            lastPrintedAt: a.last_printed_at || undefined,
-            status: (a.status as Asset['status']) || 'Operational',
-            imageUrl: a.image_url || undefined,
-            notes: a.notes || undefined,
-            qrCodeUrl: a.qr_code_url || a.asset_id,
-            dynamicSpecifications: a.dynamic_specifications || {},
-            createdAt: a.created_at,
-          })))
-        }
-
         // 7. Work Orders
         await fetchWorkOrders(tracked)
 
@@ -904,7 +874,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     queryClient.setQueryData(subCategoryKeys.list(currentUser.id), [])
     queryClient.setQueryData(vendorKeys.list(currentUser.id), [])
     queryClient.setQueryData(checklistTemplateKeys.list(currentUser.id), [])
-    setAssets([])
+    queryClient.setQueryData(assetKeys.list(currentUser.id), [])
     queryClient.setQueryData(inventoryKeys.list(currentUser.id), [])
     setReservations([])
     setServiceRequests([])
@@ -1116,21 +1086,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   // 7. Asset: AST-#### (Immutable ID)
   const addAsset = async (assetData: Omit<Asset, 'id' | 'assetId' | 'createdAt'>): Promise<Asset> => {
-    const nextSeq = getNextSequence(assets.map(a => a.assetId || a.id), 'AST')
-    const newId = formatId('AST', nextSeq)
-    const newUuid = generateUUID()
     const today = getLocalDateStr()
-
-    const createdAsset: Asset = {
-      ...assetData,
-      id: newUuid,
-      assetId: newId,
-      imageUrl: assetData.imageUrl || '/images/asset-placeholder.png',
-      qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AFMS-${newId}`,
-      createdAt: today,
-    }
-
-    setAssets(prev => [createdAsset, ...prev])
+    const [createdAsset] = await allocateAssets([assetData], assets)
+    const newUuid = createdAsset.id
+    const newId = createdAsset.assetId
 
     // Awaited deliberately: work_orders/inspections/documents/asset_activity_logs
     // all carry a foreign key on asset_id. Firing them concurrently with this
@@ -1139,43 +1098,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // outright with a foreign-key violation — confirmed live via Postgres
     // logs (every PM work order insert failed this way, and most
     // inspections). Nothing that depends on this asset existing may fire
-    // until this specific insert has actually succeeded.
-    const { error: assetInsertError } = await supabase.from('assets').insert([{
-      id: newUuid,
-      asset_id: newId,
-      name: createdAsset.name,
-      sub_category_id: createdAsset.subCategoryId || null,
-      room_id: createdAsset.roomId || null,
-      manufacturer: createdAsset.manufacturer || null,
-      model_number: createdAsset.modelNumber || null,
-      serial_number: createdAsset.serialNumber || null,
-      price: createdAsset.price || null,
-      installation_date: createdAsset.installationDate || today,
-      last_serviced_date: createdAsset.lastServicedDate || null,
-      purchase_date: createdAsset.purchaseDate || null,
-      warranty_till: createdAsset.warrantyTill || null,
-      maintenance_by: createdAsset.maintenanceBy || 'In House',
-      purchase_vendor_id: createdAsset.purchaseVendorId || null,
-      maintenance_vendor_id: createdAsset.maintenanceVendorId || null,
-      amc_start_date: createdAsset.amcStartDate || null,
-      amc_end_date: createdAsset.amcEndDate || null,
-      assigned_to_user_id: createdAsset.assignedToUserId || null,
-      assigned_to_user_name: createdAsset.assignedToUserName || null,
-      image_url: createdAsset.imageUrl || null,
-      notes: createdAsset.notes || null,
-      status: createdAsset.status || 'Operational',
-      qr_code_url: createdAsset.qrCodeUrl,
-      dynamic_specifications: createdAsset.dynamicSpecifications || {},
-      created_at: new Date().toISOString(),
-    }])
-
-    if (assetInsertError) {
-      console.error('Supabase asset insert error:', assetInsertError.message)
-      if (typeof window !== 'undefined') {
-        alert(`Could not save this asset: ${assetInsertError.message}\n\nIt will not persist after a page reload.`)
-      }
-      return createdAsset
-    }
+    // until this specific insert has actually succeeded. If it fails this
+    // rejects (after the list is rolled back and a toast shown), so none of
+    // the follow-on records are created for an asset that does not exist.
+    await addAssetsMutation.mutateAsync([createdAsset])
 
     const sub = subCategories.find(s => s.id === assetData.subCategoryId)
     if (sub) {
@@ -1308,64 +1234,37 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
 
     const today = getLocalDateStr()
-    // NOTE: previously scanned a.id (a UUID) against the 'AST-####' pattern,
-    // which never matched anything -- every bulk import silently restarted
-    // numbering at AST-0001 regardless of how many assets already existed.
-    let currentSeq = getNextSequence(assets.map(a => a.assetId || a.id), 'AST')
-    const createdAssets: Asset[] = []
-    const newWorkOrders: WorkOrder[] = []
-    const newInspections: Inspection[] = []
-    const newLogs: Omit<AssetActivityLog, 'id' | 'timestamp'>[] = []
+    // Numbering continues from the highest AST-#### seen on screen or stored
+    // (it once restarted at AST-0001 on every import).
+    const createdAssets = await allocateAssets(assetsData, assets)
+
+    // The assets go in first, as one statement, and nothing else is created
+    // unless it succeeds: work_orders and inspections carry a foreign key on
+    // asset_id, so they must not fire until the assets have committed. On
+    // failure the list is rolled back and a toast shown by the mutation.
+    try {
+      await addAssetsMutation.mutateAsync(createdAssets)
+    } catch {
+      return { success: false, createdCount: 0, createdAssets: [] }
+    }
 
     let inspSeq = getNextSequence(inspections.map(i => i.inspectionNumber), 'INSP')
 
-    const assetInsertRows: Record<string, unknown>[] = []
+    const newWorkOrders: WorkOrder[] = []
+    const newInspections: Inspection[] = []
+    const newLogs: Omit<AssetActivityLog, 'id' | 'timestamp'>[] = []
     const woInsertRows: Record<string, unknown>[] = []
     const inspInsertRows: Record<string, unknown>[] = []
 
-    for (const item of assetsData) {
-      const displayId = formatId('AST', currentSeq++)
-      const newUuid = generateUUID()
-      const createdAsset: Asset = {
-        ...item,
-        id: newUuid,
-        assetId: displayId,
-        imageUrl: item.imageUrl || '/images/asset-placeholder.png',
-        qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AFMS-${displayId}`,
-        createdAt: today,
-      }
-      createdAssets.push(createdAsset)
+    for (const createdAsset of createdAssets) {
+      const newUuid = createdAsset.id
+      const displayId = createdAsset.assetId
 
-      assetInsertRows.push({
-        id: newUuid,
-        asset_id: displayId,
-        name: createdAsset.name,
-        sub_category_id: createdAsset.subCategoryId || null,
-        room_id: createdAsset.roomId || null,
-        manufacturer: createdAsset.manufacturer || null,
-        model_number: createdAsset.modelNumber || null,
-        serial_number: createdAsset.serialNumber || null,
-        price: createdAsset.price || null,
-        installation_date: createdAsset.installationDate || today,
-        last_serviced_date: createdAsset.lastServicedDate || null,
-        purchase_date: createdAsset.purchaseDate || null,
-        warranty_till: createdAsset.warrantyTill || null,
-        maintenance_by: createdAsset.maintenanceBy || 'In House',
-        purchase_vendor_id: createdAsset.purchaseVendorId || null,
-        maintenance_vendor_id: createdAsset.maintenanceVendorId || null,
-        image_url: createdAsset.imageUrl || null,
-        notes: createdAsset.notes || null,
-        status: createdAsset.status || 'Operational',
-        qr_code_url: createdAsset.qrCodeUrl,
-        dynamic_specifications: createdAsset.dynamicSpecifications || {},
-        created_at: new Date().toISOString(),
-      })
-
-      const sub = subCategories.find(s => s.id === item.subCategoryId)
+      const sub = subCategories.find(s => s.id === createdAsset.subCategoryId)
       if (sub) {
         // Same anchor rule as addAsset: Last Serviced Date, else today —
         // never a backdated Installation Date.
-        const installDate = item.lastServicedDate || today
+        const installDate = createdAsset.lastServicedDate || today
 
         const pmIds = sub.pmTemplateIds || (sub.pmTemplateId ? [sub.pmTemplateId] : [])
         pmIds.forEach((pmTmplId) => {
@@ -1378,7 +1277,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           const newPmWO: WorkOrder = {
             id: woUuid,
             woNumber,
-            title: tmpl ? `${tmpl.title} (${interval})` : `${item.name} ${interval} PM`,
+            title: tmpl ? `${tmpl.title} (${interval})` : `${createdAsset.name} ${interval} PM`,
             type: 'Preventive',
             assetId: newUuid,
             source: 'Scheduled',
@@ -1451,7 +1350,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
-    setAssets(prev => [...createdAssets, ...prev])
     if (newWorkOrders.length > 0) {
       setWorkOrders(prev => [...newWorkOrders, ...prev])
     }
@@ -1459,22 +1357,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       setInspections(prev => [...newInspections, ...prev])
     }
     newLogs.forEach(log => addAssetLog(log))
-
-    // Previously this function never persisted anything to Supabase --
-    // bulk-imported assets and their auto-generated PM/inspection
-    // schedules only ever existed in local React state and vanished on
-    // reload. Mirrors the same insert shape addAsset() already uses.
-    //
-    // Awaited deliberately, same reasoning as addAsset(): work_orders and
-    // inspections carry a foreign key on asset_id, so they must not fire
-    // until the assets themselves have actually committed — confirmed live
-    // that firing them concurrently causes every dependent row to be
-    // rejected with a foreign-key violation.
-    const { error: bulkAssetError } = await supabase.from('assets').insert(assetInsertRows)
-    if (bulkAssetError) {
-      console.error('Supabase bulk asset insert error:', bulkAssetError.message)
-      return { success: false, createdCount: 0, createdAssets: [] }
-    }
 
     if (woInsertRows.length > 0) {
       supabase.from('work_orders').insert(woInsertRows).then(({ error }) => {
@@ -1496,10 +1378,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // desync already-generated due dates from what the UI shows, so it's
     // stripped here as a defense-in-depth guard (the wizard also disables
     // the field in edit mode).
-    const { id: _, assetId: __, createdAt: ___, installationDate: ____, ...safeData } = assetData as any
-    setAssets(prev =>
-      prev.map(a => (a.id === id ? { ...a, ...safeData } : a))
-    )
+    const { id: _, assetId: __, createdAt: ___, installationDate: ____, ...safeData } = assetData
+    updateAssetMutation.mutate({ id, changes: safeData })
     addAssetLog({
       assetId: id,
       action: 'Asset Updated',
@@ -1507,47 +1387,22 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       source: 'Manual',
       remarks: `Asset specification and profile updated.`,
     })
-
-    const dbUpdates: Record<string, unknown> = {}
-    if (safeData.name !== undefined) dbUpdates.name = safeData.name
-    if (safeData.subCategoryId !== undefined) dbUpdates.sub_category_id = safeData.subCategoryId
-    if (safeData.roomId !== undefined) dbUpdates.room_id = safeData.roomId
-    if (safeData.manufacturer !== undefined) dbUpdates.manufacturer = safeData.manufacturer
-    if (safeData.modelNumber !== undefined) dbUpdates.model_number = safeData.modelNumber
-    if (safeData.serialNumber !== undefined) dbUpdates.serial_number = safeData.serialNumber
-    if (safeData.price !== undefined) dbUpdates.price = safeData.price
-    if (safeData.purchaseDate !== undefined) dbUpdates.purchase_date = safeData.purchaseDate
-    if (safeData.lastServicedDate !== undefined) dbUpdates.last_serviced_date = safeData.lastServicedDate
-    if (safeData.warrantyTill !== undefined) dbUpdates.warranty_till = safeData.warrantyTill
-    if (safeData.maintenanceBy !== undefined) dbUpdates.maintenance_by = safeData.maintenanceBy
-    if (safeData.maintenanceVendorId !== undefined) dbUpdates.maintenance_vendor_id = safeData.maintenanceVendorId
-    if (safeData.amcStartDate !== undefined) dbUpdates.amc_start_date = safeData.amcStartDate
-    if (safeData.amcEndDate !== undefined) dbUpdates.amc_end_date = safeData.amcEndDate
-    if (safeData.purchaseVendorId !== undefined) dbUpdates.purchase_vendor_id = safeData.purchaseVendorId
-    if (safeData.assignedToUserId !== undefined) dbUpdates.assigned_to_user_id = safeData.assignedToUserId
-    if (safeData.assignedToUserName !== undefined) dbUpdates.assigned_to_user_name = safeData.assignedToUserName
-    if (safeData.dynamicSpecifications !== undefined) dbUpdates.dynamic_specifications = safeData.dynamicSpecifications
-    if (safeData.imageUrl !== undefined) dbUpdates.image_url = safeData.imageUrl
-    if (safeData.notes !== undefined) dbUpdates.notes = safeData.notes
-    if (safeData.status !== undefined) dbUpdates.status = safeData.status
-    if (safeData.qrCodeUrl !== undefined) dbUpdates.qr_code_url = safeData.qrCodeUrl
-    if (safeData.lastPrintedAt !== undefined) dbUpdates.last_printed_at = safeData.lastPrintedAt
-
-    if (Object.keys(dbUpdates).length > 0) {
-      supabase.from('assets').update(dbUpdates).eq('id', id).then(({ error }) => {
-        if (error) console.error('Supabase asset update error:', error.message)
-      })
-    }
   }
 
   const updateAssetStatus = (assetId: string, status: Asset['status']) => {
-    setAssets(prev => prev.map(a => (a.id === assetId ? { ...a, status } : a)))
+    const listKey = assetKeys.list(currentUser.id)
+    queryClient.setQueryData<Asset[]>(listKey, prev => (prev ?? []).map(a => (a.id === assetId ? { ...a, status } : a)))
     // Via RPC, not a direct table .update() -- "Admin all on assets" is the
     // only write policy on assets, so a Technician's direct update here
     // silently no-ops under RLS. set_asset_status (0023) is role-gated
     // (Admin or Technician) and only ever touches the status column.
     supabase.rpc('set_asset_status', { p_asset_id: assetId, p_status: status }).then(({ error }) => {
-      if (error) console.error('Supabase asset status update error:', error.message)
+      if (error) {
+        console.error('Supabase asset status update error:', error.message)
+        showToast('error', `Update asset status failed and was undone: ${error.message}`)
+      }
+      // Success or failure, re-read so the screen shows what is stored.
+      queryClient.invalidateQueries({ queryKey: listKey })
     })
   }
 
@@ -1583,27 +1438,33 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
     const assignedUser = assignedToUserId ? users.find(u => u.id === assignedToUserId) : undefined
 
-    // Create standard operational asset (which triggers PM/Inspection)
-    const newAsset = await addAsset({
-      name: item.name,
-      subCategoryId: item.subCategoryId,
-      roomId,
-      manufacturer: item.manufacturer,
-      modelNumber: item.modelNumber,
-      serialNumber: item.serialNumber,
-      price: item.unitPrice,
-      purchaseDate: item.purchaseDate,
-      installationDate: installationDate || getLocalDateStr(),
-      warrantyTill: item.warrantyTill,
-      maintenanceBy: 'In House',
-      purchaseVendorId: item.purchaseVendorId,
-      dynamicSpecifications: item.dynamicSpecifications || {},
-      imageUrl: item.imageUrl,
-      notes: `Deployed from Inventory Hub (${item.inventoryNumber}). ${item.notes || ''}`.trim(),
-      status: 'Operational',
-      assignedToUserId: assignedToUserId || undefined,
-      assignedToUserName: assignedUser ? assignedUser.fullName : undefined,
-    })
+    // Create standard operational asset (which triggers PM/Inspection). If the
+    // save fails (already toasted), leave the spare part and its documents alone.
+    let newAsset: Asset
+    try {
+      newAsset = await addAsset({
+        name: item.name,
+        subCategoryId: item.subCategoryId,
+        roomId,
+        manufacturer: item.manufacturer,
+        modelNumber: item.modelNumber,
+        serialNumber: item.serialNumber,
+        price: item.unitPrice,
+        purchaseDate: item.purchaseDate,
+        installationDate: installationDate || getLocalDateStr(),
+        warrantyTill: item.warrantyTill,
+        maintenanceBy: 'In House',
+        purchaseVendorId: item.purchaseVendorId,
+        dynamicSpecifications: item.dynamicSpecifications || {},
+        imageUrl: item.imageUrl,
+        notes: `Deployed from Inventory Hub (${item.inventoryNumber}). ${item.notes || ''}`.trim(),
+        status: 'Operational',
+        assignedToUserId: assignedToUserId || undefined,
+        assignedToUserName: assignedUser ? assignedUser.fullName : undefined,
+      })
+    } catch {
+      return null
+    }
 
     // Re-point any documents that were attached to the source spare part
     // (e.g. its invoice/warranty PDF) to the newly deployed asset instead

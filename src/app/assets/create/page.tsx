@@ -28,7 +28,6 @@ import {
 } from 'lucide-react'
 import { formatId, getNextSequence } from '@/lib/idGenerator'
 import { DocumentItem } from '@/types/afms'
-import { supabase } from '@/lib/supabase'
 import { uploadToStorage, validateUpload } from '@/lib/storageUpload'
 
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
@@ -63,6 +62,7 @@ function AddAssetForm() {
     updateAsset,
     addVendor,
     addDocument,
+    updateDocument,
     currentUser,
   } = useAFMS()
 
@@ -517,40 +517,40 @@ function AddAssetForm() {
       })
       router.push(`/assets/${existingAsset.assetId}`)
     } else {
-      const created = await addAsset({
-        name: assetName,
-        subCategoryId: selectedSubCategoryId,
-        roomId: selectedRoomId,
-        manufacturer,
-        modelNumber,
-        serialNumber: serialNumber || undefined,
-        price: assetPrice ? parseFloat(assetPrice) : undefined,
-        purchaseDate,
-        installationDate,
-        lastServicedDate: lastServicedDate || undefined,
-        warrantyTill,
-        maintenanceBy,
-        maintenanceVendorId: maintenanceBy === 'Vendor' ? amcVendorId : undefined,
-        amcStartDate: maintenanceBy === 'Vendor' ? amcStartDate : undefined,
-        amcEndDate: maintenanceBy === 'Vendor' ? amcEndDate : undefined,
-        purchaseVendorId: purchasedFromId,
-        assignedToUserId: assignedToUserId || undefined,
-        assignedToUserName: assignedToUserId ? users.find(u => u.id === assignedToUserId)?.fullName : undefined,
-        dynamicSpecifications: dynamicValues,
-        imageUrl: finalImageUrl,
-        notes: note || undefined,
-        status: 'Operational',
-      })
+      let created: Awaited<ReturnType<typeof addAsset>>
+      try {
+        created = await addAsset({
+          name: assetName,
+          subCategoryId: selectedSubCategoryId,
+          roomId: selectedRoomId,
+          manufacturer,
+          modelNumber,
+          serialNumber: serialNumber || undefined,
+          price: assetPrice ? parseFloat(assetPrice) : undefined,
+          purchaseDate,
+          installationDate,
+          lastServicedDate: lastServicedDate || undefined,
+          warrantyTill,
+          maintenanceBy,
+          maintenanceVendorId: maintenanceBy === 'Vendor' ? amcVendorId : undefined,
+          amcStartDate: maintenanceBy === 'Vendor' ? amcStartDate : undefined,
+          amcEndDate: maintenanceBy === 'Vendor' ? amcEndDate : undefined,
+          purchaseVendorId: purchasedFromId,
+          assignedToUserId: assignedToUserId || undefined,
+          assignedToUserName: assignedToUserId ? users.find(u => u.id === assignedToUserId)?.fullName : undefined,
+          dynamicSpecifications: dynamicValues,
+          imageUrl: finalImageUrl,
+          notes: note || undefined,
+          status: 'Operational',
+        })
+      } catch {
+        // The asset wasn't saved (a toast already says why). Stay on the form so nothing typed is lost.
+        return
+      }
 
       if (selectedDocIds.length > 0 && created?.id) {
-        const results = await Promise.all(
-          selectedDocIds.map(docId =>
-            supabase.from('documents').update({ asset_id: created.id }).eq('id', docId)
-          )
-        )
-        results.forEach(({ error }, i) => {
-          if (error) console.error(`Supabase document link error (${selectedDocIds[i]}):`, error.message)
-        })
+        // Through the context, so the document list updates and a failed link is reported.
+        await Promise.all(selectedDocIds.map(docId => updateDocument(docId, { assetId: created.id })))
       }
 
       router.push('/assets')
