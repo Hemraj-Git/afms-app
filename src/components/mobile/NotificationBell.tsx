@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Bell, CheckCircle2, Wrench, ClipboardCheck, LogOut as LogOutIcon } from 'lucide-react'
 import type { AppNotification } from '@/types/afms'
 import { formatDateTimeDisplay } from '@/lib/dateUtils'
+import { SoundToggle } from '@/components/ui/SoundToggle'
 
 const ICONS: Record<AppNotification['type'], React.ReactNode> = {
   wo_assigned: <Wrench className="w-3.5 h-3.5" />,
@@ -46,8 +47,9 @@ export function NotificationBell({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 text-xs overflow-hidden animate-in fade-in">
-            <div className="px-3 py-2.5 border-b border-slate-800 font-bold text-slate-200">
-              Notifications
+            <div className="px-3 py-2 border-b border-slate-800 font-bold text-slate-200 flex items-center justify-between">
+              <span>Notifications</span>
+              <SoundToggle className="text-slate-400 hover:text-slate-100 hover:bg-slate-800" />
             </div>
             <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
               {notifications.length === 0 ? (

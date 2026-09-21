@@ -25,6 +25,7 @@ Priority: **H** = do soon, **M** = next release, **L** = later / optional.
 |---|---|---|---|
 | 2.1 | **TanStack Table + pagination** | L | Not installed; every table is hand-written markup showing the full list. Two parts: the table UI (sorting, paging, column visibility) and **server-side paging** (`.range()` in the queries), which matters more. First candidates: activity logs and room access logs (they grow on every action). Search, filters and the dashboard counts read full in-memory lists today, so paging changes those too. |
 | 2.2 | **Global search** | M | The header search bar was only a text box (no results, no Enter handler, no ⌘K), so it is **hidden** for now. Build a real one (assets, work orders, tickets, rooms, users, with a ⌘K palette) and put it back in `src/components/Header.tsx`. |
+| 2.3 | **Alerts when the app is closed** | M | The notification chime plays only while the app is open in a tab (it needs a click first, and the live connection drops after 30 s hidden). Getting an alert on a locked phone or closed tab needs **Web Push** for the PWA: a service worker, push subscriptions stored per user, VAPID keys, and a server-side sender triggered by the database notification. Also optional: phone vibration, and a flashing tab title. |
 
 ## 3. Security follow-ups
 

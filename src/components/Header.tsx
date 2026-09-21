@@ -17,6 +17,9 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { UserRole } from '@/types/afms'
+import { SoundToggle } from '@/components/ui/SoundToggle'
+import { playNotificationSound } from '@/lib/notificationSound'
+import { useNewItemAlert } from '@/lib/useNewItemAlert'
 
 interface HeaderProps {
   breadcrumbs?: { label: string; href?: string }[]
@@ -32,7 +35,7 @@ export function Header({
   onMenuToggle,
 }: HeaderProps) {
   const router = useRouter()
-  const { currentUser, activeCheckIn, checkOutRoom, serviceRequests, rooms, isLoggedIn, logout } = useAFMS()
+  const { currentUser, activeCheckIn, checkOutRoom, serviceRequests, rooms, isLoggedIn, logout, isDataLoading } = useAFMS()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
@@ -40,6 +43,16 @@ export function Header({
   // New service requests with status 'Open'
   const openServiceRequests = (serviceRequests || []).filter(sr => sr.status === 'Open')
   const unreadRequests = openServiceRequests.filter(sr => !dismissedNotificationIds.includes(sr.id))
+
+  // Chime when a new open request from someone else appears while this page is open.
+  // Not for what was already there when the page loaded, and not for your own requests.
+  const requestIdsFromOthers = React.useMemo(
+    () => (serviceRequests || []).filter(sr => sr.status === 'Open' && sr.requestedByUserId !== currentUser.id).map(sr => sr.id),
+    [serviceRequests, currentUser.id]
+  )
+  useNewItemAlert(requestIdsFromOthers, isLoggedIn && !isDataLoading, () => {
+    playNotificationSound()
+  })
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-all duration-300 print:hidden">
@@ -159,16 +172,19 @@ export function Header({
                   </div>
                 </div>
 
-                {unreadRequests.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setDismissedNotificationIds(openServiceRequests.map(sr => sr.id))
-                    }}
-                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-800"
-                  >
-                    Clear all
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {unreadRequests.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setDismissedNotificationIds(openServiceRequests.map(sr => sr.id))
+                      }}
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                  <SoundToggle className="text-slate-400 hover:text-slate-700 hover:bg-slate-100" />
+                </div>
               </div>
 
               {/* List */}

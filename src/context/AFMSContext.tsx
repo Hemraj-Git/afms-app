@@ -50,6 +50,7 @@ import { useAddWorkOrders, useUpdateWorkOrder, useWorkOrders, workOrderKeys } fr
 import { addInvitedUserToCache, useDeleteUser, useUpdateUser, useUsers } from '@/lib/queries/users'
 import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs, withoutRepeats } from '@/lib/queries/assetActivityLogs'
 import { showToast } from '@/lib/toast'
+import { installAudioUnlock, playNotificationSound } from '@/lib/notificationSound'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
 
 interface AFMSContextType {
@@ -456,8 +457,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // arrive through a fetch that raced the event.
   const addNotification = (row: Parameters<typeof mapNotificationRow>[0]) => {
     const mapped = mapNotificationRow(row)
+    if (notifications.some(n => n.id === mapped.id)) return
     setNotifications(prev => (prev.some(n => n.id === mapped.id) ? prev : [mapped, ...prev].slice(0, 50)))
+    // Only a notification that just arrived live gets here (a fetch replaces the
+    // list without calling this), so it is safe to chime for it.
+    playNotificationSound()
   }
+
+  // Browsers allow sound only after the first click / tap; unlock it then.
+  useEffect(() => installAudioUnlock(), [])
 
   const markNotificationRead = (id: string) => {
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, isRead: true } : n)))
