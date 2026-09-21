@@ -45,6 +45,7 @@ import { allocateAssets, assetKeys, useAddAssets, useAssets, useUpdateAsset } fr
 import { useAddReservations, useDeleteReservation, useReservations, useUpdateReservation, reservationKeys } from '@/lib/queries/reservations'
 import { roomAccessLogKeys, useRoomAccessLogs } from '@/lib/queries/roomAccessLogs'
 import { inspectionKeys, useAddInspections, useInspections, useUpdateInspection } from '@/lib/queries/inspections'
+import { serviceRequestKeys, useAddServiceRequest, useServiceRequests, useUpdateServiceRequest } from '@/lib/queries/serviceRequests'
 import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs } from '@/lib/queries/assetActivityLogs'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
@@ -376,11 +377,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const inspections = inspectionsQuery.inspections
   const addInspectionsMutation = useAddInspections(currentUser.id)
   const updateInspectionMutation = useUpdateInspection(currentUser.id)
+  const serviceRequestsQuery = useServiceRequests(currentUser.id, queriesEnabled)
+  const addServiceRequestMutation = useAddServiceRequest(currentUser.id)
+  const updateServiceRequestMutation = useUpdateServiceRequest(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
   const migratedQueries = [
     vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery,
     roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery, assetsQuery,
-    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery, inspectionsQuery,
+    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery, inspectionsQuery, serviceRequestsQuery,
   ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
@@ -428,7 +432,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const [users, setUsers] = useState<UserProfile[]>(mockUsers)
   
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   
   const [activeCheckIn, setActiveCheckIn] = useState<RoomAccessLog | null>(null)
@@ -448,6 +451,16 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }, [roomAccessLogs, currentUser.id])
 
   const [isInitialized, setIsInitialized] = useState(false)
+
+  // A ticket has no requester-role column, so it reads back as "Staff". Show the
+  // requester's real role from their profile instead (Guest, Faculty, ...).
+  const serviceRequests = React.useMemo(() => {
+    const roleByUserId = new Map(users.map(u => [u.id, u.role]))
+    return serviceRequestsQuery.serviceRequests.map(sr => {
+      const role = sr.requestedByUserId ? roleByUserId.get(sr.requestedByUserId) : undefined
+      return role && role !== sr.requestedByRole ? { ...sr, requestedByRole: role } : sr
+    })
+  }, [serviceRequestsQuery.serviceRequests, users])
   const [notifications, setNotifications] = useState<AppNotification[]>([])
 
   const fetchNotifications = async (userId: string) => {
@@ -620,39 +633,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const fetchServiceRequests = React.useCallback(async (track: LoadTracker = logLoadFailure) => {
-    const { data: srRows } = await track('service_requests', supabase.from('service_requests').select('*').order('created_at', { ascending: false }))
-    if (isMountedRef.current && srRows) {
-      setServiceRequests(srRows.map(sr => ({
-        id: sr.id,
-        ticketId: sr.ticket_id,
-        title: sr.title,
-        description: sr.description || '',
-        requestType: sr.type || 'Maintenance',
-        roomId: sr.room_id,
-        assetId: sr.asset_id,
-        requestedBy: sr.requested_by_name,
-        requestedByRole: 'Staff',
-        requestedByUserId: sr.requested_by_user_id || undefined,
-        requestedByEmail: sr.requested_by_email || undefined,
-        assignedTo: sr.assigned_to,
-        assignedToName: sr.assigned_to_name,
-        status: sr.status || 'Open',
-        priority: sr.priority || 'Medium',
-        createdAt: sr.created_at,
-        slaDueDate: sr.sla_due_date,
-        photoUrls: sr.photo_urls || [],
-        workOrderNumber: sr.work_order_number,
-        workOrderId: sr.work_order_id,
-        workOrderType: sr.work_order_type,
-        dismissalReason: sr.dismissal_reason,
-        dismissedAt: sr.dismissed_at,
-        dismissedBy: sr.dismissed_by,
-        resolutionNotes: sr.resolution_notes || undefined,
-      })))
-    }
-  }, [])
-
   const syncSupabase = React.useCallback(async () => {
       const runId = ++syncRunRef.current
       setIsDataLoading(true)
@@ -728,9 +708,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         // 7. Work Orders
         await fetchWorkOrders(tracked)
 
-        // 8. Service Requests
-        await fetchServiceRequests(tracked)
-
       } catch (e) {
         console.warn('Supabase sync notice:', e)
         failures.push('unexpected error while loading')
@@ -742,7 +719,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           setIsDataLoading(false)
         }
       }
-  }, [fetchWorkOrders, fetchServiceRequests])
+  }, [fetchWorkOrders])
 
   React.useEffect(() => {
     isMountedRef.current = true
@@ -762,7 +739,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     email: currentUser.email,
     handlers: {
       refetchWorkOrders: () => { fetchWorkOrders() },
-      refetchServiceRequests: () => { fetchServiceRequests() },
+      refetchServiceRequests: () => { queryClient.invalidateQueries({ queryKey: serviceRequestKeys.list(currentUser.id) }) },
       refetchInspections: () => { queryClient.invalidateQueries({ queryKey: inspectionKeys.list(currentUser.id) }) },
       refetchNotifications: refreshNotifications,
       onNotification: addNotification,
@@ -795,7 +772,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     queryClient.setQueryData(assetKeys.list(currentUser.id), [])
     queryClient.setQueryData(inventoryKeys.list(currentUser.id), [])
     queryClient.setQueryData(reservationKeys.list(currentUser.id), [])
-    setServiceRequests([])
+    queryClient.setQueryData(serviceRequestKeys.list(currentUser.id), [])
     setWorkOrders([])
     queryClient.setQueryData(inspectionKeys.list(currentUser.id), [])
     queryClient.setQueryData(documentKeys.list(currentUser.id), [])
@@ -824,7 +801,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   const clearOperationalData = () => {
-    setServiceRequests([])
+    queryClient.setQueryData(serviceRequestKeys.list(currentUser.id), [])
     setWorkOrders([])
     queryClient.setQueryData(inspectionKeys.list(currentUser.id), [])
     queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
@@ -1499,44 +1476,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // Guest/Technician's RLS-scoped view couldn't see, silently failing the
   // insert while the UI still showed a false "success".)
   const addServiceRequest = async (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>): Promise<ServiceRequest> => {
-    const newUuid = generateUUID()
-
-    const { data, error } = await supabase.from('service_requests').insert([{
-      id: newUuid,
-      title: sr.title,
-      description: sr.description || '',
-      type: sr.requestType || 'Maintenance',
-      room_id: sr.roomId || null,
-      asset_id: sr.assetId || null,
-      status: sr.status || 'Open',
-      priority: sr.priority || 'Medium',
-      requested_by_name: sr.requestedBy,
-      // Stamped from the real session, not the caller — this is what the
-      // RLS "own service_requests" policies key off, so it must always be
-      // the actual signed-in user regardless of what a caller passes in.
-      // requested_by_email is what lets a returning Guest (fresh auth.uid()
-      // every login) read requests raised in a previous visit — see the
-      // "Guest read same-email service_requests" RLS policy.
-      requested_by_user_id: currentUser.id,
-      requested_by_email: currentUser.email || null,
-      sla_due_date: sr.slaDueDate || null,
-      photo_urls: sr.photoUrls || [],
-      created_at: new Date().toISOString(),
-    }]).select().single()
-
-    if (error || !data) {
-      throw new Error(error?.message || 'Failed to create service request.')
-    }
-
-    const newSr: ServiceRequest = {
+    // Stamped from the real session, not the caller — this is what the
+    // RLS "own service_requests" policies key off, so it must always be
+    // the actual signed-in user regardless of what a caller passes in.
+    // requested_by_email is what lets a returning Guest (fresh auth.uid()
+    // every login) read requests raised in a previous visit — see the
+    // "Guest read same-email service_requests" RLS policy.
+    // Rejects if the database refuses; the form shows the message itself.
+    const newSr = await addServiceRequestMutation.mutateAsync({
       ...sr,
-      id: data.id,
-      ticketId: data.ticket_id,
-      createdAt: data.created_at,
       requestedByUserId: currentUser.id,
       requestedByEmail: currentUser.email || undefined,
-    }
-    setServiceRequests(prev => [newSr, ...prev])
+    })
 
     if (sr.assetId) {
       addAssetLog({
@@ -1551,37 +1502,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     return newSr
   }
 
-  // Maps camelCase ServiceRequest fields to their snake_case DB columns.
-  // Spreading the raw camelCase object into .update() previously failed
-  // silently for any multi-word field (e.g. dismissalReason, workOrderNumber)
-  // since Postgrest rejects unknown column names outright. Column names below
-  // are verified against the live `service_requests` table (see
-  // supabase/migrations/0002_service_requests_fix.sql for the columns that
-  // had to be added before this mapping could be correct).
-  const mapServiceRequestUpdatesToDb = (updates: Partial<ServiceRequest>): Record<string, unknown> => {
-    const dbUpdates: Record<string, unknown> = {}
-    if (updates.title !== undefined) dbUpdates.title = updates.title
-    if (updates.description !== undefined) dbUpdates.description = updates.description
-    if (updates.requestType !== undefined) dbUpdates.type = updates.requestType
-    if (updates.roomId !== undefined) dbUpdates.room_id = updates.roomId
-    if (updates.assetId !== undefined) dbUpdates.asset_id = updates.assetId
-    if (updates.status !== undefined) dbUpdates.status = updates.status
-    if (updates.priority !== undefined) dbUpdates.priority = updates.priority
-    if (updates.requestedBy !== undefined) dbUpdates.requested_by_name = updates.requestedBy
-    if (updates.assignedTo !== undefined) dbUpdates.assigned_to = updates.assignedTo
-    if (updates.assignedToName !== undefined) dbUpdates.assigned_to_name = updates.assignedToName
-    if (updates.slaDueDate !== undefined) dbUpdates.sla_due_date = updates.slaDueDate
-    if (updates.photoUrls !== undefined) dbUpdates.photo_urls = updates.photoUrls
-    if (updates.workOrderNumber !== undefined) dbUpdates.work_order_number = updates.workOrderNumber
-    if (updates.workOrderId !== undefined) dbUpdates.work_order_id = updates.workOrderId
-    if (updates.workOrderType !== undefined) dbUpdates.work_order_type = updates.workOrderType
-    if (updates.dismissalReason !== undefined) dbUpdates.dismissal_reason = updates.dismissalReason
-    if (updates.resolutionNotes !== undefined) dbUpdates.resolution_notes = updates.resolutionNotes
-    if (updates.dismissedAt !== undefined) dbUpdates.dismissed_at = updates.dismissedAt
-    if (updates.dismissedBy !== undefined) dbUpdates.dismissed_by = updates.dismissedBy
-    return dbUpdates
-  }
-
   const updateServiceRequestStatus = (
     id: string,
     status: ServiceRequest['status'],
@@ -1590,25 +1510,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // Matches by ticketId too, not just id -- callers like the Work Order
     // completion handshake only know the ticket's sourceRefId (its
     // formatted ticketId, e.g. "SR-2026-0001"), never its raw UUID.
-    setServiceRequests(prev =>
-      prev.map(s => (s.id === id || s.ticketId === id ? { ...s, ...extraUpdates, status } : s))
-    )
-    const dbUpdates = { ...mapServiceRequestUpdatesToDb(extraUpdates || {}), status }
-    supabase.from('service_requests').update(dbUpdates).or(`id.eq.${id},ticket_id.eq.${id}`).then(({ error }) => {
-      if (error) console.error('Supabase service_request status update error:', error.message)
-    })
+    updateServiceRequestMutation.mutate({ id, changes: { ...extraUpdates, status } })
   }
 
   const updateServiceRequest = (id: string, updates: Partial<ServiceRequest>) => {
-    setServiceRequests(prev =>
-      prev.map(s => (s.id === id ? { ...s, ...updates } : s))
-    )
-    const dbUpdates = mapServiceRequestUpdatesToDb(updates)
-    if (Object.keys(dbUpdates).length > 0) {
-      supabase.from('service_requests').update(dbUpdates).or(`id.eq.${id},ticket_id.eq.${id}`).then(({ error }) => {
-        if (error) console.error('Supabase service_request update error:', error.message)
-      })
-    }
+    updateServiceRequestMutation.mutate({ id, changes: updates })
   }
 
   // 9. Vendor: VND-#### (Immutable ID)

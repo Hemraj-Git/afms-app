@@ -94,16 +94,26 @@ export function defineList<T extends { id: string }, K extends TableName>(cfg: L
 
   type Snapshot = { previous: T[] | undefined }
 
+  interface WriteOptions<TVars, TResult> {
+    // Set false when the caller already shows the failure itself (a form that
+    // catches the rejection), so the user is not told twice.
+    reportErrors?: boolean
+    // Fold the write's result into the cached list once it has saved (e.g. the
+    // row the database returned, with its minted ticket number).
+    applyResult?: (list: T[], result: TResult, vars: TVars) => T[]
+  }
+
   // A write that changes the cached list first and undoes it if it fails.
-  function useWrite<TVars>(
+  function useWrite<TVars, TResult = void>(
     userId: string,
     action: string,
-    write: (vars: TVars) => Promise<void>,
-    apply: (list: T[], vars: TVars) => T[]
+    write: (vars: TVars) => Promise<TResult>,
+    apply: (list: T[], vars: TVars) => T[],
+    options: WriteOptions<TVars, TResult> = {}
   ) {
     const qc = useQueryClient()
     const listKey = key(userId)
-    return useMutation<void, Error, TVars, Snapshot>({
+    return useMutation<TResult, Error, TVars, Snapshot>({
       mutationFn: write,
       onMutate: async vars => {
         await qc.cancelQueries({ queryKey: listKey })
@@ -111,10 +121,14 @@ export function defineList<T extends { id: string }, K extends TableName>(cfg: L
         qc.setQueryData<T[]>(listKey, list => apply(list ?? [], vars))
         return { previous }
       },
+      onSuccess: (result, vars) => {
+        const { applyResult } = options
+        if (applyResult) qc.setQueryData<T[]>(listKey, list => applyResult(list ?? [], result, vars))
+      },
       onError: (error, _vars, snapshot) => {
         if (snapshot) qc.setQueryData(listKey, snapshot.previous)
         console.error(`Supabase ${action} error:`, error.message)
-        showToast('error', `${action} failed and was undone: ${error.message}`)
+        if (options.reportErrors !== false) showToast('error', `${action} failed and was undone: ${error.message}`)
       },
       onSettled: () => qc.invalidateQueries({ queryKey: listKey }),
     })
