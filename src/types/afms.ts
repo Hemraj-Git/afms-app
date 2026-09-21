@@ -308,7 +308,7 @@ export interface Inspection {
 
 export interface AppNotification {
   id: string
-  type: 'wo_assigned' | 'inspection_assigned' | 'auto_checkout'
+  type: 'wo_assigned' | 'inspection_assigned' | 'auto_checkout' | 'vendor_handover'
   title: string
   body?: string
   refTable?: string

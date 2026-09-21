@@ -14,12 +14,29 @@ import {
   ArrowRight,
   Clock,
   LogOut,
+  Wrench,
+  ClipboardCheck,
+  Phone,
 } from 'lucide-react'
 import Link from 'next/link'
-import { UserRole } from '@/types/afms'
+import type { AppNotification } from '@/types/afms'
 import { SoundToggle } from '@/components/ui/SoundToggle'
 import { playNotificationSound } from '@/lib/notificationSound'
 import { useNewItemAlert } from '@/lib/useNewItemAlert'
+
+// How each kind of database alert looks and where it leads on the desktop.
+const ALERT_ICONS: Record<AppNotification['type'], React.ReactNode> = {
+  wo_assigned: <Wrench className="w-3.5 h-3.5" />,
+  inspection_assigned: <ClipboardCheck className="w-3.5 h-3.5" />,
+  auto_checkout: <LogOut className="w-3.5 h-3.5" />,
+  vendor_handover: <Phone className="w-3.5 h-3.5" />,
+}
+const ALERT_LINKS: Record<AppNotification['type'], string> = {
+  wo_assigned: '/maintenance/work-orders',
+  inspection_assigned: '/inspections',
+  auto_checkout: '/dashboard',
+  vendor_handover: '/maintenance/corrective',
+}
 
 interface HeaderProps {
   breadcrumbs?: { label: string; href?: string }[]
@@ -35,7 +52,10 @@ export function Header({
   onMenuToggle,
 }: HeaderProps) {
   const router = useRouter()
-  const { currentUser, activeCheckIn, checkOutRoom, serviceRequests, rooms, isLoggedIn, logout, isDataLoading } = useAFMS()
+  const {
+    currentUser, activeCheckIn, checkOutRoom, serviceRequests, rooms, isLoggedIn, logout, isDataLoading,
+    notifications, markNotificationRead,
+  } = useAFMS()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
@@ -43,6 +63,12 @@ export function Header({
   // New service requests with status 'Open'
   const openServiceRequests = (serviceRequests || []).filter(sr => sr.status === 'Open')
   const unreadRequests = openServiceRequests.filter(sr => !dismissedNotificationIds.includes(sr.id))
+
+  // Alerts addressed to this user (work assigned, jobs handed to a vendor, ...).
+  // They already arrive live and chime (see addNotification in AFMSContext); the
+  // desktop bell just never listed them.
+  const unreadAlerts = (notifications || []).filter(n => !n.isRead)
+  const bellCount = unreadRequests.length + unreadAlerts.length
 
   // Chime when a new open request from someone else appears while this page is open.
   // Not for what was already there when the page loaded, and not for your own requests.
@@ -108,14 +134,14 @@ export function Header({
 
       {/* Right: Role Switcher Demo Tool + Mobile QR Mode + Notifications + User Avatar */}
       <div className="flex items-center gap-3">
-        {/* PWA Mobile Mode Link */}
+        {/* Field (mobile) mode link */}
         <Link
           href="/mobile"
           className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition border border-blue-200/50"
-          title="Open Field Mobile PWA experience"
+          title="Open the field operations app"
         >
           <Smartphone className="w-3.5 h-3.5 text-blue-600" />
-          <span className="hidden sm:inline">PWA Field Mode</span>
+          <span className="hidden sm:inline">Field Mode</span>
         </Link>
 
         {/* Active Room Check-in indicator */}
@@ -140,16 +166,16 @@ export function Header({
               setShowUserMenu(false)
             }}
             className={`relative p-2 rounded-xl transition border ${
-              unreadRequests.length > 0
+              bellCount > 0
                 ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 border-amber-200'
                 : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border-transparent'
             }`}
-            title="Service Request Notifications"
+            title="Notifications"
           >
-            <Bell className={`w-4 h-4 ${unreadRequests.length > 0 ? 'animate-swing' : ''}`} />
-            {unreadRequests.length > 0 && (
+            <Bell className={`w-4 h-4 ${bellCount > 0 ? 'animate-swing' : ''}`} />
+            {bellCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white animate-pulse">
-                {unreadRequests.length > 9 ? '9+' : unreadRequests.length}
+                {bellCount > 9 ? '9+' : bellCount}
               </span>
             )}
           </button>
@@ -163,20 +189,21 @@ export function Header({
                     <Bell className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900">Service Request Alerts</h3>
+                    <h3 className="font-bold text-slate-900">Notifications</h3>
                     <p className="text-[10px] text-slate-400">
-                      {unreadRequests.length > 0
-                        ? `${unreadRequests.length} new request${unreadRequests.length > 1 ? 's' : ''} require attention`
+                      {bellCount > 0
+                        ? `${bellCount} item${bellCount > 1 ? 's' : ''} need${bellCount > 1 ? '' : 's'} attention`
                         : 'No unread notifications'}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  {unreadRequests.length > 0 && (
+                  {bellCount > 0 && (
                     <button
                       onClick={() => {
                         setDismissedNotificationIds(openServiceRequests.map(sr => sr.id))
+                        unreadAlerts.forEach(n => markNotificationRead(n.id))
                       }}
                       className="text-[11px] font-semibold text-blue-600 hover:text-blue-800"
                     >
@@ -189,7 +216,30 @@ export function Header({
 
               {/* List */}
               <div className="max-h-72 overflow-y-auto space-y-1.5 divide-y divide-slate-50">
-                {unreadRequests.length === 0 ? (
+                {unreadAlerts.map(n => (
+                  <Link
+                    key={n.id}
+                    href={ALERT_LINKS[n.type]}
+                    onClick={() => {
+                      markNotificationRead(n.id)
+                      setShowNotificationMenu(false)
+                    }}
+                    className="p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100/80 transition flex items-start gap-2 group"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                      {ALERT_ICONS[n.type]}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-800 line-clamp-2 group-hover:text-blue-600 transition">{n.title}</p>
+                      {n.body && <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">{n.body}</p>}
+                      <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-0.5">
+                        <Clock className="w-2.5 h-2.5" />
+                        {formatDateDisplay(n.createdAt)}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+                {bellCount === 0 ? (
                   <div className="py-6 text-center text-slate-400 space-y-1">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-80" />
                     <p className="font-medium text-slate-600 text-xs">All Caught Up!</p>

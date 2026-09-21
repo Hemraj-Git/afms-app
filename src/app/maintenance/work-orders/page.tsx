@@ -8,6 +8,8 @@ import { useDefaultSelection } from '@/lib/useDefaultSelection'
 import { PageSkeleton } from '@/components/ui/Skeleton'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
+import { isWithVendor } from '@/lib/workOrderState'
+import { VendorHandoverCard } from '@/components/VendorHandoverCard'
 import {
   ClipboardList,
   Wrench,
@@ -458,6 +460,11 @@ export default function WorkOrdersHubPage() {
                             >
                               {wo.status}
                             </span>
+                            {isWithVendor(wo) && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                With vendor
+                              </span>
+                            )}
                             {isWorkOrderOverdue(wo) && (
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
                                 Overdue
@@ -881,6 +888,8 @@ export default function WorkOrdersHubPage() {
                         </div>
                       )}
                     </div>
+
+                    <VendorHandoverCard wo={wo} />
 
                     {/* Start of Work Evidence Photo (Proof of Presence) */}
                     <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">

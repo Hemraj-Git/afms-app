@@ -7,6 +7,8 @@ import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { formatDateDisplay } from '@/lib/dateUtils'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
+import { isWithVendor } from '@/lib/workOrderState'
+import { VendorHandoverCard } from '@/components/VendorHandoverCard'
 import {
   AlertTriangle,
   Wrench,
@@ -211,6 +213,11 @@ export default function CorrectiveMaintenancePage() {
                           >
                             {wo.status === 'Completed' ? 'Resolved' : wo.status}
                           </span>
+                          {isWithVendor(wo) && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              With vendor
+                            </span>
+                          )}
                           {isOverdue && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
                               Overdue
@@ -576,6 +583,8 @@ export default function CorrectiveMaintenancePage() {
                         </div>
                       )}
                     </div>
+
+                    <VendorHandoverCard wo={wo} />
 
                     {/* IF COMPLETED: Problem found, Action taken, Parts, Photo */}
                     {isCompleted ? (
