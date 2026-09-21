@@ -46,6 +46,7 @@ import { useAddReservations, useDeleteReservation, useReservations, useUpdateRes
 import { roomAccessLogKeys, useRoomAccessLogs } from '@/lib/queries/roomAccessLogs'
 import { inspectionKeys, useAddInspections, useInspections, useUpdateInspection } from '@/lib/queries/inspections'
 import { serviceRequestKeys, useAddServiceRequest, useServiceRequests, useUpdateServiceRequest } from '@/lib/queries/serviceRequests'
+import { useAddWorkOrders, useUpdateWorkOrder, useWorkOrders, workOrderKeys } from '@/lib/queries/workOrders'
 import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs } from '@/lib/queries/assetActivityLogs'
 import { mockUsers } from '@/data/mockData'
 import { showToast } from '@/lib/toast'
@@ -238,21 +239,6 @@ interface AFMSContextType {
 
 const AFMSContext = createContext<AFMSContextType | undefined>(undefined)
 
-// Wraps a Supabase query so its error is recorded. syncSupabase passes one that
-// collects failures for the "some data failed to load" banner; the Realtime
-// refetches use logLoadFailure, since a failed live refresh should not raise a
-// banner (the data on screen is merely a bit stale).
-type LoadTracker = <T extends { error: { message: string } | null }>(
-  label: string,
-  query: PromiseLike<T>
-) => Promise<T>
-
-const logLoadFailure: LoadTracker = async (label, query) => {
-  const result = await query
-  if (result.error) console.warn(`Live refresh of ${label} failed:`, result.error.message)
-  return result
-}
-
 // A row from the notifications table, in the shape the UI uses. Shared by the
 // fetch and the Realtime insert handler so the two can't drift.
 function mapNotificationRow(n: {
@@ -380,11 +366,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const serviceRequestsQuery = useServiceRequests(currentUser.id, queriesEnabled)
   const addServiceRequestMutation = useAddServiceRequest(currentUser.id)
   const updateServiceRequestMutation = useUpdateServiceRequest(currentUser.id)
+  const workOrdersQuery = useWorkOrders(currentUser.id, queriesEnabled)
+  const workOrders = workOrdersQuery.workOrders
+  const addWorkOrdersMutation = useAddWorkOrders(currentUser.id)
+  const updateWorkOrderMutation = useUpdateWorkOrder(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
   const migratedQueries = [
     vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery,
     roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery, assetsQuery,
-    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery, inspectionsQuery, serviceRequestsQuery,
+    reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery, inspectionsQuery, serviceRequestsQuery, workOrdersQuery,
   ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
@@ -432,7 +422,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const [users, setUsers] = useState<UserProfile[]>(mockUsers)
   
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   
   const [activeCheckIn, setActiveCheckIn] = useState<RoomAccessLog | null>(null)
 
@@ -588,51 +577,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // while the newer one is still running.
   const syncRunRef = React.useRef(0)
 
-  // Per-table loaders. syncSupabase calls them for the full load; the Realtime
-  // hook calls them alone to refresh one table. They never touch isDataLoading,
-  // so a live refresh cannot bring the skeleton back.
-  const fetchWorkOrders = React.useCallback(async (track: LoadTracker = logLoadFailure) => {
-    const { data: woRows } = await track('work_orders', supabase.from('work_orders').select('*').order('created_at', { ascending: false }))
-    if (isMountedRef.current && woRows) {
-      setWorkOrders(woRows.map(w => ({
-        id: w.id,
-        woNumber: w.wo_number,
-        title: w.title || `${w.type || 'Maintenance'} Work Order`,
-        type: w.type as WorkOrder['type'],
-        assetId: w.asset_id,
-        roomId: w.room_id,
-        priority: w.priority,
-        source: w.source || 'Scheduled',
-        sourceRefId: w.source_ref_id,
-        frequency: w.frequency,
-        dueDate: w.due_date,
-        assignedTechnicianId: w.assigned_technician_id,
-        assignedTechnicianName: w.assigned_technician_name,
-        status: w.status as WorkOrder['status'],
-        checklistTemplateId: w.checklist_template_id,
-        checklistSnapshot: w.checklist_snapshot || [],
-        checklistResponses: w.checklist_responses || {},
-        executedBy: w.executed_by,
-        issueLogged: w.issue_logged,
-        solutionTaken: w.solution_taken,
-        technicianRemarks: w.technician_remarks,
-        startPhotoUrl: w.start_photo_url || undefined,
-        completionPhotoUrl: w.completion_photo_url || undefined,
-        partsReplaced: w.parts_replaced || undefined,
-        vendorId: w.vendor_id || undefined,
-        vendorTicketNo: w.vendor_ticket_no || undefined,
-        vendorTechName: w.vendor_tech_name || undefined,
-        vendorTechPhone: w.vendor_tech_phone || undefined,
-        vendorServiceDate: w.vendor_service_date || undefined,
-        vendorJobSheetUrl: w.vendor_job_sheet_url || undefined,
-        vendorRemarks: w.vendor_remarks || undefined,
-        vendorCost: w.vendor_cost ?? undefined,
-        createdAt: w.created_at,
-        completedAt: w.completed_at,
-      })))
-    }
-  }, [])
-
   const syncSupabase = React.useCallback(async () => {
       const runId = ++syncRunRef.current
       setIsDataLoading(true)
@@ -705,9 +649,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           })
         }
 
-        // 7. Work Orders
-        await fetchWorkOrders(tracked)
-
       } catch (e) {
         console.warn('Supabase sync notice:', e)
         failures.push('unexpected error while loading')
@@ -719,7 +660,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           setIsDataLoading(false)
         }
       }
-  }, [fetchWorkOrders])
+  }, [])
 
   React.useEffect(() => {
     isMountedRef.current = true
@@ -738,7 +679,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     role: currentUser.role,
     email: currentUser.email,
     handlers: {
-      refetchWorkOrders: () => { fetchWorkOrders() },
+      refetchWorkOrders: () => { queryClient.invalidateQueries({ queryKey: workOrderKeys.list(currentUser.id) }) },
       refetchServiceRequests: () => { queryClient.invalidateQueries({ queryKey: serviceRequestKeys.list(currentUser.id) }) },
       refetchInspections: () => { queryClient.invalidateQueries({ queryKey: inspectionKeys.list(currentUser.id) }) },
       refetchNotifications: refreshNotifications,
@@ -773,7 +714,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     queryClient.setQueryData(inventoryKeys.list(currentUser.id), [])
     queryClient.setQueryData(reservationKeys.list(currentUser.id), [])
     queryClient.setQueryData(serviceRequestKeys.list(currentUser.id), [])
-    setWorkOrders([])
+    queryClient.setQueryData(workOrderKeys.list(currentUser.id), [])
     queryClient.setQueryData(inspectionKeys.list(currentUser.id), [])
     queryClient.setQueryData(documentKeys.list(currentUser.id), [])
     queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
@@ -802,7 +743,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   const clearOperationalData = () => {
     queryClient.setQueryData(serviceRequestKeys.list(currentUser.id), [])
-    setWorkOrders([])
+    queryClient.setQueryData(workOrderKeys.list(currentUser.id), [])
     queryClient.setQueryData(inspectionKeys.list(currentUser.id), [])
     queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
     queryClient.setQueryData(assetActivityLogKeys.list(currentUser.id), [])
@@ -1012,18 +953,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       // scheduled-but-unassigned record doesn't count as a real Work
       // Order until then.
       const pmIds = Array.from(new Set(sub.pmTemplateIds && sub.pmTemplateIds.length > 0 ? sub.pmTemplateIds : (sub.pmTemplateId ? [sub.pmTemplateId] : []))).filter(Boolean)
-      pmIds.forEach((pmTmplId) => {
+      const newPmWorkOrders: WorkOrder[] = pmIds.map((pmTmplId) => {
         const tmpl = checklistTemplates.find(t => t.id === pmTmplId)
         const interval = tmpl?.interval || 'Quarterly'
         const nextPmDueDate = addIntervalToDate(installDate, interval)
         const pmWoUuid = generateUUID()
-        const pendingWoNumber = makePendingWoNumber(pmWoUuid)
-        const woTitle = tmpl ? `${tmpl.title} (${interval})` : `${assetData.name} ${interval} PM`
-
-        const newPmWO: WorkOrder = {
+        return {
           id: pmWoUuid,
-          woNumber: pendingWoNumber,
-          title: woTitle,
+          woNumber: makePendingWoNumber(pmWoUuid),
+          title: tmpl ? `${tmpl.title} (${interval})` : `${assetData.name} ${interval} PM`,
           type: 'Preventive',
           assetId: newUuid,
           source: 'Scheduled',
@@ -1034,24 +972,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           checklistSnapshot: tmpl?.items,
           createdAt: today,
         }
-        setWorkOrders(prev => [newPmWO, ...prev])
-
-        supabase.from('work_orders').insert([{
-          id: pmWoUuid,
-          wo_number: pendingWoNumber,
-          title: woTitle,
-          type: 'Preventive',
-          asset_id: newUuid,
-          source: 'Scheduled',
-          due_date: nextPmDueDate,
-          status: 'Scheduled',
-          checklist_template_id: pmTmplId || null,
-          checklist_snapshot: tmpl?.items || [],
-          created_at: new Date().toISOString(),
-        }]).then(({ error }) => {
-          if (error) console.error('Supabase PM Work Order insert error:', error.message)
-        })
       })
+      if (newPmWorkOrders.length > 0) addWorkOrdersMutation.mutate(newPmWorkOrders)
 
       const inspIds = Array.from(new Set(sub.inspectionTemplateIds && sub.inspectionTemplateIds.length > 0 ? sub.inspectionTemplateIds : (sub.inspectionTemplateId ? [sub.inspectionTemplateId] : []))).filter(Boolean)
       let inspSeq = getNextSequence(inspections.map(i => i.inspectionNumber), 'INSP')
@@ -1126,7 +1048,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const newWorkOrders: WorkOrder[] = []
     const newInspections: Inspection[] = []
     const newLogs: Omit<AssetActivityLog, 'id' | 'timestamp'>[] = []
-    const woInsertRows: Record<string, unknown>[] = []
 
     for (const createdAsset of createdAssets) {
       const newUuid = createdAsset.id
@@ -1161,20 +1082,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             createdAt: today,
           }
           newWorkOrders.push(newPmWO)
-          woInsertRows.push({
-            id: woUuid,
-            wo_number: woNumber,
-            title: newPmWO.title,
-            type: 'Preventive',
-            asset_id: newUuid,
-            source: 'Scheduled',
-            frequency: interval,
-            due_date: nextPmDueDate,
-            status: 'Scheduled',
-            checklist_template_id: pmTmplId || null,
-            checklist_snapshot: tmpl?.items || [],
-            created_at: new Date().toISOString(),
-          })
         })
 
         const inspIds = sub.inspectionTemplateIds || (sub.inspectionTemplateId ? [sub.inspectionTemplateId] : [])
@@ -1212,7 +1119,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (newWorkOrders.length > 0) {
-      setWorkOrders(prev => [...newWorkOrders, ...prev])
+      // One insert for all of them, after the assets have saved.
+      addWorkOrdersMutation.mutate(newWorkOrders)
     }
     if (newInspections.length > 0) {
       // One insert for all of them; numbers are re-minted by the database and the
@@ -1221,11 +1129,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
     addAssetLogs(newLogs)
 
-    if (woInsertRows.length > 0) {
-      supabase.from('work_orders').insert(woInsertRows).then(({ error }) => {
-        if (error) console.error('Supabase bulk PM work order insert error:', error.message)
-      })
-    }
 
     return { success: true, createdCount: createdAssets.length, createdAssets }
   }
@@ -1611,13 +1514,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       woNumber,
       createdAt: today,
     }
-    setWorkOrders(prev => [newWo, ...prev])
+    // Shown at once; removed again with a toast if the database refuses it.
+    addWorkOrdersMutation.mutate([newWo])
 
     // The PM/Inspection work orders auto-created inside addAsset bypass
-    // this function entirely (their own direct insert) — "Asset Created"
-    // already covers that moment, so this only logs manually-raised work
-    // orders. Gated on assetId so room-only Housekeeping orders don't spam
-    // unrelated asset timelines.
+    // this function entirely — "Asset Created" already covers that moment,
+    // so this only logs manually-raised work orders. Gated on assetId so
+    // room-only Housekeeping orders don't spam unrelated asset timelines.
     if (newWo.assetId) {
       addAssetLog({
         assetId: newWo.assetId,
@@ -1628,36 +1531,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         remarks: newWo.issueLogged || newWo.title || `${newWo.type} work order raised.`,
       })
     }
-
-    supabase.from('work_orders').insert([{
-      id: newUuid,
-      wo_number: newWo.woNumber || newWo.id,
-      title: newWo.title || `${newWo.type || 'Maintenance'} Work Order`,
-      type: newWo.type,
-      asset_id: newWo.assetId || null,
-      room_id: newWo.roomId || null,
-      priority: newWo.priority || 'Medium',
-      frequency: newWo.frequency || null,
-      source: newWo.source || 'Scheduled',
-      // Was previously omitted entirely, even though the local optimistic
-      // state and the WorkOrder type both carry it correctly -- every
-      // service-request-linked work order's completion cascade
-      // (auto-resolve the ticket, in updateWorkOrderStatus) silently never
-      // fired once the page reloaded and re-fetched this as null.
-      source_ref_id: newWo.sourceRefId || null,
-      due_date: newWo.dueDate || today,
-      assigned_technician_id: newWo.assignedTechnicianId || null,
-      assigned_technician_name: newWo.assignedTechnicianName || null,
-      status: newWo.status || 'Scheduled',
-      checklist_template_id: newWo.checklistTemplateId || null,
-      checklist_snapshot: newWo.checklistSnapshot || null,
-      issue_logged: newWo.issueLogged || null,
-      solution_taken: newWo.solutionTaken || null,
-      technician_remarks: newWo.technicianRemarks || null,
-      created_at: new Date().toISOString(),
-    }]).then(({ error }) => {
-      if (error) console.error('Supabase work_order insert error:', error.message)
-    })
   }
 
   const updateWorkOrderStatus = (
@@ -1666,9 +1539,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     remarks?: string,
     extraUpdates?: Partial<WorkOrder>
   ) => {
+    // The latest list, including changes still being saved, so a quick second
+    // "Complete" can't slip through and complete (and reschedule) it twice.
+    const latest = queryClient.getQueryData<WorkOrder[]>(workOrderKeys.list(currentUser.id)) ?? workOrders
+    const targetWo = latest.find(w => w.id === id || w.woNumber === id)
+
     // Attempt window policy check for Preventive Maintenance Work Orders
     if (status === 'In Progress' || status === 'Completed') {
-      const targetWo = workOrders.find(w => w.id === id || w.woNumber === id)
       if (targetWo && targetWo.type === 'Preventive') {
         const windowStatus = getAttemptWindowStatus(targetWo.dueDate, targetWo.frequency)
         if (!windowStatus.canAttempt) {
@@ -1684,207 +1561,128 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // created as a PENDING placeholder (no real WO number yet, per the
     // deferred-creation design) is now getting a technician for the first
     // time. That's the moment it becomes a real, numbered Work Order.
-    const targetWoForMint = workOrders.find(w => w.id === id || w.woNumber === id)
     const isFirstAssignment = Boolean(
-      targetWoForMint &&
-      (targetWoForMint.type === 'Preventive' || targetWoForMint.type === 'Corrective') &&
-      isPendingWorkOrder(targetWoForMint.woNumber) &&
+      targetWo &&
+      (targetWo.type === 'Preventive' || targetWo.type === 'Corrective') &&
+      isPendingWorkOrder(targetWo.woNumber) &&
       extraUpdates?.assignedTechnicianId
     )
-    const mintedWoNumber = isFirstAssignment && targetWoForMint
-      ? formatYearlyId(targetWoForMint.type === 'Preventive' ? 'WO-PM' : 'WO-CR', getNextSequence(workOrders.map(w => w.woNumber), targetWoForMint.type === 'Preventive' ? 'WO-PM' : 'WO-CR'))
+    // The database re-mints the number on that transition (see
+    // supabase/migrations/0014_server_side_ticket_numbering.sql); this is only
+    // the on-screen guess until the save returns the real one.
+    const numberPrefix = targetWo?.type === 'Preventive' ? 'WO-PM' : 'WO-CR'
+    const mintedWoNumber = isFirstAssignment
+      ? formatYearlyId(numberPrefix, getNextSequence(latest.map(w => w.woNumber), numberPrefix))
       : undefined
 
-    const dbUpdates: Record<string, any> = {
-      status,
-    }
-    if (mintedWoNumber) dbUpdates.wo_number = mintedWoNumber
-    if (remarks !== undefined) dbUpdates.technician_remarks = remarks
-    // Only stamp completed_at on the actual transition into Completed, not
-    // on a redundant re-submission of an already-completed order -- see the
-    // matching guard below on the completion cascade for why.
-    if (status === 'Completed' && targetWoForMint?.status !== 'Completed') {
-      dbUpdates.completed_at = getLocalDateStr()
-    }
-    if (extraUpdates) {
-      if (extraUpdates.assignedTechnicianId !== undefined) dbUpdates.assigned_technician_id = extraUpdates.assignedTechnicianId
-      if (extraUpdates.assignedTechnicianName !== undefined) dbUpdates.assigned_technician_name = extraUpdates.assignedTechnicianName
-      if (extraUpdates.checklistResponses !== undefined) dbUpdates.checklist_responses = extraUpdates.checklistResponses
-      if (extraUpdates.checklistSnapshot !== undefined) dbUpdates.checklist_snapshot = extraUpdates.checklistSnapshot
-      if (extraUpdates.issueLogged !== undefined) dbUpdates.issue_logged = extraUpdates.issueLogged
-      if (extraUpdates.solutionTaken !== undefined) dbUpdates.solution_taken = extraUpdates.solutionTaken
-      if (extraUpdates.technicianRemarks !== undefined) dbUpdates.technician_remarks = extraUpdates.technicianRemarks
-      if (extraUpdates.executedBy !== undefined) dbUpdates.executed_by = extraUpdates.executedBy
-      if (extraUpdates.completedAt !== undefined) dbUpdates.completed_at = extraUpdates.completedAt
-      if (extraUpdates.priority !== undefined) dbUpdates.priority = extraUpdates.priority
-      if (extraUpdates.dueDate !== undefined) dbUpdates.due_date = extraUpdates.dueDate
-      if (extraUpdates.title !== undefined) dbUpdates.title = extraUpdates.title
-      if (extraUpdates.roomId !== undefined) dbUpdates.room_id = extraUpdates.roomId
-      if (extraUpdates.frequency !== undefined) dbUpdates.frequency = extraUpdates.frequency
-      // Previously omitted entirely -- the mobile execution form already
-      // collects all of these (photos, parts replaced, and the full
-      // Vendor-execution field set), but none of it ever reached the
-      // database (see supabase/migrations/0025_wo_inspection_photos_and_vendor_fields.sql).
-      if (extraUpdates.startPhotoUrl !== undefined) dbUpdates.start_photo_url = extraUpdates.startPhotoUrl
-      if (extraUpdates.completionPhotoUrl !== undefined) dbUpdates.completion_photo_url = extraUpdates.completionPhotoUrl
-      if (extraUpdates.partsReplaced !== undefined) dbUpdates.parts_replaced = extraUpdates.partsReplaced
-      if (extraUpdates.vendorId !== undefined) dbUpdates.vendor_id = extraUpdates.vendorId
-      if (extraUpdates.vendorTicketNo !== undefined) dbUpdates.vendor_ticket_no = extraUpdates.vendorTicketNo
-      if (extraUpdates.vendorTechName !== undefined) dbUpdates.vendor_tech_name = extraUpdates.vendorTechName
-      if (extraUpdates.vendorTechPhone !== undefined) dbUpdates.vendor_tech_phone = extraUpdates.vendorTechPhone
-      if (extraUpdates.vendorServiceDate !== undefined) dbUpdates.vendor_service_date = extraUpdates.vendorServiceDate
-      if (extraUpdates.vendorJobSheetUrl !== undefined) dbUpdates.vendor_job_sheet_url = extraUpdates.vendorJobSheetUrl
-      if (extraUpdates.vendorRemarks !== undefined) dbUpdates.vendor_remarks = extraUpdates.vendorRemarks
-      if (extraUpdates.vendorCost !== undefined) dbUpdates.vendor_cost = extraUpdates.vendorCost
+    // Only stamp completed_at on the actual transition into Completed, not on a
+    // redundant re-submission of an already-completed order (see the matching
+    // guard on the completion effects below for why).
+    const stampCompletedAt = status === 'Completed' && targetWo?.status !== 'Completed'
+    const completedDateIso = getLocalDateStr()
+
+    const changes: Partial<WorkOrder> = { status }
+    if (mintedWoNumber) changes.woNumber = mintedWoNumber
+    if (remarks !== undefined) changes.technicianRemarks = remarks
+    if (stampCompletedAt) changes.completedAt = completedDateIso
+    // Execution details (checklist, photos, parts, vendor fields, assignment...)
+    // win over the defaults above, as they did when this built the update by hand.
+    for (const [key, value] of Object.entries(extraUpdates ?? {})) {
+      if (value !== undefined) (changes as Record<string, unknown>)[key] = value
     }
 
-    // wo_number itself is re-minted server-side by a DB trigger (see
-    // supabase/migrations/0014_server_side_ticket_numbering.sql) whenever
-    // this transition applies -- the client's mintedWoNumber above is only
-    // an optimistic guess (computed from an RLS-scoped, possibly-incomplete
-    // view) used for a snappy UI. Reconcile local state below if the DB's
-    // authoritative number came back different.
-    supabase.from('work_orders').update(dbUpdates).or(`id.eq.${id},wo_number.eq.${id}`).select().single().then(({ data, error }) => {
-      if (error) {
-        console.error('Supabase work_order update error:', error.message)
+    // Save first: the change shows at once and is undone with a toast if the
+    // database refuses it. The follow-on effects (asset status and log, the
+    // linked service request, the next recurring preventive order) only run once
+    // it has saved -- before, they ran regardless, from inside a state updater
+    // that React may run twice in development.
+    void (async () => {
+      let saved: { id: string; woNumber: string } | null
+      try {
+        saved = await updateWorkOrderMutation.mutateAsync({ id: targetWo?.id ?? id, changes })
+      } catch {
         return
       }
-      const realWoNumber: string | undefined = data?.wo_number
-      if (isFirstAssignment && realWoNumber && realWoNumber !== mintedWoNumber) {
-        setWorkOrders(prev => prev.map(w => (w.id === data.id ? { ...w, woNumber: realWoNumber } : w)))
-        if (targetWoForMint?.source === 'Service Request' && targetWoForMint.sourceRefId) {
-          updateServiceRequestStatus(targetWoForMint.sourceRefId, 'In Progress', { workOrderNumber: realWoNumber })
+      if (!targetWo) return
+      const woNumber = saved?.woNumber ?? mintedWoNumber ?? targetWo.woNumber
+
+      if (isFirstAssignment) {
+        // A Corrective WO getting its first assignment puts the asset
+        // 'Under Maintenance' immediately -- it doesn't wait for a separate
+        // "start work" step. Preventive only flips when explicitly started.
+        if (targetWo.type === 'Corrective' && targetWo.assetId) {
+          updateAssetStatus(targetWo.assetId, 'Under Maintenance')
+        }
+        // A Corrective WO raised from a Service Request left the ticket stamped
+        // with the PENDING placeholder -- carry the real number over onto it.
+        if (targetWo.source === 'Service Request' && targetWo.sourceRefId) {
+          updateServiceRequestStatus(targetWo.sourceRefId, 'In Progress', { workOrderNumber: woNumber })
         }
       }
-    })
 
-    // If a Corrective WO is being minted for the first time (i.e. just
-    // assigned), the asset goes 'Under Maintenance' immediately -- it
-    // doesn't wait for a separate "start work" step. Preventive's existing
-    // behavior (only flips when explicitly started) is unchanged.
-    if (isFirstAssignment && targetWoForMint?.type === 'Corrective' && targetWoForMint.assetId) {
-      updateAssetStatus(targetWoForMint.assetId, 'Under Maintenance')
-    }
-
-    // If this Corrective WO was raised from a Service Request, the ticket
-    // was stamped with the PENDING placeholder at raise time -- now that a
-    // real number exists, carry it over onto the ticket too.
-    if (isFirstAssignment && mintedWoNumber && targetWoForMint?.source === 'Service Request' && targetWoForMint.sourceRefId) {
-      updateServiceRequestStatus(targetWoForMint.sourceRefId, 'In Progress', { workOrderNumber: mintedWoNumber })
-    }
-
-    setWorkOrders(prev => {
-      let nextRecurringPmWo: WorkOrder | null = null
-
-      const nextList = prev.map(w => {
-        if (w.id === id || w.woNumber === id) {
-          const updated: WorkOrder = {
-            ...w,
-            ...extraUpdates,
-            status,
-            woNumber: mintedWoNumber || w.woNumber,
-            technicianRemarks: remarks || w.technicianRemarks,
-          }
-          // w.status (not the new `status` param) is the PRE-update status --
-          // gating on it too makes completion idempotent. Without this, a
-          // second "Completed" call (e.g. a technician re-opening an
-          // already-completed task and hitting Complete again) would
-          // re-stamp completedAt to now, re-run every side effect, and for
-          // a Preventive WO mint a duplicate recurring PM work order.
-          if (status === 'Completed' && w.status !== 'Completed') {
-            const completedDateIso = getLocalDateStr()
-            updated.completedAt = completedDateIso
-            if (w.assetId) {
-              updateAssetStatus(w.assetId, 'Operational')
-              const completionLabel =
-                w.type === 'Preventive' ? 'Preventive Maintenance Completed' :
-                w.type === 'Corrective' ? 'Corrective Maintenance Completed' :
-                'Housekeeping Completed'
-              addAssetLog({
-                assetId: w.assetId,
-                action: completionLabel,
-                byUser: currentUser.fullName,
-                source: 'Manual',
-                referenceId: updated.woNumber,
-                remarks: remarks || 'Work Order completed successfully.',
-              })
-            }
-
-            // If this Work Order was triggered by a Service Request, auto-resolve
-            // the ticket -- persisted via updateServiceRequestStatus (previously
-            // this only updated local React state and was silently lost on reload).
-            if (w.source === 'Service Request' && w.sourceRefId) {
-              updateServiceRequestStatus(w.sourceRefId, 'Resolved')
-            }
-
-            // If this was a Preventive Maintenance Work Order, auto-schedule next
-            // interval -- anchored on the date it was ACTUALLY completed, never
-            // the original due date (a PM finished late shouldn't push every
-            // future cycle later forever).
-            if (w.type === 'Preventive') {
-              const interval = w.frequency || 'Quarterly'
-              const baseDate = completedDateIso
-              const nextDueDate = addIntervalToDate(baseDate, interval)
-              const nextWoUuid = generateUUID()
-              const nextWoNumber = makePendingWoNumber(nextWoUuid)
-
-              nextRecurringPmWo = {
-                id: nextWoUuid,
-                woNumber: nextWoNumber,
-                title: w.title || `Preventive Maintenance (${interval})`,
-                type: 'Preventive',
-                assetId: w.assetId,
-                roomId: w.roomId,
-                source: 'Scheduled',
-                frequency: interval,
-                dueDate: nextDueDate,
-                status: 'Scheduled',
-                checklistTemplateId: w.checklistTemplateId,
-                checklistSnapshot: w.checklistSnapshot,
-                createdAt: completedDateIso,
-              }
-
-              supabase.from('work_orders').insert([{
-                id: nextWoUuid,
-                wo_number: nextWoNumber,
-                title: nextRecurringPmWo.title,
-                type: 'Preventive',
-                asset_id: w.assetId || null,
-                room_id: w.roomId || null,
-                priority: 'Medium',
-                source: 'Scheduled',
-                frequency: interval,
-                due_date: nextDueDate,
-                status: 'Scheduled',
-                checklist_template_id: w.checklistTemplateId || null,
-                checklist_snapshot: w.checklistSnapshot || [],
-                created_at: new Date().toISOString(),
-              }]).then(({ error }) => {
-                if (error) console.error('Supabase recurring PM WO insert error:', error.message)
-              })
-            }
-          } else if (status === 'In Progress') {
-            if (w.assetId) {
-              updateAssetStatus(w.assetId, 'Under Maintenance')
-              addAssetLog({
-                assetId: w.assetId,
-                action: 'Under Maintenance',
-                byUser: currentUser.fullName,
-                source: 'System',
-                referenceId: updated.woNumber,
-              })
-            }
-          }
-          return updated
+      // Gating on the PRE-update status makes completion idempotent. Without it,
+      // a second "Completed" call (e.g. a technician re-opening an
+      // already-completed task and hitting Complete again) would re-run every
+      // side effect and, for a Preventive WO, mint a duplicate recurring order.
+      if (stampCompletedAt) {
+        if (targetWo.assetId) {
+          updateAssetStatus(targetWo.assetId, 'Operational')
+          const completionLabel =
+            targetWo.type === 'Preventive' ? 'Preventive Maintenance Completed' :
+            targetWo.type === 'Corrective' ? 'Corrective Maintenance Completed' :
+            'Housekeeping Completed'
+          addAssetLog({
+            assetId: targetWo.assetId,
+            action: completionLabel,
+            byUser: currentUser.fullName,
+            source: 'Manual',
+            referenceId: woNumber,
+            remarks: remarks || 'Work Order completed successfully.',
+          })
         }
-        return w
-      })
 
-      if (nextRecurringPmWo) {
-        return [nextRecurringPmWo, ...nextList]
+        // If this Work Order was triggered by a Service Request, auto-resolve the
+        // ticket (persisted through the same query layer).
+        if (targetWo.source === 'Service Request' && targetWo.sourceRefId) {
+          updateServiceRequestStatus(targetWo.sourceRefId, 'Resolved')
+        }
+
+        // A completed Preventive Maintenance order schedules the next interval,
+        // anchored on the date it was ACTUALLY completed, never the original due
+        // date (a PM finished late shouldn't push every future cycle later forever).
+        if (targetWo.type === 'Preventive') {
+          const interval = targetWo.frequency || 'Quarterly'
+          const nextWoUuid = generateUUID()
+          addWorkOrdersMutation.mutate([{
+            id: nextWoUuid,
+            woNumber: makePendingWoNumber(nextWoUuid),
+            title: targetWo.title || `Preventive Maintenance (${interval})`,
+            type: 'Preventive',
+            assetId: targetWo.assetId,
+            roomId: targetWo.roomId,
+            priority: 'Medium',
+            source: 'Scheduled',
+            frequency: interval,
+            dueDate: addIntervalToDate(completedDateIso, interval),
+            status: 'Scheduled',
+            checklistTemplateId: targetWo.checklistTemplateId,
+            checklistSnapshot: targetWo.checklistSnapshot,
+            createdAt: completedDateIso,
+          }])
+        }
+      } else if (status === 'In Progress') {
+        if (targetWo.assetId) {
+          updateAssetStatus(targetWo.assetId, 'Under Maintenance')
+          addAssetLog({
+            assetId: targetWo.assetId,
+            action: 'Under Maintenance',
+            byUser: currentUser.fullName,
+            source: 'System',
+            referenceId: woNumber,
+          })
+        }
       }
-      return nextList
-    })
+    })()
   }
 
   const addInspection = (insp: Omit<Inspection, 'id' | 'createdAt'>) => {
@@ -1976,6 +1774,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         const newCorrectiveWo: WorkOrder = {
           id: correctiveWoUuid,
           woNumber: correctiveWoNumber,
+          title: `Corrective: Defect from ${ins.inspectionNumber}`,
           type: 'Corrective',
           assetId: ins.assetId,
           source: 'Failed Inspection',
@@ -1985,23 +1784,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           issueLogged: `Failed inspection item during inspection: ${remarks}`,
           createdAt: completedDateIso,
         }
-        setWorkOrders(wos => [newCorrectiveWo, ...wos])
-
-        supabase.from('work_orders').insert([{
-          id: correctiveWoUuid,
-          wo_number: correctiveWoNumber,
-          title: `Corrective: Defect from ${ins.inspectionNumber}`,
-          type: 'Corrective',
-          asset_id: ins.assetId,
-          source: 'Failed Inspection',
-          source_ref_id: ins.inspectionNumber,
-          due_date: newCorrectiveWo.dueDate,
-          status: 'Scheduled',
-          issue_logged: newCorrectiveWo.issueLogged,
-          created_at: new Date().toISOString(),
-        }]).then(({ error }) => {
-          if (error) console.error('Supabase corrective WO insert error:', error.message)
-        })
+        addWorkOrdersMutation.mutate([newCorrectiveWo])
 
         addAssetLog({
           assetId: ins.assetId,
