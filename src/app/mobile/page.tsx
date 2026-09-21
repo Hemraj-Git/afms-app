@@ -797,6 +797,13 @@ function MobileFieldAppContent() {
       showToast('error', 'Please select a room.')
       return
     }
+    // A Maintenance request must name the equipment when the room has any (there is no
+    // "general room fixture" choice any more). A room with no registered equipment
+    // still logs against the room itself.
+    if (reqType === 'Maintenance' && assetsInReqRoom.length > 0 && !reqAssetId) {
+      showToast('error', 'Please select the equipment that needs attention.')
+      return
+    }
     if (!reqDescription.trim()) {
       showToast('error', 'Please describe the problem or service needed.')
       return
@@ -986,7 +993,7 @@ function MobileFieldAppContent() {
         {reqType === 'Maintenance' && reqRoomId && (
           <div className="space-y-1">
             <label className="block text-[12px] font-bold text-slate-400 uppercase">
-              Equipment in Room ({assetsInReqRoom.length} available):
+              Equipment in Room ({assetsInReqRoom.length} available): {assetsInReqRoom.length > 0 && <span className="text-rose-400">*</span>}
             </label>
             {assetsInReqRoom.length === 0 ? (
               <p className="text-[12px] text-amber-400 italic p-2 bg-amber-950/20 border border-amber-500/20 rounded-lg">
@@ -996,9 +1003,10 @@ function MobileFieldAppContent() {
               <select
                 value={reqAssetId}
                 onChange={e => setReqAssetId(e.target.value)}
+                required
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium focus:ring-1 focus:ring-blue-500"
               >
-                <option value="">-- General Room Fixture (AC, Lighting, Switchboard) --</option>
+                <option value="" disabled>-- Select the equipment --</option>
                 {assetsInReqRoom.map(a => (
                   <option key={a.id} value={a.id}>
                     {a.assetId} — {a.name} ({a.manufacturer || 'Equipment'})
