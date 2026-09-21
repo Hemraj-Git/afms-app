@@ -112,7 +112,7 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
 
 ---
 
-- [ ] **6.4 Asset activity timeline** — open an asset's *Activity & History* tab. Complete a work order for it **once** → exactly **one** "…Maintenance Completed" entry appears. Complete another inspection → one "Inspection Done/Failed". Each shows `Ref: #` with the **real** number (e.g. `WO-CR-2026-0007`, `INSP-2026-0003`) and it is **still the same after a reload** (it used to change to made-up `EVT-101…` labels). "Asset Created" / "Asset Updated" entries show no Ref. Older entries from before 21 Sep may show no Ref, and a few old ones are duplicated (see `PENDING-WORK.md` 4.5).
+- [ ] **6.4 Asset activity timeline** — open an asset's *Activity & History* tab. Complete a work order for it **once** → exactly **one** "…Maintenance Completed" entry appears. Complete another inspection → one "Inspection Done/Failed". Each shows `Ref: #` with the **real** number (e.g. `WO-CR-2026-0007`, `INSP-2026-0003`) and it is **still the same after a reload** (it used to change to made-up `EVT-101…` labels). "Asset Created" / "Asset Updated" entries show no Ref. Older entries from before 21 Sep show no Ref (the old duplicated entries have been removed).
 
 ---
 

@@ -46,4 +46,4 @@ The database is already ahead of production, so deploy soon after testing.
 
 - Whether to add TanStack Table + pagination now or after the demo (you said later).
 - **Remove the three anonymous write policies?** (`PENDING-WORK.md` 3.1). I reviewed them: nothing in the app uses them and they let anyone with the public key insert fake access logs or spam tickets. Say "drop them" and I apply it (a small migration; tested to leave guest check-in and ticket raising working).
-- **Delete the 9 duplicate rows in the asset timeline?** (`PENDING-WORK.md` 4.5). They are old artefacts from development. Say "clean the timeline" and I remove only those 9, keeping one copy of each, and show you the result.
+- ~~Delete the 9 duplicate asset-timeline rows~~ — done (`PENDING-WORK.md` 4.5).

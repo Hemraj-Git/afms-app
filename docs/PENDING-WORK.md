@@ -44,7 +44,7 @@ Priority: **H** = do soon, **M** = next release, **L** = later / optional.
 | 4.2 | 24 "multiple permissive policies" warnings | L | Expected with "Admin all" + own-row policies. Merge only if performance needs it. |
 | 4.3 | Test guest profiles from development | L | ~22 `Guest` profiles exist, mostly from testing. Clean before a real rollout. |
 | 4.4 | `unit` on inventory items has no column | L | Every item reads back as "Units". Add a column if units matter. |
-| 4.5 | **Duplicate asset-timeline rows from before 21 Sep** | M | 9 rows (8 "Corrective Maintenance Completed" + 1 "Inspection Done") were written twice by the old code (React ran a state update twice in development; pairs have identical or 1–2 ms apart timestamps). New events are recorded once and can no longer repeat. Deleting the old copies is a data change to the activity log, so it waits for your approval; the exact rows are in the 21 Sep review and can be listed again. |
+| 4.5 | ~~Duplicate asset-timeline rows~~ | — | **Done 21 Sep:** the 9 duplicate rows the old code wrote before 21 Sep (React ran a state update twice in development) were removed, keeping one copy of each; 59 → 50 rows. New events are recorded once and cannot repeat. |
 | 4.6 | Older timeline entries have no reference number | L | `asset_activity_logs.reference_id` is new (migration 0037); events recorded before it show no "Ref". Backfill from work orders / inspections only if needed. |
 
 ## 5. Product behaviour worth a decision later
