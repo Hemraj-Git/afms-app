@@ -50,6 +50,8 @@ Priority: **H** = do soon, **M** = next release, **L** = later / optional.
 
 ## 5. Product behaviour worth a decision later
 
+- **Vendor handover is a flag, not a status:** a job handed to a vendor is "In Progress" with *Execution Mode = Vendor* (shown as a **With vendor** tag). There is no separate status, no vendor-facing portal or email/SMS to the vendor, no tracking of the vendor's SLA or invoice approval, and the vendor cost is shown on the work order but not yet in *Reports*. Only the **Corrective** flow supports a handover. A job handed over and closed in the same save sends no Admin alert.
+
 - **Reassigned work orders:** a technician whose order is reassigned away receives no live event; it disappears after they refocus the app. (Documented, accepted.)
 - **Realtime connections:** one websocket per open app instance. Check the Supabase plan's concurrent-connection and message limits before a large rollout (the app already drops the connection after 30 s hidden).
 - **Follow-on effects timing:** work-order / inspection completion now saves first and then creates follow-ups, so next-cycle records appear after a short save delay rather than instantly.

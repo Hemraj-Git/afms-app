@@ -57,6 +57,8 @@ const HK_CHECKLIST_ITEMS: ChecklistItemDef[] = [
 ]
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
+import { isOpenWorkOrder, isWithVendor, validateVendorHandover } from '@/lib/workOrderState'
+import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import { NotificationBell } from '@/components/mobile/NotificationBell'
 import { QrScanner } from '@/components/mobile/QrScanner'
 import { uploadToStorage, readFileAsDataUrl, validateUpload } from '@/lib/storageUpload'
@@ -529,37 +531,37 @@ function MobileFieldAppContent() {
       if (hkFilter === 'Scheduled') return w.status === 'Scheduled'
       if (hkFilter === 'In Progress') return w.status === 'In Progress'
       if (hkFilter === 'Completed') return w.status === 'Completed'
-      return w.status !== 'Completed'
+      return isOpenWorkOrder(w)
     })
   }, [housekeepingWorkOrders, hkFilter])
 
   // KPIs for Housekeeping
-  const totalHkAssigned = housekeepingWorkOrders.length
+  // Open work only (not Completed / Cancelled): drives the Cleaning badge and the
+  // "Open Orders" card.
+  const totalHkAssigned = housekeepingWorkOrders.filter(isOpenWorkOrder).length
   const hkScheduledCount = housekeepingWorkOrders.filter(w => w.status === 'Scheduled').length
   const hkInProgressCount = housekeepingWorkOrders.filter(w => w.status === 'In Progress').length
   const hkCompletedCount = housekeepingWorkOrders.filter(w => w.status === 'Completed').length
-  const hkOverdueCount = housekeepingWorkOrders.filter(
-    w => w.status !== 'Completed' && w.dueDate < getLocalDateStr()
-  ).length
+  const hkOverdueCount = housekeepingWorkOrders.filter(isWorkOrderOverdue).length
 
   // Filtered Technician Work Orders
   const displayedWorkOrders = useMemo(() => {
     return technicianWorkOrders.filter(w => {
-      if (woFilter === 'Preventive') return w.type === 'Preventive' && w.status !== 'Completed'
-      if (woFilter === 'Corrective') return w.type === 'Corrective' && w.status !== 'Completed'
+      if (woFilter === 'Preventive') return w.type === 'Preventive' && isOpenWorkOrder(w)
+      if (woFilter === 'Corrective') return w.type === 'Corrective' && isOpenWorkOrder(w)
       if (woFilter === 'Completed') return w.status === 'Completed'
-      return w.status !== 'Completed'
+      return isOpenWorkOrder(w)
     })
   }, [technicianWorkOrders, woFilter])
 
   // KPIs for Technician
-  const totalAssigned = technicianWorkOrders.length
-  const pmCount = technicianWorkOrders.filter(w => w.type === 'Preventive' && w.status !== 'Completed').length
-  const correctiveCount = technicianWorkOrders.filter(w => w.type === 'Corrective' && w.status !== 'Completed').length
+  // Open work only (not Completed / Cancelled): drives the Tasks badge and the
+  // "Open Work Orders" card.
+  const totalAssigned = technicianWorkOrders.filter(isOpenWorkOrder).length
+  const pmCount = technicianWorkOrders.filter(w => w.type === 'Preventive' && isOpenWorkOrder(w)).length
+  const correctiveCount = technicianWorkOrders.filter(w => w.type === 'Corrective' && isOpenWorkOrder(w)).length
   const completedCount = technicianWorkOrders.filter(w => w.status === 'Completed').length
-  const overdueCount = technicianWorkOrders.filter(
-    w => w.status !== 'Completed' && w.dueDate < getLocalDateStr()
-  ).length
+  const overdueCount = technicianWorkOrders.filter(isWorkOrderOverdue).length
 
   // Assigned Inspections for Current User (Faculty, Technician, Admin, etc.)
   const userInspections = useMemo(() => {
@@ -687,7 +689,7 @@ function MobileFieldAppContent() {
     
     // Find vendor from asset or work order
     const assetObj = assets.find(a => a.id === wo.assetId || a.assetId === wo.assetId)
-    setSelectedVendorId(wo.vendorId || assetObj?.maintenanceVendorId || vendors[0]?.id || '')
+    setSelectedVendorId(wo.vendorId || assetObj?.maintenanceVendorId || '')
     setVendorTicketNo(wo.vendorTicketNo || '')
     setVendorTechName(wo.vendorTechName || '')
     setVendorTechPhone(wo.vendorTechPhone || '')
@@ -739,11 +741,22 @@ function MobileFieldAppContent() {
     // Proof of Presence Check -- previously only enforced for Corrective/
     // In-House, even though the Preventive start photo is also labeled
     // "*Required at Start" in the UI. Both are enforced now.
-    if (status === 'Completed' && !startPhoto) {
+    const isVendorJob = selectedWorkOrder.type === 'Corrective' && correctiveMode === 'Vendor'
+    if (isVendorJob) {
+      const problem = validateVendorHandover({ vendorId: selectedVendorId, vendorTicketNo }, status)
+      if (problem) {
+        showToast('error', problem)
+        return
+      }
+    }
+
+    // A vendor job is done by someone else, so there is no technician start photo
+    // to take -- the vendor's job sheet is the proof instead.
+    if (status === 'Completed' && !isVendorJob && !startPhoto) {
       showToast('error', 'Please capture a photo at job start as proof of presence before completing this task.')
       return
     }
-    if (selectedWorkOrder.type === 'Corrective' && correctiveMode === 'In House' && status === 'Completed' && !completionPhoto) {
+    if (selectedWorkOrder.type === 'Corrective' && !isVendorJob && status === 'Completed' && !completionPhoto) {
       showToast('error', 'Please capture a completion photo before marking this job complete.')
       return
     }
@@ -759,7 +772,7 @@ function MobileFieldAppContent() {
       partsReplaced: partsList.length > 0 ? partsList : undefined,
     }
 
-    if (correctiveMode === 'Vendor') {
+    if (isVendorJob) {
       extraUpdates.vendorId = selectedVendorId
       extraUpdates.vendorTicketNo = vendorTicketNo
       extraUpdates.vendorTechName = vendorTechName
@@ -899,7 +912,7 @@ function MobileFieldAppContent() {
 
 
   // Selected Vendor object for Contact details
-  const selectedVendorObj = vendors.find(v => v.id === selectedVendorId) || vendors[0]
+  const selectedVendorObj = vendors.find(v => v.id === selectedVendorId)
 
   // Completed records open the same execution modal as a "View Details"
   // read-only view (see displayedWorkOrders/displayedHkOrders "Completed"
@@ -1130,7 +1143,7 @@ function MobileFieldAppContent() {
                 AFMS
               </div>
               <div>
-                <span className="font-bold text-sm text-white tracking-tight">Field Operations PWA</span>
+                <span className="font-bold text-sm text-white tracking-tight">Field Operations</span>
                 <span className="block text-[12px] text-blue-400 font-mono">v2.4</span>
               </div>
             </div>
@@ -1229,10 +1242,10 @@ function MobileFieldAppContent() {
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 space-y-1">
                   <div className="flex items-center justify-between text-blue-400">
                     <ClipboardList className="w-4 h-4" />
-                    <span className="text-[12px] font-bold text-slate-400 uppercase">Assigned</span>
+                    <span className="text-[12px] font-bold text-slate-400 uppercase">Open</span>
                   </div>
                   <p className="text-xl font-black text-white">{totalAssigned}</p>
-                  <p className="text-[12px] text-slate-400">Total Work Orders</p>
+                  <p className="text-[12px] text-slate-400">Open Work Orders</p>
                 </div>
 
                 <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-2xl p-3 space-y-1">
@@ -1333,6 +1346,11 @@ function MobileFieldAppContent() {
                             }`}>
                               {wo.type}
                             </span>
+                            {isWithVendor(wo) && (
+                              <span className="px-2 py-0.5 rounded-md text-[12px] font-bold border bg-amber-500/20 text-amber-300 border-amber-500/30">
+                                With vendor
+                              </span>
+                            )}
                           </div>
 
                           <span className={`px-2 py-0.5 rounded-full text-[12px] font-bold border ${priorityColor}`}>
@@ -1421,10 +1439,10 @@ function MobileFieldAppContent() {
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 space-y-1">
                   <div className="flex items-center justify-between text-purple-400">
                     <Sparkles className="w-4 h-4" />
-                    <span className="text-[12px] font-bold text-slate-400 uppercase">Assigned</span>
+                    <span className="text-[12px] font-bold text-slate-400 uppercase">Open</span>
                   </div>
                   <p className="text-xl font-black text-white">{totalHkAssigned}</p>
-                  <p className="text-[12px] text-slate-400">Housekeeping Orders</p>
+                  <p className="text-[12px] text-slate-400">Open Orders</p>
                 </div>
 
                 <div className="bg-amber-950/30 border border-amber-500/20 rounded-2xl p-3 space-y-1">
@@ -2688,13 +2706,16 @@ function MobileFieldAppContent() {
                       
                       {/* Vendor Selector */}
                       <div className="space-y-1">
-                        <label className="block text-[12px] font-bold text-slate-400 uppercase">Select Service Vendor:</label>
+                        <label className="block text-[12px] font-bold text-slate-400 uppercase">
+                          Select Service Vendor: <span className="text-amber-400 normal-case font-semibold">*Required</span>
+                        </label>
                         <select
                           value={selectedVendorId}
                           onChange={e => setSelectedVendorId(e.target.value)}
                           disabled={isWoReadOnly}
                           className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-medium focus:ring-1 focus:ring-amber-500 disabled:opacity-60"
                         >
+                          <option value="" disabled>-- Select the vendor --</option>
                           {vendors.map(v => (
                             <option key={v.id} value={v.id}>
                               {v.name} ({v.categorySupplied})
@@ -2748,7 +2769,9 @@ function MobileFieldAppContent() {
 
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
-                            <label className="block text-[12px] text-slate-400">Vendor Ticket / Job No:</label>
+                            <label className="block text-[12px] text-slate-400">
+                              Vendor Ticket / Job No: <span className="text-amber-400">*to complete</span>
+                            </label>
                             <input
                               type="text"
                               value={vendorTicketNo}
@@ -2793,6 +2816,21 @@ function MobileFieldAppContent() {
                               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono"
                             />
                           </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-[12px] text-slate-400">Vendor Cost (invoice amount):</label>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="0.01"
+                            value={vendorCost ?? ''}
+                            onChange={e => setVendorCost(e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)))}
+                            readOnly={isWoReadOnly}
+                            placeholder="0.00"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono"
+                          />
                         </div>
 
                         <div className="space-y-1">
@@ -3471,7 +3509,7 @@ export default function MobileFieldApp() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-          <div className="text-xs text-slate-400 font-semibold">Loading Field Operations PWA...</div>
+          <div className="text-xs text-slate-400 font-semibold">Loading Field Operations...</div>
         </div>
       }
     >
