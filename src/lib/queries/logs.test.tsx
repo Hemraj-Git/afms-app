@@ -102,7 +102,7 @@ describe('room access logs', () => {
   it('maps a row: nulls become absent, the room name starts as the room id', () => {
     const log = mapRoomAccessLogRow({
       id: 'l1', activity_number: null, auto_checkout_note: null, check_in_date: '2026-09-20', check_in_time: '10:00 AM',
-      check_in_timestamp: 1, check_out_time: null, check_out_timestamp: null, is_force_checkout: null, purpose: null,
+      check_in_timestamp: 1, check_out_time: null, check_out_timestamp: null, guest_email: null, is_force_checkout: null, purpose: null,
       room_id: 'room1', user_id: 'u1', user_name: 'Sam', user_role: null,
     })
     expect(log).toMatchObject({

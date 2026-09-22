@@ -692,6 +692,7 @@ export type Database = {
           check_in_timestamp: number
           check_out_time: string | null
           check_out_timestamp: number | null
+          guest_email: string | null
           id: string
           is_force_checkout: boolean | null
           purpose: string | null
@@ -708,6 +709,7 @@ export type Database = {
           check_in_timestamp: number
           check_out_time?: string | null
           check_out_timestamp?: number | null
+          guest_email?: string | null
           id: string
           is_force_checkout?: boolean | null
           purpose?: string | null
@@ -724,6 +726,7 @@ export type Database = {
           check_in_timestamp?: number
           check_out_time?: string | null
           check_out_timestamp?: number | null
+          guest_email?: string | null
           id?: string
           is_force_checkout?: boolean | null
           purpose?: string | null

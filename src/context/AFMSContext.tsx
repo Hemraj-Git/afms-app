@@ -416,9 +416,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // here, scoped to currentUser.id, fixes that at the source — Header.tsx
   // and the mobile PWA both just render whatever this holds.
   useEffect(() => {
-    const ownOpenLog = roomAccessLogs.find(l => l.userId === currentUser.id && !l.checkOutTime)
+    // A guest re-checks in as a brand-new anonymous account every login, so
+    // matching on userId alone missed a still-open check-in from an earlier
+    // login. RLS already scopes what a Guest's own fetched list contains to
+    // their account's and their email's logs (migration 0041) -- so for a
+    // Guest, any open log they can see is theirs; the list is newest-first,
+    // so .find already picks the most recent. Staff share no such scoping
+    // (they see everyone's logs), so they still match by userId.
+    const ownOpenLog = currentUser.role === 'Guest'
+      ? roomAccessLogs.find(l => !l.checkOutTime)
+      : roomAccessLogs.find(l => l.userId === currentUser.id && !l.checkOutTime)
     setActiveCheckIn(ownOpenLog || null)
-  }, [roomAccessLogs, currentUser.id])
+  }, [roomAccessLogs, currentUser.id, currentUser.role])
 
   const [isInitialized, setIsInitialized] = useState(false)
 
@@ -1827,14 +1836,33 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const nowDate = new Date()
     const now = nowDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     const nowTimestamp = nowDate.getTime()
-    // Scoped to the caller's own open log only — previously this matched
+    // Scoped to the caller's own open log(s) only — previously this matched
     // by room alone, so checking out could close a DIFFERENT user's still-
-    // open session in a shared room.
+    // open session in a shared room. For a Guest, "mine" is every log their
+    // own RLS-scoped list contains (their account's and their email's, see
+    // migration 0041) — otherwise a returning guest's new account could
+    // never optimistically close a still-open earlier login's entry.
+    const isMine = (l: RoomAccessLog) => (currentUser.role === 'Guest' ? true : l.userId === currentUser.id)
+    const sameRoom = (l: RoomAccessLog) => l.roomId === resolvedRoomId || l.roomId === roomId
+
+    // A room can now hold more than one open check-in at once; it only goes
+    // Available once none remain. Best-effort from what this session can already
+    // see (a Guest can't see a DIFFERENT guest's open log, so this may
+    // under-detect for them) — invalidateQueries below corrects it either way.
+    const priorLogs = queryClient.getQueryData<RoomAccessLog[]>(roomAccessLogKeys.list(currentUser.id)) ?? []
+    const stillOpenAfter = priorLogs.find(l => sameRoom(l) && !l.checkOutTime && !isMine(l))
+
     queryClient.setQueryData<RoomAccessLog[]>(roomAccessLogKeys.list(currentUser.id), prev =>
-      (prev ?? []).map(l => ((l.roomId === resolvedRoomId || l.roomId === roomId) && l.userId === currentUser.id && !l.checkOutTime ? { ...l, checkOutTime: now, checkOutTimestamp: nowTimestamp } : l))
+      (prev ?? []).map(l => (sameRoom(l) && isMine(l) && !l.checkOutTime ? { ...l, checkOutTime: now, checkOutTimestamp: nowTimestamp } : l))
     )
     queryClient.setQueryData<Room[]>(roomKeys.list(currentUser.id), prev =>
-      (prev ?? []).map(r => (r.id === resolvedRoomId || r.roomNumber === resolvedRoomId ? { ...r, status: 'Available', currentOccupant: undefined } : r))
+      (prev ?? []).map(r =>
+        r.id === resolvedRoomId || r.roomNumber === resolvedRoomId
+          ? stillOpenAfter
+            ? { ...r, status: 'Occupied', currentOccupant: stillOpenAfter.userName }
+            : { ...r, status: 'Available', currentOccupant: undefined }
+          : r
+      )
     )
 
     // Same atomicity fix as checkInRoom above — one RPC, log update and
