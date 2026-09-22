@@ -208,8 +208,11 @@ export function Sidebar({
       <div className="p-3 border-t border-slate-100 bg-slate-50/50 shrink-0">
         {!collapsed ? (
           <div className="bg-slate-100/80 rounded-xl p-3.5 text-center space-y-2 border border-slate-200/60">
+            <p className="text-[10px] text-slate-400 uppercase font-semibold">A Product of</p>
+            <div className="flex justify-center">
+              <img src="/images/hms-logo.svg" alt="" className="h-10 w-auto" />
+            </div>
             <div>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">A Product of</p>
               <p className="text-xs font-bold text-slate-800">HMS - Digital Solutions</p>
             </div>
             <button
