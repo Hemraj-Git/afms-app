@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local MCP tool config (not part of the app)
 .mcp.json
+
+# client data workbooks, import reports and load manifests (contain client data)
+/data-loads/

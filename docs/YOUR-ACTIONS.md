@@ -42,7 +42,18 @@ The database is already ahead of production, so deploy soon after testing.
 3. **You** say "promote to prod" and I push `main` to the `prod` remote (Vercel builds it). I never do this without that instruction.
 4. After the deploy, run the *smoke test* at the end of `TEST-CHECKLIST.md` on the production URL.
 
-## E. Decisions I need from you (any time)
+## E. Collecting the client's data (Excel)
+
+Full runbook: `DATA-LOAD.md`. From your side:
+
+1. **Tell me when the client's production database exists** (a Supabase project with migrations `0001`–`0042` applied) and give me its env file (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) **privately**, not in chat. Until then I test only on the current project.
+2. **Decide the data-entry deadline** with the client and who at their end fills each workbook (one person is easiest).
+3. **Send the client the Masters workbook first** (`npm run data:masters-template`), then the Assets workbook only after I have loaded their masters (it is built from them).
+4. **Open both workbooks in Excel once** yourself (checklist 6.14 and 6.15) before sending; I can check the file structure and the formulas, but not how Excel looks.
+5. **Decide before go-live** whether the asset-level SLA priority change (`PENDING-WORK.md` section 5) ships first; otherwise every maintenance request is locked to Medium.
+6. Photos and documents are not part of the Excel files: agree a folder-per-asset hand-over with the client.
+
+## F. Decisions I need from you (any time)
 
 - Whether to add TanStack Table + pagination now or after the demo (you said later).
 - **Remove the three anonymous write policies?** (`PENDING-WORK.md` 3.1). I reviewed them: nothing in the app uses them and they let anyone with the public key insert fake access logs or spam tickets. Say "drop them" and I apply it (a small migration; tested to leave guest check-in and ticket raising working).

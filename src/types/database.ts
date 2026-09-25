@@ -89,6 +89,7 @@ export type Database = {
           qr_code_url: string | null
           room_id: string | null
           serial_number: string | null
+          sla_priority: string | null
           status: string | null
           sub_category_id: string | null
           warranty_till: string | null
@@ -118,6 +119,7 @@ export type Database = {
           qr_code_url?: string | null
           room_id?: string | null
           serial_number?: string | null
+          sla_priority?: string | null
           status?: string | null
           sub_category_id?: string | null
           warranty_till?: string | null
@@ -147,6 +149,7 @@ export type Database = {
           qr_code_url?: string | null
           room_id?: string | null
           serial_number?: string | null
+          sla_priority?: string | null
           status?: string | null
           sub_category_id?: string | null
           warranty_till?: string | null

@@ -50,6 +50,7 @@ Priority: **H** = do soon, **M** = next release, **L** = later / optional.
 
 ## 5. Product behaviour worth a decision later
 
+- **SLA priority: move it from the sub-category to the asset (app change pending).** The client's equipment workbook already asks for a priority per asset and the loader stores it in `assets.sla_priority` (migration 0042), but the app does not read it yet: the Maintenance request form is still locked to the *sub-category's* priority, and the new Masters workbook no longer asks for that, so every sub-category loads as Medium. To finish: set it in the asset wizard and bulk import, lock the request form to the asset's priority (fall back to the sub-category's for older assets), and stop showing it on the sub-category screen. **Do this before the client goes live**, or every request will be Medium. See `DATA-LOAD.md`.
 - **Vendor handover is a flag, not a status:** a job handed to a vendor is "In Progress" with *Execution Mode = Vendor* (shown as a **With vendor** tag). There is no separate status, no vendor-facing portal or email/SMS to the vendor, no tracking of the vendor's SLA or invoice approval, and the vendor cost is shown on the work order but not yet in *Reports*. Only the **Corrective** flow supports a handover. A job handed over and closed in the same save sends no Admin alert.
 
 - **Reassigned work orders:** a technician whose order is reassigned away receives no live event; it disappears after they refocus the app. (Documented, accepted.)
@@ -66,6 +67,8 @@ Priority: **H** = do soon, **M** = next release, **L** = later / optional.
 | 6.3 | **Update the published roadmap artifact** | M | It still describes the plan as it stood after the audit. |
 | 6.4 | Very large files | L | `reports/page.tsx` (~1,700 lines) and several 700–1,000-line pages; `AFMSContext.tsx` is now ~2,100 lines (was 3,247) and is mostly thin wrappers. Split when touching them. |
 | 6.5 | Delete merged local branches | L | `fix/critical-role-escalation`, `fix/high-severity`, `fix/medium-severity`, `fix/low-severity`, `feat/skeleton-loading`, `feat/realtime`, `chore/test-tooling`, `feat/query-migration` are all inside `main`. (`origin/subh-update` is someone else's; left alone.) |
+| 6.7 | **In-app data importer** | L | Client data is loaded once by a script (`docs/DATA-LOAD.md`, `src/lib/dataLoad/`, `scripts/data/`). If the client will keep bulk-loading, put a screen on the same parse/validate/build modules (dry-run, downloadable error report). The old asset importer (`src/utils/assetExcelUtils.ts`) still reads the first sheet only, guesses at near-matches, labels cost in USD and uses the `xlsx` library with the unpatched vulnerability; retire it when the new importer exists. |
+| 6.8 | **Pin the Node version** | L | `npm test` does not start on Node 20 (jsdom's dependency needs a newer Node); Node 24 works. Add `engines` to `package.json` and an `.nvmrc`, and set the same version in Vercel. |
 | 6.6 | **Promote to production** | — | `prod/main` is still at `e298d74`. Promotion is a separate, explicit step. The database changes for Phases 1–4C and 0035–0036 are already live and were built to work with the old code. |
 
 ## 7. Known limits carried over (not bugs to fix now)
