@@ -65,8 +65,22 @@ export async function inviteUser(input: {
   }
 
   // handle_new_user() (the SECURITY DEFINER trigger on auth.users insert)
-  // auto-creates the matching profiles row from the metadata above — no
-  // separate insert needed here.
+  // auto-creates the matching profiles row from the metadata above, but no
+  // longer trusts a role asked for in that metadata (anyone signing up could
+  // ask for Admin; migration 0045). This server-side Admin action sets the
+  // role itself: in app_metadata (only the service role can write it) and on
+  // the profile.
+  const { error: roleError } = await admin.auth.admin.updateUserById(data.user.id, {
+    app_metadata: { role: input.role },
+  })
+  const { error: profileError } = await admin.from('profiles').update({ role: input.role }).eq('id', data.user.id)
+  if (roleError || profileError) {
+    return {
+      success: false,
+      error: `Invite sent, but the role could not be set (${(roleError || profileError)?.message}). Set it in Users → Edit.`,
+    }
+  }
+
   return {
     success: true,
     profile: {
