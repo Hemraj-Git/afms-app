@@ -40,6 +40,14 @@ export async function inviteUser(input: {
     return { success: false, error: 'Only Admins can add new users.' }
   }
 
+  // The dropdown only offers these four, so this is reachable only by calling
+  // the action directly -- but 'Guest' must never be invitable: a Guest cannot
+  // afterwards be given a staff role (see updateUserProfile), so such an
+  // account would be stuck.
+  if (!EDITABLE_ROLES.includes(input.role)) {
+    return { success: false, error: 'Invalid role.' }
+  }
+
   const email = input.email.trim()
   const fullName = input.fullName.trim()
   const phone = input.phone?.trim() || ''
@@ -64,20 +72,22 @@ export async function inviteUser(input: {
     return { success: false, error: error?.message || 'Could not send the invite email.' }
   }
 
-  // handle_new_user() (the SECURITY DEFINER trigger on auth.users insert)
-  // auto-creates the matching profiles row from the metadata above, but no
-  // longer trusts a role asked for in that metadata (anyone signing up could
-  // ask for Admin; migration 0045). This server-side Admin action sets the
-  // role itself: in app_metadata (only the service role can write it) and on
-  // the profile.
-  const { error: roleError } = await admin.auth.admin.updateUserById(data.user.id, {
-    app_metadata: { role: input.role },
-  })
+  // handle_new_user() (the trigger on the auth.users insert) creates the
+  // matching profiles row, but grants nothing a caller asked for: it starts
+  // every invited account as 'Faculty'. The real role is applied a moment later
+  // by apply_invited_role(), when Supabase stamps invited_at (migration 0048).
+  // This write makes that certain rather than relying on the timing, and is
+  // what keeps the role right if either trigger is ever changed.
   const { error: profileError } = await admin.from('profiles').update({ role: input.role }).eq('id', data.user.id)
-  if (roleError || profileError) {
+  if (profileError) {
+    // Don't leave a half-made account behind: the invitee would otherwise exist
+    // as a Faculty who was never told about it.
+    const { error: cleanupError } = await admin.auth.admin.deleteUser(data.user.id)
     return {
       success: false,
-      error: `Invite sent, but the role could not be set (${(roleError || profileError)?.message}). Set it in Users → Edit.`,
+      error: cleanupError
+        ? `Could not set the role (${profileError.message}), and the half-created account could not be removed. Check Users for "${email}".`
+        : `Could not set the role (${profileError.message}). Nothing was created -- please try again.`,
     }
   }
 

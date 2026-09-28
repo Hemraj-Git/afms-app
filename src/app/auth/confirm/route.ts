@@ -1,6 +1,7 @@
 import { type EmailOtpType } from '@supabase/supabase-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeNextPath } from '@/lib/safeRedirect'
 
 // Server-side exchange for every email-link auth flow (invite, magic link,
 // signup confirmation, password recovery). This is the pattern Supabase's
@@ -18,22 +19,36 @@ import { createClient } from '@/lib/supabase/server'
 // Reset password) email templates in the Supabase Dashboard to point here:
 // {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite
 // instead of the default {{ .ConfirmationURL }}.
+// The app only ever sends two kinds of email link: the Admin invite and the
+// password reset. `EmailOtpType` also covers magiclink / signup / email_change,
+// which nothing here issues, and the cast below buys no safety at all (the type
+// is `string & {}` at the edges), so the value is checked against this list
+// before it reaches verifyOtp. Adding an email template means adding its type
+// here too.
+const ALLOWED_TYPES = ['invite', 'recovery'] as const
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const token_hash = searchParams.get('token_hash')
-  const type = searchParams.get('type') as EmailOtpType | null
-  const next = searchParams.get('next') ?? '/auth/set-password'
+  const rawType = searchParams.get('type')
+  const type = (ALLOWED_TYPES as readonly string[]).includes(rawType ?? '')
+    ? (rawType as EmailOtpType)
+    : null
+  // Attacker-controlled, and this route hands out a session, so it is checked
+  // against an allowlist rather than just being a same-site path.
+  const next = safeNextPath(searchParams.get('next'))
 
+  // Built from the validated destination only, so the token never travels on
+  // to the next page (setting .search replaces the incoming query wholesale).
   const redirectTo = request.nextUrl.clone()
-  redirectTo.pathname = next
-  redirectTo.searchParams.delete('token_hash')
-  redirectTo.searchParams.delete('type')
+  const [nextPath, nextQuery] = next.split('?')
+  redirectTo.pathname = nextPath
+  redirectTo.search = nextQuery ? `?${nextQuery}` : ''
 
   if (token_hash && type) {
     const supabase = await createClient()
     const { error } = await supabase.auth.verifyOtp({ type, token_hash })
     if (!error) {
-      redirectTo.searchParams.delete('next')
       return NextResponse.redirect(redirectTo)
     }
   }

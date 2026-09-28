@@ -18,12 +18,15 @@ import {
   Loader2,
 } from 'lucide-react'
 import { signIn, guestSignIn } from '@/app/actions/auth'
+import { safeRedirectPath } from '@/lib/safeRedirect'
 
 function LoginFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTarget = searchParams.get('redirect') || '/dashboard'
-  const isQrRedirect = redirectTarget.includes('/qr')
+  const redirectTarget = safeRedirectPath(searchParams.get('redirect'), '/dashboard')
+  // A QR scan arrives as /mobile?type=room&id=… (see src/app/qr/page.tsx), not
+  // as /qr -- that route is public, so the proxy never redirects back to it.
+  const isQrRedirect = redirectTarget.startsWith('/mobile') && redirectTarget.includes('type=')
 
   const { login } = useAFMS()
 
@@ -44,13 +47,10 @@ function LoginFormContent() {
   const [isGuestSubmitting, setIsGuestSubmitting] = useState(false)
 
   const getDestination = (userRole: string) => {
-    const customRedirect = searchParams.get('redirect')
-    if (customRedirect) return customRedirect
     // Technician and Housekeeping default to mobile PWA field view; others to dashboard
-    if (userRole === 'Technician' || userRole === 'Housekeeping') {
-      return '/mobile'
-    }
-    return '/dashboard'
+    const roleDefault = userRole === 'Technician' || userRole === 'Housekeeping' ? '/mobile' : '/dashboard'
+    // Checked, not trusted: it comes from the query string.
+    return safeRedirectPath(searchParams.get('redirect'), roleDefault)
   }
 
   const handleStaffSignIn = async (e: React.FormEvent) => {
