@@ -25,6 +25,7 @@ import type { AppNotification } from '@/types/afms'
 import { SoundToggle } from '@/components/ui/SoundToggle'
 import { playNotificationSound } from '@/lib/notificationSound'
 import { useNewItemAlert } from '@/lib/useNewItemAlert'
+import { GlobalSearch } from '@/components/GlobalSearch'
 
 // How each kind of database alert looks and where it leads on the desktop.
 const ALERT_ICONS: Record<AppNotification['type'], React.ReactNode> = {
@@ -133,10 +134,10 @@ export function Header({
         </div>
       </div>
 
-      {/* The quick-search bar that used to sit here was only a text box (no results, no shortcut),
-          so it is hidden until a real global search exists. The spacer keeps the right-hand
-          controls where they were. */}
-      <div className="flex-1" />
+      {/* Global search (Ctrl+K / ⌘K) */}
+      <div className="flex-1 flex justify-end sm:justify-center px-3">
+        <GlobalSearch />
+      </div>
 
       {/* Right: Role Switcher Demo Tool + Mobile QR Mode + Notifications + User Avatar */}
       <div className="flex items-center gap-3">

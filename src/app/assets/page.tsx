@@ -29,6 +29,7 @@ import { Asset, SlaPriority } from '@/types/afms'
 import { BulkAssetUploadModal } from '@/components/assets/BulkAssetUploadModal'
 import { downloadAssetExcelTemplate } from '@/utils/assetExcelUtils'
 import { lockedSlaPriority } from '@/lib/assetSlaPriority'
+import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, PRIORITY_ORDER, sortByOrder } from '@/components/ui/DataTable'
 
@@ -164,6 +165,12 @@ export default function AssetsListPage() {
     setSelectedSlaPriority('All')
     setSearchQuery('')
   }
+
+  // Opened from the header search: show everything matching that text.
+  useSearchPrefill(q => {
+    handleResetFilters()
+    setSearchQuery(q)
+  })
 
   // Active filter count
   const activeFilterCount = [

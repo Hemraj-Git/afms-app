@@ -32,6 +32,7 @@ import {
 import { UserProfile, UserRole, Department, ServiceRequest } from '@/types/afms'
 import { inviteUser } from '@/app/actions/users'
 import { formatDateDisplay } from '@/lib/dateUtils'
+import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, timeOf } from '@/components/ui/DataTable'
 
@@ -59,6 +60,13 @@ export default function UsersAdminPage() {
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('')
   const [deptSearchQuery, setDeptSearchQuery] = useState('')
+
+  // Opened from the header search (registered users only).
+  useSearchPrefill(q => {
+    setActiveTab('users')
+    setPersonnelSubTab('registered')
+    setSearchQuery(q)
+  })
 
   // User Modal State
   const [showUserModal, setShowUserModal] = useState(false)

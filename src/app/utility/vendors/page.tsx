@@ -20,12 +20,16 @@ import {
 } from 'lucide-react'
 import { Vendor } from '@/types/afms'
 import Link from 'next/link'
+import { useSearchPrefill } from '@/lib/useSearchPrefill'
 
 export default function VendorsPage() {
   const { vendors, addVendor, updateVendor, deleteVendor, assets } = useAFMS()
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Opened from the header search.
+  useSearchPrefill(setSearchQuery)
 
   // Modal State for Add / Edit
   const [showModal, setShowModal] = useState(false)

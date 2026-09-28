@@ -34,6 +34,7 @@ import {
 import { ServiceRequest, SlaPriority } from '@/types/afms'
 import { getNextSequence, formatYearlyId } from '@/lib/idGenerator'
 import { getLocalDateStr, formatDateDisplay, formatDateTimeDisplay } from '@/lib/dateUtils'
+import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, PRIORITY_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
@@ -91,6 +92,12 @@ export default function ServiceRequestsPage() {
   useEffect(() => {
     if (priorityLock) setNewPriority(priorityLock.priority)
   }, [priorityLock?.priority])
+
+  // Opened from the header search: show that ticket whatever its status.
+  useSearchPrefill(q => {
+    setActiveTab('All')
+    setSearchQuery(q)
+  })
 
   // Dynamic SLA Overdue Check (Time-based, doesn't break lifecycle status)
   const isTicketOverdue = (req: ServiceRequest) => {

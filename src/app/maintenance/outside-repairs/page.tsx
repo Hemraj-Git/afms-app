@@ -9,6 +9,7 @@ import { OutsideRepairStatusPill } from '@/components/outsideRepair/OutsideRepai
 import { formatDateDisplay } from '@/lib/dateUtils'
 import { daysOut, isOutForRepair, isOverdueReturn, repairItemLabel } from '@/lib/outsideRepairState'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
+import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, timeOf } from '@/components/ui/DataTable'
 import type { OutsideRepair } from '@/types/afms'
@@ -26,6 +27,13 @@ export default function OutsideRepairsPage() {
   const [tab, setTab] = useState<Tab>('Out')
   const [vendorFilter, setVendorFilter] = useState('All')
   const [query, setQuery] = useState('')
+
+  // Opened from the header search: look in every tab, every vendor.
+  useSearchPrefill(q => {
+    setTab('All')
+    setVendorFilter('All')
+    setQuery(q)
+  })
 
   const counts = {
     Out: outsideRepairs.filter(isOutForRepair).length,

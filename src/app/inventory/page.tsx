@@ -29,6 +29,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { InventoryItem } from '@/types/afms'
+import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/DataTable'
 
@@ -54,6 +55,14 @@ export default function InventoryDashboardPage() {
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState('ALL')
   const [stockFilter, setStockFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL')
   const [showFilters, setShowFilters] = useState(false)
+
+  // Opened from the header search: clear the filters so the item shows.
+  useSearchPrefill(q => {
+    setSelectedCategoryId('ALL')
+    setSelectedSubCategoryId('ALL')
+    setStockFilter('ALL')
+    setSearchQuery(q)
+  })
 
   // Deploy / Allocate to Room Modal State
   const [deployItem, setDeployItem] = useState<InventoryItem | null>(null)

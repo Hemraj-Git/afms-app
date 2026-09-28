@@ -20,11 +20,13 @@ import {
   Plus,
   Eye,
   Lock,
+  Search,
 } from 'lucide-react'
 import { Inspection } from '@/types/afms'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
+import { useSearchPrefill } from '@/lib/useSearchPrefill'
 
 export default function InspectionsPage() {
   const router = useRouter()
@@ -43,9 +45,19 @@ export default function InspectionsPage() {
   const completedTotal = inspections.filter(i => i.status === 'Completed').length
   const compliancePercentage = completedTotal > 0 ? Math.round((passedCount / completedTotal) * 100) : 100
 
+  // Search box (also filled when opened from the header search).
+  const [searchQuery, setSearchQuery] = useState('')
+  useSearchPrefill(setSearchQuery)
+
   // Sorted soonest-due-first -- the fetch only orders by created_at.
   const sortedInspections = inspections
-    .slice()
+    .filter(insp => {
+      const q = searchQuery.trim().toLowerCase()
+      if (!q) return true
+      const asset = assets.find(a => a.id === insp.assetId)
+      return [insp.inspectionNumber, asset?.name, asset?.assetId, insp.assignedInspectorName]
+        .some(v => v?.toLowerCase().includes(q))
+    })
     .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
 
   // Inspectors list (Staff from any registered role: Admin, Faculty, Technician, Housekeeping)
@@ -314,19 +326,34 @@ export default function InspectionsPage() {
 
         {/* Inspections Table */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900">Scheduled &amp; Completed Inspections ({inspections.length})</h2>
+          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-base font-bold text-slate-900">
+              Scheduled &amp; Completed Inspections ({searchQuery.trim() ? `${sortedInspections.length} of ${inspections.length}` : inspections.length})
+            </h2>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="INSP no, asset, inspector..."
+                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs w-full sm:w-64 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           <DataTable
             tableId="inspections"
             data={sortedInspections}
             columns={inspectionColumns}
+            resetKey={searchQuery}
             getRowId={i => i.id}
             emptyState={
               <div className="flex flex-col items-center justify-center space-y-2">
                 <ShieldCheck className="w-8 h-8 text-slate-300 stroke-1" />
-                <p className="text-xs font-semibold text-slate-600">No inspections yet</p>
+                <p className="text-xs font-semibold text-slate-600">
+                  {searchQuery.trim() ? 'No inspections match this search' : 'No inspections yet'}
+                </p>
               </div>
             }
           />

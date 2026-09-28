@@ -38,6 +38,7 @@ import {
 import { WorkOrder } from '@/types/afms'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { getNextSequence, formatYearlyId, isPendingWorkOrder } from '@/lib/idGenerator'
+import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, PRIORITY_ORDER, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
@@ -60,6 +61,13 @@ export default function WorkOrdersHubPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showSlaModal, setShowSlaModal] = useState(false)
   const [selectedWoForDetails, setSelectedWoForDetails] = useState<WorkOrder | null>(null)
+
+  // Opened from the header search: show that order whatever its type or status.
+  useSearchPrefill(q => {
+    setActiveTab('All')
+    setStatusFilter('All')
+    setSearchQuery(q)
+  })
 
   // SLA Form State
   const [tempSla, setTempSla] = useState(slaConfig)
