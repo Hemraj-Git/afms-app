@@ -7,6 +7,9 @@ import { QueryProvider } from "@/components/QueryProvider";
 export const metadata: Metadata = {
   title: "AFMS - Asset & Facility Management System | Hemraj Marines Services",
   description: "Quality compliance-ready digital asset & facility management system for Maritime Training Institutes.",
+  // iPhone "Add to Home Screen" uses these (the manifest covers other phones).
+  icons: { apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "AFMS Field", statusBarStyle: "default" },
 };
 
 export default function RootLayout({

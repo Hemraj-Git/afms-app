@@ -11,17 +11,12 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait',
     background_color: '#f8fafc',
     theme_color: '#2563eb',
+    // PNG icons (built from the HMS logo by scripts/make-icons.mjs): installing
+    // the app, and push alerts on iPhone, need real PNGs.
     icons: [
-      {
-        src: '/next.svg',
-        sizes: '192x192',
-        type: 'image/svg+xml',
-      },
-      {
-        src: '/next.svg',
-        sizes: '512x512',
-        type: 'image/svg+xml',
-      },
+      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }
 }

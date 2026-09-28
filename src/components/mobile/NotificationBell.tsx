@@ -5,6 +5,7 @@ import { Bell, CheckCircle2, Wrench, ClipboardCheck, LogOut as LogOutIcon, Phone
 import type { AppNotification } from '@/types/afms'
 import { formatDateTimeDisplay } from '@/lib/dateUtils'
 import { SoundToggle } from '@/components/ui/SoundToggle'
+import { PushToggle } from '@/components/ui/PushToggle'
 
 const ICONS: Record<AppNotification['type'], React.ReactNode> = {
   wo_assigned: <Wrench className="w-3.5 h-3.5" />,
@@ -85,6 +86,7 @@ export function NotificationBell({
                 ))
               )}
             </div>
+            <PushToggle theme="dark" />
           </div>
         </>
       )}

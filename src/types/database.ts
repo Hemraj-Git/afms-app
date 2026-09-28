@@ -703,6 +703,44 @@ export type Database = {
           },
         ]
       }
+      // Added by hand for migration 0044 (Web Push). Writes go through
+      // register_push_subscription(); users may read and delete their own rows.
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          failure_count: number
+          id: string
+          last_success_at: string | null
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          failure_count?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          failure_count?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1240,6 +1278,10 @@ export type Database = {
     Functions: {
       current_user_role: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
+      register_push_subscription: {
+        Args: { p_auth: string; p_endpoint: string; p_p256dh: string; p_user_agent?: string }
+        Returns: undefined
+      }
       room_check_in: {
         Args: {
           p_activity_number: string

@@ -23,6 +23,7 @@ import {
 import Link from 'next/link'
 import type { AppNotification } from '@/types/afms'
 import { SoundToggle } from '@/components/ui/SoundToggle'
+import { PushToggle } from '@/components/ui/PushToggle'
 import { playNotificationSound } from '@/lib/notificationSound'
 import { useNewItemAlert } from '@/lib/useNewItemAlert'
 import { GlobalSearch } from '@/components/GlobalSearch'
@@ -318,6 +319,10 @@ export function Header({
                   <span>Go to Service Requests Hub</span>
                   <ArrowRight className="w-3 h-3" />
                 </Link>
+              </div>
+
+              <div className="-mx-3 -mb-3">
+                <PushToggle />
               </div>
             </div>
           )}

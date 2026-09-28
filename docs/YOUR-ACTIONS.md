@@ -10,8 +10,9 @@ Things only you can do (dashboards, accounts, decisions). Code and database work
    - **Department heads.** Open *Admin → Users → Departments* and choose a head for each department from the registered users. Nothing is assigned yet.
    - Make sure you have one account for each role you will show: **Admin, Technician, Housekeeping, Faculty**, plus a guest email for the QR/mobile flow.
    - Check rooms, assets (with a sub-category that has maintenance and inspection templates), and a few open tickets so the dashboard is not empty.
-3. ~~Header search bar~~ — **done: hidden** until a real global search is built (`PENDING-WORK.md` 2.2).
+3. ~~Header search bar~~ — **done:** the header search (Ctrl+K) works now (`TEST-CHECKLIST.md` 6.22).
 4. **Use two browser windows** for the live parts: an Admin window and a Technician (or guest phone) window, to show live assignment, live ticket status and live room occupancy.
+5. **Phone alerts (Web Push)** need the app on **HTTPS** (Vercel is; `localhost` also works for testing). On each phone: open the app, tap the bell → **Alerts when the app is closed** → allow. **iPhone/iPad:** first *Share → Add to Home Screen*, open AFMS from the Home Screen icon, then turn it on (iOS 16.4 or later; Safari tabs cannot receive push). Android Chrome, desktop Chrome, Edge and Firefox work directly. Checklist 6.23.
 
 ## B. Supabase dashboard (project: your AFMS project)
 
@@ -23,7 +24,9 @@ Things only you can do (dashboards, accounts, decisions). Code and database work
 | Anonymous sign-ins | Authentication → Providers | Must stay **enabled** (guests use it). |
 | Realtime limits | Project Settings → (Realtime / Usage) | The app uses one live connection per open browser tab. Check your plan's concurrent connection limit if many people will have the app open. |
 
-**No SQL to run.** All migrations (`0028`–`0037`) were applied to the live project as they were built. The files are in `supabase/migrations/` for the record.
+**No SQL to run.** All migrations (up to `0044`) were applied to the live project as they were built. The files are in `supabase/migrations/` for the record.
+
+**Phone alerts (Edge Function `send-push`):** already deployed on this project, with **no secret to set**: it creates its own push keys on first use and keeps them in the database (table `push_config`, readable only by the server). For the **client's production project** it must be deployed once there too (I do it with the migrations; it runs with *Verify JWT* **off**, because the database calls it, and it only ever sends a fresh alert once to its real recipient). No Vercel variable is needed for it.
 
 ## C. Vercel (the `afms-prod` project)
 
@@ -46,7 +49,7 @@ The database is already ahead of production, so deploy soon after testing.
 
 Full runbook: `DATA-LOAD.md`. From your side:
 
-1. **Tell me when the client's production database exists** (a Supabase project with migrations `0001`–`0042` applied) and give me its env file (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) **privately**, not in chat. Until then I test only on the current project.
+1. **Tell me when the client's production database exists** (a Supabase project with migrations `0001`–`0044` applied and the `send-push` Edge Function deployed) and give me its env file (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) **privately**, not in chat. Until then I test only on the current project.
 2. **Decide the data-entry deadline** with the client and who at their end fills each workbook (one person is easiest).
 3. **Send the client the Masters workbook first** (`npm run data:masters-template`), then the Assets workbook only after I have loaded their masters (it is built from them).
 4. **Open both workbooks in Excel once** yourself (checklist 6.14 and 6.15) before sending; I can check the file structure and the formulas, but not how Excel looks.

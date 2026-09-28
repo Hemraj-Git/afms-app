@@ -55,6 +55,7 @@ import { completionBlockedMessage, repairItemLabel } from '@/lib/outsideRepairSt
 import { showToast } from '@/lib/toast'
 import { installAudioUnlock, playNotificationSound } from '@/lib/notificationSound'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
+import { forgetPushDevice } from '@/lib/push'
 
 interface AFMSContextType {
   currentUser: UserProfile
@@ -413,7 +414,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(false)
     queryClient.clear()
     try {
-      supabase.auth.signOut().catch(() => {})
+      // Stop this device getting the previous user's alerts first (needs the
+      // session), then sign out.
+      forgetPushDevice().finally(() => supabase.auth.signOut().catch(() => {}))
     } catch (e) {}
     if (typeof window !== 'undefined') {
       localStorage.setItem('afms_logged_in', 'false')

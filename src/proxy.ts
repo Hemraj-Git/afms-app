@@ -13,6 +13,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|images/|.*\\.svg$|.*\\.png$|.*\\.jpg$).*)',
+    // sw.js and the manifest are fetched by the browser itself (service worker
+    // install/update, app install); a login or role redirect would break them.
+    '/((?!_next/static|_next/image|favicon.ico|images/|icons/|sw\\.js$|manifest\\.webmanifest$|.*\\.svg$|.*\\.png$|.*\\.jpg$).*)',
   ],
 }
