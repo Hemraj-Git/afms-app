@@ -24,6 +24,9 @@ import { Room } from '@/types/afms'
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
 import { confirmAction } from '@/lib/confirm'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { nameSchema, roomSchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 export default function RoomsPage() {
   const {
     rooms,
@@ -91,6 +94,9 @@ export default function RoomsPage() {
     setFloor(nextFloors[0] || 'Ground Floor')
   }
 
+  const vRoom = useFormCheck(roomSchema, { buildingId, name, roomSizeSqft }, 'room')
+  const vType = useFormCheck(nameSchema('Room type name'), { name: newRoomTypeName }, 'rtype')
+
   const openCreateModal = () => {
     setEditingRoom(null)
     const defaultCampus = campuses[0]?.id || ''
@@ -103,6 +109,7 @@ export default function RoomsPage() {
     setType(roomTypes[0] || 'Classroom')
     setRoomSizeSqft('400')
     setIsReservable(true)
+    vRoom.reset()
     setShowModal(true)
   }
 
@@ -117,12 +124,14 @@ export default function RoomsPage() {
     setName(r.name)
     setType(r.type || roomTypes[0] || 'Classroom')
     setIsReservable(r.isReservable)
+    vRoom.reset()
     setShowModal(true)
   }
 
   const handleRoomTypeSelectChange = (value: string) => {
     if (value === '__ADD_NEW_TYPE__') {
       setNewRoomTypeName('')
+      vType.reset()
       setShowTypeModal(true)
     } else {
       setType(value)
@@ -131,11 +140,8 @@ export default function RoomsPage() {
 
   const handleSaveNewRoomType = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!vType.check()) return
     const trimmed = newRoomTypeName.trim()
-    if (!trimmed) {
-      showToast('error', 'Please enter a room type name.')
-      return
-    }
     addRoomType(trimmed)
     setType(trimmed)
     setShowTypeModal(false)
@@ -144,10 +150,7 @@ export default function RoomsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!buildingId) {
-      showToast('error', 'Please select a valid building inside the selected campus.')
-      return
-    }
+    if (!vRoom.check()) return
     const sizeNum = parseFloat(roomSizeSqft) || 0
 
     if (editingRoom) {
@@ -220,6 +223,7 @@ export default function RoomsPage() {
             <button
               onClick={() => {
                 setNewRoomTypeName('')
+                vType.reset()
                 setShowTypeModal(true)
               }}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
@@ -454,9 +458,10 @@ export default function RoomsPage() {
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">2. Select Building *</label>
                     <select
+                      {...vRoom.props('buildingId')}
                       value={buildingId}
                       onChange={e => handleBuildingChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20"
+                      className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                     >
                       {availableBuildings.length === 0 ? (
                         <option value="">No buildings in this campus</option>
@@ -466,6 +471,7 @@ export default function RoomsPage() {
                         ))
                       )}
                     </select>
+                    {vRoom.error('buildingId')}
                   </div>
                 </div>
 
@@ -473,12 +479,13 @@ export default function RoomsPage() {
                   <label className="block font-semibold text-slate-700 mb-1">Room / Area Name *</label>
                   <input
                     type="text"
-                    required
+                    {...vRoom.props('name')}
                     value={name}
                     onChange={e => setName(e.target.value)}
                     placeholder="e.g. Full Mission Bridge Simulator"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  {vRoom.error('name')}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -501,12 +508,13 @@ export default function RoomsPage() {
                       <input
                         type="number"
                         min={1}
-                        required
+                        {...vRoom.props('roomSizeSqft')}
                         value={roomSizeSqft}
                         onChange={e => setRoomSizeSqft(e.target.value)}
                         placeholder="e.g. 600"
-                        className="w-full px-3 py-2 pr-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                        className={`w-full px-3 py-2 pr-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                       />
+                      {vRoom.error('roomSizeSqft')}
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-[11px]">
                         Sqft
                       </span>
@@ -521,6 +529,7 @@ export default function RoomsPage() {
                       type="button"
                       onClick={() => {
                         setNewRoomTypeName('')
+                        vType.reset()
                         setShowTypeModal(true)
                       }}
                       className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-0.5"
@@ -593,12 +602,13 @@ export default function RoomsPage() {
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      required
+                      {...vType.props('name')}
                       value={newRoomTypeName}
                       onChange={e => setNewRoomTypeName(e.target.value)}
                       placeholder="e.g. Server Room, Auditorium, Infirmary"
-                      className="flex-1 px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                      className={`flex-1 px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                     />
+                    {vType.error('name')}
                     <button
                       type="submit"
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition shrink-0"

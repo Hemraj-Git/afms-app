@@ -38,6 +38,9 @@ import { DataTable, timeOf } from '@/components/ui/DataTable'
 
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { nameSchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 import { confirmAction } from '@/lib/confirm'
 export default function UsersAdminPage() {
   const {
@@ -140,7 +143,10 @@ export default function UsersAdminPage() {
   }
 
   // Open Department Create Modal
+  const vDept = useFormCheck(nameSchema('Department name'), { name: deptName }, 'dept')
+
   const openCreateDeptModal = () => {
+    vDept.reset()
     setEditingDept(null)
     setDeptName('')
     setDeptCode('')
@@ -151,6 +157,7 @@ export default function UsersAdminPage() {
 
   // Open Department Edit Modal
   const openEditDeptModal = (d: Department) => {
+    vDept.reset()
     setEditingDept(d)
     setDeptName(d.name)
     setDeptCode(d.code)
@@ -228,10 +235,7 @@ export default function UsersAdminPage() {
   // Handle Department Submit
   const handleDeptSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!deptName.trim()) {
-      showToast('error', 'Department name is required.')
-      return
-    }
+    if (!vDept.check()) return
 
     if (editingDept) {
       updateDepartment(editingDept.id, {
@@ -1199,12 +1203,13 @@ export default function UsersAdminPage() {
                   </label>
                   <input
                     type="text"
-                    required
+                    {...vDept.props('name')}
                     value={deptName}
                     onChange={e => setDeptName(e.target.value)}
                     placeholder="e.g. Maritime Studies, Engineering"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  {vDept.error('name')}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

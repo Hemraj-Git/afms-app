@@ -22,6 +22,9 @@ import { ChecklistTemplate, ChecklistItemDef } from '@/types/afms'
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
 import { confirmAction } from '@/lib/confirm'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { templateSchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 export default function InspectionTemplatesPage() {
   const {
     checklistTemplates,
@@ -53,6 +56,8 @@ export default function InspectionTemplatesPage() {
     },
   ])
 
+  const v = useFormCheck(templateSchema('checkpoint'), { title, items: items.map(it => ({ itemText: it.itemText })) }, 'tmpl')
+
   const openCreateModal = () => {
     setEditingTmpl(null)
     setTitle('')
@@ -68,6 +73,7 @@ export default function InspectionTemplatesPage() {
         photoRequired: false,
       },
     ])
+    v.reset()
     setShowModal(true)
   }
 
@@ -82,6 +88,7 @@ export default function InspectionTemplatesPage() {
         responseType: 'Pass-Fail',
       }))
     )
+    v.reset()
     setShowModal(true)
   }
 
@@ -105,17 +112,10 @@ export default function InspectionTemplatesPage() {
     setItems(items.map((it, i) => (i === idx ? { ...it, ...updated } : it)))
   }
 
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim()) {
-      showToast('error', 'Please enter a Template Title.')
-      return
-    }
-
-    if (items.length === 0) {
-      showToast('error', 'Please add at least one inspection checkpoint.')
-      return
-    }
+    if (!v.check()) return
 
     const cleanItems = items.map((it, i) => ({
       ...it,
@@ -322,12 +322,13 @@ export default function InspectionTemplatesPage() {
                   <label className="block font-semibold text-slate-700 mb-1">Template Title *</label>
                   <input
                     type="text"
-                    required
+                    {...v.props('title')}
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     placeholder="e.g. Split AC — Statutory Safety & Electrical Inspection"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  {v.error('title')}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -371,6 +372,7 @@ export default function InspectionTemplatesPage() {
                       <span>Add Checkpoint</span>
                     </button>
                   </div>
+                  {v.error('items')}
 
                   <div className="space-y-3">
                     {items.map((item, idx) => (
@@ -381,12 +383,13 @@ export default function InspectionTemplatesPage() {
                           </span>
                           <input
                             type="text"
-                            required
+                            {...v.props(`items.${idx}.itemText`)}
                             value={item.itemText}
                             onChange={e => handleUpdateItem(idx, { itemText: e.target.value })}
                             placeholder="e.g. Ensure emergency shutoff switch and isolation breaker operate freely"
-                            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                            className={`flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs ${INVALID}`}
                           />
+                          {v.error(`items.${idx}.itemText`)}
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(idx)}

@@ -32,7 +32,8 @@ import { uploadToStorage, validateUpload } from '@/lib/storageUpload'
 
 import { Modal } from '@/components/ui/Modal'
 import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components/ui/FormField'
-import { assetBasicsSchema, assetLocationSchema, fieldErrors } from '@/lib/validation/forms'
+import { assetBasicsSchema, assetLocationSchema, fieldErrors, nameSchema } from '@/lib/validation/forms'
+import { useFormCheck } from '@/lib/useFormCheck'
 import { showToast } from '@/lib/toast'
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
 
@@ -299,6 +300,10 @@ function AddAssetForm() {
     }
   }
 
+  // Inline errors for the two quick-add modals.
+  const vVendor = useFormCheck(nameSchema('Vendor name'), { name: newVendorName }, 'nven')
+  const vDoc = useFormCheck(nameSchema('Document title', 'title'), { title: newDocTitle }, 'ndoc')
+
   // Handle Vendor Dropdown change (Detect "+ Add New Vendor")
   const handleVendorSelectChange = (value: string, target: 'purchase' | 'amc') => {
     if (value === '__ADD_NEW_VENDOR__') {
@@ -309,6 +314,7 @@ function AddAssetForm() {
       setNewVendorEmail('')
       setNewVendorPhone('')
       setNewVendorAddress('')
+      vVendor.reset()
       setShowVendorModal(true)
     } else {
       if (target === 'purchase') setPurchasedFromId(value)
@@ -319,10 +325,7 @@ function AddAssetForm() {
   // Handle Inline New Vendor Submission
   const handleSaveNewVendor = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newVendorName.trim()) {
-      showToast('error', 'Vendor Name is required.')
-      return
-    }
+    if (!vVendor.check()) return
 
     try {
       const createdVendor = await addVendor({
@@ -350,10 +353,7 @@ function AddAssetForm() {
   // Handle Inline New Document Submission
   const handleSaveNewDocument = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newDocTitle.trim()) {
-      showToast('error', 'Document Title is required.')
-      return
-    }
+    if (!vDoc.check()) return
 
     let finalFileUrl = '/docs/sample.pdf'
     let finalFileSize = 250
@@ -1191,7 +1191,7 @@ function AddAssetForm() {
 
                 <button
                   type="button"
-                  onClick={() => setShowDocModal(true)}
+                  onClick={() => { vDoc.reset(); setShowDocModal(true) }}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
                 >
                   <Plus className="w-4 h-4" />
@@ -1430,12 +1430,13 @@ function AddAssetForm() {
                   </label>
                   <input
                     type="text"
-                    required
+                    {...vVendor.props('name')}
                     value={newVendorName}
                     onChange={e => setNewVendorName(e.target.value)}
                     placeholder="e.g. Voltas Marine Climate Ltd, Daikin India"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  {vVendor.error('name')}
                 </div>
 
                 <div>
@@ -1522,12 +1523,13 @@ function AddAssetForm() {
                   <label className="block font-semibold text-slate-700 mb-1">Document Title *</label>
                   <input
                     type="text"
-                    required
+                    {...vDoc.props('title')}
                     value={newDocTitle}
                     onChange={e => setNewDocTitle(e.target.value)}
                     placeholder="e.g. Split AC 5-Year Compressor Warranty Card"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  {vDoc.error('title')}
                 </div>
 
                 <div>

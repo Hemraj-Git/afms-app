@@ -27,6 +27,9 @@ import {
 
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { deploySchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 import { confirmAction } from '@/lib/confirm'
 export default function InventoryItemDetailPage() {
   const params = useParams()
@@ -58,6 +61,7 @@ export default function InventoryItemDetailPage() {
   const [deployBuildingId, setDeployBuildingId] = useState('')
   const [deployRoomId, setDeployRoomId] = useState('')
   const [deployInstallDate, setDeployInstallDate] = useState(getLocalDateStr())
+  const vDeploy = useFormCheck(deploySchema, { campusId: deployCampusId, buildingId: deployBuildingId, roomId: deployRoomId, installDate: deployInstallDate }, 'deploy')
   const [deployUserId, setDeployUserId] = useState('')
 
   // Quick Adjust Modal State
@@ -99,10 +103,7 @@ export default function InventoryItemDetailPage() {
 
   const handleConfirmDeploy = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!deployRoomId) {
-      showToast('error', 'Please select a target Room / Area for deployment.')
-      return
-    }
+    if (!vDeploy.check()) return
 
     const created = await convertInventoryToAsset(
       item.id,
@@ -151,6 +152,7 @@ export default function InventoryItemDetailPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
+                vDeploy.reset()
                 setShowDeployModal(true)
                 setDeployCampusId(campuses[0]?.id || '')
                 setDeployBuildingId('')
@@ -432,6 +434,7 @@ export default function InventoryItemDetailPage() {
               </p>
               <button
                 onClick={() => {
+                  vDeploy.reset()
                   setShowDeployModal(true)
                   setDeployCampusId(campuses[0]?.id || '')
                   setDeployBuildingId('')
@@ -477,14 +480,14 @@ export default function InventoryItemDetailPage() {
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">Target Campus *</label>
                     <select
+                      {...vDeploy.props('campusId')}
                       value={deployCampusId}
                       onChange={e => {
                         setDeployCampusId(e.target.value)
                         setDeployBuildingId('')
                         setDeployRoomId('')
                       }}
-                      required
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20"
+                      className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                     >
                       <option value="">Select Campus</option>
                       {campuses.map(c => (
@@ -493,19 +496,20 @@ export default function InventoryItemDetailPage() {
                         </option>
                       ))}
                     </select>
+                    {vDeploy.error('campusId')}
                   </div>
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">Building / Block *</label>
                     <select
+                      {...vDeploy.props('buildingId')}
                       value={deployBuildingId}
                       onChange={e => {
                         setDeployBuildingId(e.target.value)
                         setDeployRoomId('')
                       }}
-                      required
                       disabled={!deployCampusId}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                      className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 ${INVALID}`}
                     >
                       <option value="">Select Building</option>
                       {deployBuildings.map(b => (
@@ -514,17 +518,18 @@ export default function InventoryItemDetailPage() {
                         </option>
                       ))}
                     </select>
+                    {vDeploy.error('buildingId')}
                   </div>
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Target Room / Area *</label>
                   <select
+                    {...vDeploy.props('roomId')}
                     value={deployRoomId}
                     onChange={e => setDeployRoomId(e.target.value)}
-                    required
                     disabled={!deployBuildingId}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 ${INVALID}`}
                   >
                     <option value="">Select Room</option>
                     {deployRooms.map(r => (
@@ -533,17 +538,19 @@ export default function InventoryItemDetailPage() {
                       </option>
                     ))}
                   </select>
+                  {vDeploy.error('roomId')}
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Installation / In-Service Date *</label>
                   <input
                     type="date"
-                    required
+                    {...vDeploy.props('installDate')}
                     value={deployInstallDate}
                     onChange={e => setDeployInstallDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  {vDeploy.error('installDate')}
                 </div>
 
                 <div>

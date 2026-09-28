@@ -30,6 +30,9 @@ import { InventoryItem, DocumentItem } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { inventoryItemSchema, nameSchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 export default function AddInventoryPage() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-slate-500 font-medium">Loading Inventory Wizard...</div>}>
@@ -187,13 +190,15 @@ function AddInventoryForm() {
     }
   }
 
+  // Inline errors: the item (step 1) and the two quick-add modals.
+  const v = useFormCheck(inventoryItemSchema, { name, categoryId: selectedCategoryId, subCategoryId: selectedSubCategoryId, quantity, storageLocation }, 'inv')
+  const vVendor = useFormCheck(nameSchema('Vendor name'), { name: newVendorName }, 'nven')
+  const vDoc = useFormCheck(nameSchema('Document title', 'title'), { title: newDocTitle }, 'ndoc')
+
   // Handle Quick Add Vendor
   const handleSaveNewVendor = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newVendorName.trim()) {
-      showToast('error', 'Vendor Name is required.')
-      return
-    }
+    if (!vVendor.check()) return
 
     try {
       const createdVendor = await addVendor({
@@ -216,10 +221,7 @@ function AddInventoryForm() {
   // Handle In-Wizard Document Upload & Auto-link
   const handleSaveNewDocument = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newDocTitle.trim()) {
-      showToast('error', 'Please provide a document title.')
-      return
-    }
+    if (!vDoc.check()) return
 
     try {
       const newDoc = await addDocument({
@@ -251,28 +253,7 @@ function AddInventoryForm() {
 
   // Step Validation
   const validateStep = (step: number): boolean => {
-    if (step === 1) {
-      if (!name.trim()) {
-        showToast('error', 'Please enter Spare / Item Name.')
-        return false
-      }
-      if (!selectedCategoryId) {
-        showToast('error', 'Please select a Category.')
-        return false
-      }
-      if (!selectedSubCategoryId) {
-        showToast('error', 'Please select a Sub-Category.')
-        return false
-      }
-      if (quantity < 0) {
-        showToast('error', 'Quantity cannot be negative.')
-        return false
-      }
-      if (!storageLocation.trim()) {
-        showToast('error', 'Please enter a Storage Location / Warehouse Rack.')
-        return false
-      }
-    }
+    if (step === 1) return v.check()
     return true
   }
 
@@ -444,10 +425,10 @@ function AddInventoryForm() {
                     Category <span className="text-rose-500">*</span>
                   </label>
                   <select
+                    {...v.props('categoryId')}
                     value={selectedCategoryId}
                     onChange={e => handleCategoryChange(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   >
                     <option value="">Select Category</option>
                     {categories.map(cat => (
@@ -456,6 +437,7 @@ function AddInventoryForm() {
                       </option>
                     ))}
                   </select>
+                  {v.error('categoryId')}
                 </div>
 
                 <div>
@@ -463,11 +445,11 @@ function AddInventoryForm() {
                     Sub-Category <span className="text-rose-500">*</span>
                   </label>
                   <select
+                    {...v.props('subCategoryId')}
                     value={selectedSubCategoryId}
                     onChange={e => handleSubCategoryChange(e.target.value)}
-                    required
                     disabled={!selectedCategoryId}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 ${INVALID}`}
                   >
                     <option value="">Select Sub-Category</option>
                     {availableSubCategories.map(sub => (
@@ -476,6 +458,7 @@ function AddInventoryForm() {
                       </option>
                     ))}
                   </select>
+                  {v.error('subCategoryId')}
                 </div>
               </div>
 
@@ -487,12 +470,13 @@ function AddInventoryForm() {
                   </label>
                   <input
                     type="text"
-                    required
+                    {...v.props('name')}
                     value={name}
                     onChange={e => setName(e.target.value)}
                     placeholder="e.g. Spare Inverter Compressor 2.0 TR, Replacement Circuit Board"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  {v.error('name')}
                 </div>
 
                 <div>
@@ -538,11 +522,12 @@ function AddInventoryForm() {
                   <input
                     type="number"
                     min="0"
-                    required
+                    {...v.props('quantity')}
                     value={quantity}
                     onChange={e => setQuantity(parseInt(e.target.value) || 0)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  {v.error('quantity')}
                 </div>
 
                 <div>
@@ -581,12 +566,13 @@ function AddInventoryForm() {
                   </label>
                   <input
                     type="text"
-                    required
+                    {...v.props('storageLocation')}
                     value={storageLocation}
                     onChange={e => setStorageLocation(e.target.value)}
                     placeholder="e.g. Central Warehouse A, Rack-B04, Shelf 2"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  {v.error('storageLocation')}
                 </div>
 
                 <div>
@@ -653,6 +639,7 @@ function AddInventoryForm() {
                       setNewVendorEmail('')
                       setNewVendorPhone('')
                       setNewVendorAddress('')
+                      vVendor.reset()
                       setShowVendorModal(true)
                     }}
                     className="text-[11px] text-blue-600 hover:underline font-semibold flex items-center gap-1"
@@ -808,7 +795,7 @@ function AddInventoryForm() {
 
                 <button
                   type="button"
-                  onClick={() => setShowDocModal(true)}
+                  onClick={() => { vDoc.reset(); setShowDocModal(true) }}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
                 >
                   <Plus className="w-4 h-4" />
@@ -1066,12 +1053,13 @@ function AddInventoryForm() {
                   </label>
                   <input
                     type="text"
-                    required
+                    {...vVendor.props('name')}
                     value={newVendorName}
                     onChange={e => setNewVendorName(e.target.value)}
                     placeholder="e.g. Precision Spares Pvt Ltd"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  {vVendor.error('name')}
                 </div>
 
                 <div>
@@ -1156,12 +1144,13 @@ function AddInventoryForm() {
                   <label className="block font-semibold text-slate-700 mb-1">Document Title *</label>
                   <input
                     type="text"
-                    required
+                    {...vDoc.props('title')}
                     value={newDocTitle}
                     onChange={e => setNewDocTitle(e.target.value)}
                     placeholder="e.g. Spare Compressor Warranty &amp; Spec Sheet"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  {vDoc.error('title')}
                 </div>
 
                 <div>

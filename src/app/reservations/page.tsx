@@ -33,6 +33,9 @@ import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { reservationSchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 import { confirmAction } from '@/lib/confirm'
 export default function ReservationsPage() {
   const {
@@ -155,6 +158,7 @@ export default function ReservationsPage() {
     }
     
     setPurpose('Classroom Lecture & Simulator Training')
+    v.reset()
     setShowBookingModal(true)
   }
 
@@ -212,23 +216,12 @@ export default function ReservationsPage() {
   const activeBookingDates = computeActiveDates(startDate, endDate, excludedDays)
   const totalSlotsToGenerate = activeBookingDates.length * selectedSlotHours.length
 
+  const v = useFormCheck(reservationSchema, { roomId: selectedRoomId, startDate, endDate, dateCount: activeBookingDates.length, slotCount: selectedSlotHours.length, purpose }, 'res')
+
   // Handle Submit Reservation
   const handleConfirmReservation = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedRoomId) {
-      showToast('error', 'Please select a reservable facility room.')
-      return
-    }
-
-    if (activeBookingDates.length === 0) {
-      showToast('error', 'No active dates selected in the date range. Please check your start/end dates and day exclusions.')
-      return
-    }
-
-    if (selectedSlotHours.length === 0) {
-      showToast('error', 'Please select at least one time slot.')
-      return
-    }
+    if (!v.check()) return
 
     const room = rooms.find(r => r.id === selectedRoomId)
     const user = users.find(u => u.id === selectedUserId)
@@ -718,10 +711,10 @@ export default function ReservationsPage() {
                     Select Reservable Room / Area <span className="text-rose-500">*</span>
                   </label>
                   <select
+                    {...v.props('roomId')}
                     value={selectedRoomId}
                     onChange={e => setSelectedRoomId(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   >
                     <option value="">Select Room</option>
                     {reservableRooms.map(r => (
@@ -730,6 +723,7 @@ export default function ReservationsPage() {
                       </option>
                     ))}
                   </select>
+                  {v.error('roomId')}
                 </div>
 
                 {/* 2. Date Range Selection (Start Date to End Date) */}
@@ -740,8 +734,8 @@ export default function ReservationsPage() {
                     </label>
                     <input
                       type="date"
-                      required
                       min={todayStr}
+                      {...v.props('startDate')}
                       value={startDate}
                       onChange={e => {
                         const val = e.target.value
@@ -750,8 +744,9 @@ export default function ReservationsPage() {
                           if (val > endDate) setEndDate(val)
                         }
                       }}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-900"
+                      className={`w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-900 ${INVALID}`}
                     />
+                    {v.error('startDate')}
                   </div>
 
                   <div>
@@ -760,8 +755,8 @@ export default function ReservationsPage() {
                     </label>
                     <input
                       type="date"
-                      required
                       min={startDate || todayStr}
+                      {...v.props('endDate')}
                       value={endDate}
                       onChange={e => {
                         const val = e.target.value
@@ -769,8 +764,9 @@ export default function ReservationsPage() {
                           setEndDate(val)
                         }
                       }}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-900"
+                      className={`w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-slate-900 ${INVALID}`}
                     />
+                    {v.error('endDate')}
                   </div>
 
                   {/* Day of Week Exclusions */}
@@ -825,6 +821,7 @@ export default function ReservationsPage() {
                       {activeBookingDates.length > 2 ? ` ... (+${activeBookingDates.length - 2} more)` : ''}
                     </span>
                   </div>
+                  {v.errors.dateCount && <div className="sm:col-span-2">{v.error('dateCount')}</div>}
                 </div>
 
                 {/* 3. Multiple Time Slots Selection */}
@@ -851,6 +848,7 @@ export default function ReservationsPage() {
                       Select All Future Slots
                     </button>
                   </div>
+                  {v.error('slotCount')}
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {standardTimeSlots.map(slot => {
@@ -961,12 +959,13 @@ export default function ReservationsPage() {
                   </label>
                   <textarea
                     rows={2}
-                    required
+                    {...v.props('purpose')}
                     value={purpose}
                     onChange={e => setPurpose(e.target.value)}
                     placeholder="e.g. Bridge Simulator Batch 42 Navigation Exam & Radar Charting"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   ></textarea>
+                  {v.error('purpose')}
                 </div>
 
                 {/* Summary Banner */}

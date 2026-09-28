@@ -30,6 +30,9 @@ import { formatSubCategoryId } from '@/lib/idGenerator'
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
 import { confirmAction } from '@/lib/confirm'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { subCategorySchema, templateSchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 export default function SubCategoriesPage() {
   const {
     subCategories,
@@ -106,7 +109,15 @@ export default function SubCategoriesPage() {
     return matchesSearch && matchesInterval
   })
 
+  // Inline errors: step 1 (category + name), step 2 (custom field labels),
+  // and the "create new template" modal.
+  const vSub = useFormCheck(subCategorySchema.pick({ categoryId: true, name: true }), { categoryId: selectedCategoryId, name: subCategoryName }, 'sub')
+  const vFields = useFormCheck(subCategorySchema.pick({ fields: true }), { fields: metadataFields.map(f => ({ label: f.label })) }, 'subf')
+  const vTpl = useFormCheck(templateSchema('task'), { title: newTemplateTitle, items: newTemplateItems.map(it => ({ itemText: it.itemText })) }, 'subtpl')
+
   const openCreateModal = () => {
+    vSub.reset()
+    vFields.reset()
     setEditingSub(null)
     setCurrentStep(1)
     setSelectedCategoryId(categories[0]?.id || 'ELEC')
@@ -121,6 +132,8 @@ export default function SubCategoriesPage() {
   }
 
   const openEditModal = (sub: SubCategory) => {
+    vSub.reset()
+    vFields.reset()
     setEditingSub(sub)
     setCurrentStep(1)
     setSelectedCategoryId(sub.categoryId)
@@ -161,6 +174,7 @@ export default function SubCategoriesPage() {
 
   // Inline New Template Builder Handlers
   const handleOpenNewTemplate = (type: 'Preventive Maintenance' | 'Inspection') => {
+    vTpl.reset()
     setNewTemplateType(type)
     setNewTemplateTitle('')
     setNewTemplateDescription('')
@@ -173,10 +187,7 @@ export default function SubCategoriesPage() {
 
   const handleSaveInlineTemplate = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newTemplateTitle.trim()) {
-      showToast('error', 'Please enter a Template Title.')
-      return
-    }
+    if (!vTpl.check()) return
 
     const cleanItems = newTemplateItems.map((it, i) => ({
       ...it,
@@ -205,24 +216,8 @@ export default function SubCategoriesPage() {
 
   // Step Validation
   const validateStep = (step: number): boolean => {
-    if (step === 1) {
-      if (!selectedCategoryId) {
-        showToast('error', 'Please select a Parent Category.')
-        return false
-      }
-      if (!subCategoryName.trim()) {
-        showToast('error', 'Please enter a Sub-Category Name.')
-        return false
-      }
-    }
-    if (step === 2) {
-      for (let i = 0; i < metadataFields.length; i++) {
-        if (!metadataFields[i].label.trim()) {
-          showToast('error', `Please provide a label for Field #${i + 1} or remove it.`)
-          return false
-        }
-      }
-    }
+    if (step === 1) return vSub.check()
+    if (step === 2) return vFields.check()
     return true
   }
 
@@ -510,9 +505,10 @@ export default function SubCategoriesPage() {
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">1. Select Parent Category *</label>
                       <select
+                        {...vSub.props('categoryId')}
                         value={selectedCategoryId}
                         onChange={e => setSelectedCategoryId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-blue-500/20"
+                        className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                       >
                         {categories.map(c => (
                           <option key={c.id} value={c.id}>
@@ -520,6 +516,7 @@ export default function SubCategoriesPage() {
                           </option>
                         ))}
                       </select>
+                      {vSub.error('categoryId')}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -527,12 +524,13 @@ export default function SubCategoriesPage() {
                         <label className="block font-semibold text-slate-700 mb-1">2. Sub-Category Name *</label>
                         <input
                           type="text"
-                          required
+                          {...vSub.props('name')}
                           value={subCategoryName}
                           onChange={e => setSubCategoryName(e.target.value)}
                           placeholder="e.g. Ceiling Light, Split AC"
-                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                          className={`w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                         />
+                        {vSub.error('name')}
                       </div>
 
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 flex items-start gap-2">
@@ -587,12 +585,13 @@ export default function SubCategoriesPage() {
                                 <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Field Label *</label>
                                 <input
                                   type="text"
-                                  required
+                                  {...vFields.props(`fields.${idx}.label`)}
                                   value={field.label}
                                   onChange={e => handleUpdateMetadataField(idx, { label: e.target.value })}
                                   placeholder="e.g. Wattage, Compressor Type"
-                                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                  className={`w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs ${INVALID}`}
                                 />
+                                {vFields.error(`fields.${idx}.label`)}
                               </div>
 
                               <div className="col-span-3">
@@ -965,12 +964,13 @@ export default function SubCategoriesPage() {
                   <label className="block font-semibold text-slate-700 mb-1">Template Title *</label>
                   <input
                     type="text"
-                    required
+                    {...vTpl.props('title')}
                     value={newTemplateTitle}
                     onChange={e => setNewTemplateTitle(e.target.value)}
                     placeholder={`e.g. ${subCategoryName || 'Asset'} — ${newTemplateInterval} Checklist`}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  {vTpl.error('title')}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1036,15 +1036,16 @@ export default function SubCategoriesPage() {
                         <span className="font-mono font-bold text-[10px] text-slate-400">#{idx + 1}</span>
                         <input
                           type="text"
-                          required
+                          {...vTpl.props(`items.${idx}.itemText`)}
                           value={it.itemText}
                           onChange={e => {
                             const val = e.target.value
                             setNewTemplateItems(newTemplateItems.map((item, i) => (i === idx ? { ...item, itemText: val } : item)))
                           }}
                           placeholder="Task description..."
-                          className="flex-1 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs"
+                          className={`flex-1 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs ${INVALID}`}
                         />
+                        {vTpl.error(`items.${idx}.itemText`)}
                         {newTemplateItems.length > 1 && (
                           <button
                             type="button"

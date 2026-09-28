@@ -23,7 +23,9 @@ import Link from 'next/link'
 import { useSearchPrefill } from '@/lib/useSearchPrefill'
 
 import { Modal } from '@/components/ui/Modal'
-import { showToast } from '@/lib/toast'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { nameSchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 export default function VendorsPage() {
   const { vendors, addVendor, updateVendor, deleteVendor, assets } = useAFMS()
 
@@ -61,8 +63,11 @@ export default function VendorsPage() {
     )
   })
 
+  const vForm = useFormCheck(nameSchema('Vendor name'), { name: vendorName }, 'ven')
+
   // Open Add Modal
   const handleOpenAdd = () => {
+    vForm.reset()
     setEditingVendor(null)
     setVendorName('')
     setAddress('')
@@ -74,6 +79,7 @@ export default function VendorsPage() {
 
   // Open Edit Modal
   const handleOpenEdit = (v: Vendor) => {
+    vForm.reset()
     setEditingVendor(v)
     setVendorName(v.name)
     setAddress(v.address || '')
@@ -86,10 +92,7 @@ export default function VendorsPage() {
   // Submit Handler for Add / Edit
   const handleSaveVendor = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!vendorName.trim()) {
-      showToast('error', 'Vendor Name is required.')
-      return
-    }
+    if (!vForm.check()) return
 
     if (editingVendor) {
       updateVendor(editingVendor.id, {
@@ -337,12 +340,13 @@ export default function VendorsPage() {
                   </label>
                   <input
                     type="text"
-                    required
+                    {...vForm.props('name')}
                     value={vendorName}
                     onChange={e => setVendorName(e.target.value)}
                     placeholder="e.g. Voltas Marine Climate Ltd, Daikin India"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  {vForm.error('name')}
                 </div>
 
                 {/* 2. Support Person Details */}

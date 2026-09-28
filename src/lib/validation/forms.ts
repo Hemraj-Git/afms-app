@@ -122,13 +122,85 @@ export const assetLocationSchema = z.object({
   roomId: pick('a room / area'),
 })
 
+// ---------- Smaller forms ----------
+
+// Forms whose only rule is a name / title (category, department, vendor,
+// room type, document title, template title).
+export const nameSchema = (label: string, key = 'name') => z.object({ [key]: text(label, { max: 150 }) })
+
+export const inventoryItemSchema = z.object({
+  name: text('Item name', { max: 150 }),
+  categoryId: pick('a category'),
+  subCategoryId: pick('a sub-category'),
+  quantity: z.number({ message: 'Enter the quantity.' }).min(0, 'Quantity can’t be negative.'),
+  storageLocation: text('Storage location', { max: 150 }),
+})
+
+export const roomSchema = z.object({
+  buildingId: pick('a building in the selected campus'),
+  name: text('Room name', { max: 150 }),
+  roomSizeSqft: z
+    .string()
+    .trim()
+    .min(1, 'Enter the room size.')
+    .refine(v => Number(v) > 0, 'Room size must be more than 0.'),
+})
+
+export const deploySchema = z.object({
+  campusId: pick('a campus'),
+  buildingId: pick('a building'),
+  roomId: pick('the room / area to deploy it to'),
+  installDate: date('Installation date'),
+})
+
+export const subCategorySchema = z.object({
+  categoryId: pick('the parent category'),
+  name: text('Sub-category name', { max: 150 }),
+  fields: z.array(z.object({ label: z.string().trim().min(1, 'Give this field a label, or remove it.') })),
+})
+
+export const templateSchema = (itemWord: string) =>
+  z.object({
+    title: text('Template title', { max: 150 }),
+    items: z
+      .array(z.object({ itemText: z.string().trim().min(1, `Describe this ${itemWord}, or remove it.`) }))
+      .min(1, `Add at least one ${itemWord}.`),
+  })
+
+export const documentUploadSchema = z.object({
+  title: text('Document title', { max: 150 }),
+  hasFile: z.boolean().refine(Boolean, 'Choose a file to upload.'),
+})
+
+export const reservationSchema = z
+  .object({
+    roomId: pick('a room'),
+    startDate: date('Start date'),
+    endDate: date('End date'),
+    dateCount: z.number(),
+    slotCount: z.number().min(1, 'Choose at least one time slot.'),
+    purpose: text('Purpose', { max: 300 }),
+  })
+  .superRefine((v, ctx) => {
+    if (isoDate.test(v.startDate) && isoDate.test(v.endDate) && v.endDate < v.startDate) {
+      ctx.addIssue({ code: 'custom', path: ['endDate'], message: 'The end date can’t be before the start date.' })
+    } else if (v.dateCount < 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dateCount'],
+        message: 'No dates fall in this range. Check the start / end dates and the excluded days.',
+      })
+    }
+  })
+
 // Field -> first message, for forms that keep their own state (the wizard).
 export function fieldErrors<T extends z.ZodType>(schema: T, values: unknown): Record<string, string> {
   const result = schema.safeParse(values)
   if (result.success) return {}
   const out: Record<string, string> = {}
   for (const issue of result.error.issues) {
-    const key = String(issue.path[0] ?? '')
+    // Nested fields are keyed by their path, e.g. 'fields.2.label'.
+    const key = issue.path.map(String).join('.')
     if (key && !out[key]) out[key] = issue.message
   }
   return out

@@ -21,6 +21,9 @@ import { ChecklistTemplate, ChecklistItemDef } from '@/types/afms'
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
 import { confirmAction } from '@/lib/confirm'
+import { useFormCheck } from '@/lib/useFormCheck'
+import { templateSchema } from '@/lib/validation/forms'
+import { INVALID } from '@/components/ui/FormField'
 export default function MaintenanceTemplatesPage() {
   const {
     checklistTemplates,
@@ -52,6 +55,8 @@ export default function MaintenanceTemplatesPage() {
     },
   ])
 
+  const v = useFormCheck(templateSchema('checklist item'), { title, items: items.map(it => ({ itemText: it.itemText })) }, 'tmpl')
+
   const openCreateModal = () => {
     setEditingTmpl(null)
     setTitle('')
@@ -67,6 +72,7 @@ export default function MaintenanceTemplatesPage() {
         photoRequired: false,
       },
     ])
+    v.reset()
     setShowModal(true)
   }
 
@@ -81,6 +87,7 @@ export default function MaintenanceTemplatesPage() {
         responseType: 'Checkbox',
       }))
     )
+    v.reset()
     setShowModal(true)
   }
 
@@ -104,17 +111,10 @@ export default function MaintenanceTemplatesPage() {
     setItems(items.map((it, i) => (i === idx ? { ...it, ...updated } : it)))
   }
 
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim()) {
-      showToast('error', 'Please enter a Template Title.')
-      return
-    }
-
-    if (items.length === 0) {
-      showToast('error', 'Please add at least one checklist item.')
-      return
-    }
+    if (!v.check()) return
 
     const cleanItems = items.map((it, i) => ({
       ...it,
@@ -321,12 +321,13 @@ export default function MaintenanceTemplatesPage() {
                   <label className="block font-semibold text-slate-700 mb-1">Template Title *</label>
                   <input
                     type="text"
-                    required
+                    {...v.props('title')}
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     placeholder="e.g. Split AC — Quarterly Preventive Maintenance SOP"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  {v.error('title')}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -370,6 +371,7 @@ export default function MaintenanceTemplatesPage() {
                       <span>Add Check Task</span>
                     </button>
                   </div>
+                  {v.error('items')}
 
                   <div className="space-y-3">
                     {items.map((item, idx) => (
@@ -380,12 +382,13 @@ export default function MaintenanceTemplatesPage() {
                           </span>
                           <input
                             type="text"
-                            required
+                            {...v.props(`items.${idx}.itemText`)}
                             value={item.itemText}
                             onChange={e => handleUpdateItem(idx, { itemText: e.target.value })}
                             placeholder="e.g. Inspect electrical terminal points for loose connections"
-                            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                            className={`flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs ${INVALID}`}
                           />
+                          {v.error(`items.${idx}.itemText`)}
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(idx)}
