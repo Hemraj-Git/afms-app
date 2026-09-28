@@ -16,6 +16,8 @@ import {
 import { Building } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function BuildingPage() {
   const { buildings, campuses, rooms, addBuilding, updateBuilding, deleteBuilding } = useAFMS()
   const [searchQuery, setSearchQuery] = useState('')
@@ -67,16 +69,16 @@ export default function BuildingPage() {
     setShowModal(false)
   }
 
-  const handleDelete = (id: string, bldName: string) => {
+  const handleDelete = async (id: string, bldName: string) => {
     const linkedRooms = rooms.filter(r => r.buildingId === id)
     if (linkedRooms.length > 0) {
-      alert(
+      showToast('error', 
         `Deletion Not Permitted: Building "${bldName}" (${id}) cannot be deleted because it contains ${linkedRooms.length} room(s)/area(s) (${linkedRooms.map(r => r.name).join(', ')}). Please delete or reassign those rooms first.`
       )
       return
     }
 
-    if (confirm(`Are you sure you want to delete building "${bldName}" (${id})?`)) {
+    if (await confirmAction(`Are you sure you want to delete building "${bldName}" (${id})?`)) {
       deleteBuilding(id)
     }
   }

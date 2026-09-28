@@ -26,6 +26,8 @@ import {
 } from 'lucide-react'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function InventoryItemDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -98,7 +100,7 @@ export default function InventoryItemDetailPage() {
   const handleConfirmDeploy = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!deployRoomId) {
-      alert('Please select a target Room / Area for deployment.')
+      showToast('error', 'Please select a target Room / Area for deployment.')
       return
     }
 
@@ -170,8 +172,8 @@ export default function InventoryItemDetailPage() {
             </Link>
 
             <button
-              onClick={() => {
-                if (confirm(`Are you sure you want to delete spare ${item.name} (${item.id})?`)) {
+              onClick={async () => {
+                if (await confirmAction(`Are you sure you want to delete spare ${item.name} (${item.id})?`)) {
                   deleteInventoryItem(item.id)
                   router.push('/inventory')
                 }

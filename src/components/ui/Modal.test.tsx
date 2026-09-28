@@ -66,6 +66,22 @@ describe('Modal', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('hides the page behind from screen readers but not the toast area', () => {
+    render(
+      <>
+        <main data-testid="page">
+          <Screen />
+        </main>
+        <div data-testid="toasts" aria-live="polite" />
+        <footer data-testid="footer">Footer</footer>
+      </>
+    )
+    fireEvent.click(screen.getByText('Open'))
+    expect(screen.getByTestId('footer').getAttribute('aria-hidden')).toBe('true')
+    // The toasts (errors raised while a modal is open) must still be announced.
+    expect(screen.getByTestId('toasts').getAttribute('aria-hidden')).toBeNull()
+  })
+
   it('still closes through the screen’s own buttons', () => {
     render(<Screen />)
     fireEvent.click(screen.getByText('Open'))

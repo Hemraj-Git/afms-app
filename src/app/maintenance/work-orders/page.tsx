@@ -1,10 +1,14 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
-import { useDefaultSelection } from '@/lib/useDefaultSelection'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { canBeAssigned, workOrderSchema, type WorkOrderForm } from '@/lib/validation/forms'
+import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components/ui/FormField'
+import { showToast } from '@/lib/toast'
 import { PageSkeleton } from '@/components/ui/Skeleton'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
@@ -73,18 +77,50 @@ export default function WorkOrdersHubPage() {
   // SLA Form State
   const [tempSla, setTempSla] = useState(slaConfig)
 
-  // Form State for creating a new Work Order
-  const [type, setType] = useState<'Preventive' | 'Corrective' | 'Housekeeping'>('Preventive')
-  const [title, setTitle] = useState('')
-  const [assetId, setAssetId] = useState(assets[0]?.id || '')
-  useDefaultSelection(assetId, setAssetId, assets[0]?.id)
-  const [roomId, setRoomId] = useState(rooms[0]?.id || '')
-  useDefaultSelection(roomId, setRoomId, rooms[0]?.id)
-  const [assignedTechnicianId, setAssignedTechnicianId] = useState(users.find(u => u.role === 'Technician' || u.role === 'Housekeeping')?.id || users.find(u => u.role !== 'Guest')?.id || '')
-  useDefaultSelection(assignedTechnicianId, setAssignedTechnicianId, users.find(u => u.role === 'Technician' || u.role === 'Housekeeping')?.id || users.find(u => u.role !== 'Guest')?.id)
-  const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Critical'>('Medium')
-  const [dueDate, setDueDate] = useState(getLocalDateStr(new Date(Date.now() + 86400000 * 3)))
-  const [issueLogged, setIssueLogged] = useState('')
+  // Create Work Order form: checked by workOrderSchema, errors under the fields.
+  // The first eligible person for a type (a technician, or housekeeping staff).
+  const firstAssignee = (t: WorkOrderForm['type']) =>
+    users.find(u => (t === 'Housekeeping' ? u.role === 'Housekeeping' : u.role === 'Technician'))?.id ||
+    users.find(u => canBeAssigned(u.role, t))?.id ||
+    ''
+  const blankWorkOrder = (): WorkOrderForm => ({
+    type: 'Preventive',
+    title: '',
+    assetId: assets[0]?.id || '',
+    roomId: rooms[0]?.id || '',
+    assignedTechnicianId: firstAssignee('Preventive'),
+    priority: 'Medium',
+    dueDate: getLocalDateStr(new Date(Date.now() + 86400000 * 3)),
+    issueLogged: '',
+  })
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    getValues,
+    reset,
+    formState: { errors },
+  } = useForm<WorkOrderForm>({
+    resolver: zodResolver(workOrderSchema),
+    defaultValues: blankWorkOrder(),
+    mode: 'onTouched',
+  })
+  const type = watch('type')
+  const createFormRef = useRef<HTMLFormElement>(null)
+
+  const openCreateModal = () => {
+    reset(blankWorkOrder())
+    setShowCreateModal(true)
+  }
+
+  // The assignee list depends on the type: switching type must not leave a
+  // person selected who is no longer in the list.
+  const chooseType = (t: WorkOrderForm['type']) => {
+    setValue('type', t)
+    const current = users.find(u => u.id === getValues('assignedTechnicianId'))
+    if (!current || !canBeAssigned(current.role, t)) setValue('assignedTechnicianId', firstAssignee(t))
+  }
 
   // A Preventive/Corrective record with no technician assigned yet is a
   // PENDING placeholder (see makePendingWoNumber in idGenerator.ts) -- it
@@ -315,31 +351,38 @@ export default function WorkOrdersHubPage() {
     setShowSlaModal(false)
   }
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const tech = users.find(u => u.id === assignedTechnicianId)
-    const prefix = type === 'Preventive' ? 'WO-PM' : type === 'Corrective' ? 'WO-CR' : 'WO-HK'
-    const woNum = formatYearlyId(prefix, getNextSequence(workOrders.map(w => w.woNumber), prefix))
+  const handleCreateSubmit = handleSubmit(
+    v => {
+      const tech = users.find(u => u.id === v.assignedTechnicianId)
+      if (!tech || !canBeAssigned(tech.role, v.type)) {
+        // Only possible if the user list changed while the form was open.
+        setValue('assignedTechnicianId', firstAssignee(v.type))
+        showToast('error', `Choose someone who can take a ${v.type.toLowerCase()} work order.`)
+        return
+      }
+      const prefix = v.type === 'Preventive' ? 'WO-PM' : v.type === 'Corrective' ? 'WO-CR' : 'WO-HK'
+      const woNum = formatYearlyId(prefix, getNextSequence(workOrders.map(w => w.woNumber), prefix))
 
-    addWorkOrder({
-      woNumber: woNum,
-      type,
-      title: title || `${type} Work Order`,
-      assetId: type !== 'Housekeeping' ? assetId : undefined,
-      roomId: roomId || undefined,
-      priority,
-      source: type === 'Preventive' ? 'Scheduled' : type === 'Corrective' ? 'Service Request' : 'Routine',
-      dueDate,
-      assignedTechnicianId,
-      assignedTechnicianName: tech?.fullName,
-      status: 'Scheduled',
-      issueLogged: issueLogged || undefined,
-    })
+      addWorkOrder({
+        woNumber: woNum,
+        type: v.type,
+        title: v.title,
+        assetId: v.type !== 'Housekeeping' ? v.assetId : undefined,
+        roomId: v.roomId || undefined,
+        priority: v.priority,
+        source: v.type === 'Preventive' ? 'Scheduled' : v.type === 'Corrective' ? 'Service Request' : 'Routine',
+        dueDate: v.dueDate,
+        assignedTechnicianId: v.assignedTechnicianId,
+        assignedTechnicianName: tech.fullName,
+        status: 'Scheduled',
+        issueLogged: v.issueLogged || undefined,
+      })
 
-    setShowCreateModal(false)
-    setTitle('')
-    setIssueLogged('')
-  }
+      setShowCreateModal(false)
+      reset(blankWorkOrder())
+    },
+    () => focusFirstError(createFormRef.current)
+  )
 
   return (
     <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Maintenance' }, { label: 'Work Orders' }]} loadingFallback={<PageSkeleton tiles={4} rows={8} cols={6} />}>
@@ -366,7 +409,7 @@ export default function WorkOrdersHubPage() {
             </button>
 
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={openCreateModal}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-sm transition"
             >
               <Plus className="w-4 h-4" />
@@ -539,7 +582,7 @@ export default function WorkOrdersHubPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
+              <form ref={createFormRef} onSubmit={handleCreateSubmit} noValidate className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Work Order Type *</label>
                   <div className="grid grid-cols-3 gap-2">
@@ -547,7 +590,8 @@ export default function WorkOrdersHubPage() {
                       <button
                         key={t}
                         type="button"
-                        onClick={() => setType(t)}
+                        aria-pressed={type === t}
+                        onClick={() => chooseType(t)}
                         className={`py-2 px-3 rounded-xl border text-xs font-semibold transition ${
                           type === t
                             ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20'
@@ -561,72 +605,82 @@ export default function WorkOrdersHubPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Work Order Title *</label>
+                  <label htmlFor="wo-title" className="block font-semibold text-slate-700 mb-1">Work Order Title *</label>
                   <input
+                    id="wo-title"
                     type="text"
-                    required
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
+                    {...register('title')}
+                    {...invalidProps('wo-title', errors.title?.message)}
                     placeholder="e.g. Split AC Coil Cleaning or Deep Room Sanitization"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  <FieldError id="wo-title-error" message={errors.title?.message} />
                 </div>
 
                 {type !== 'Housekeeping' && (
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Select Target Asset *</label>
+                    <label htmlFor="wo-asset" className="block font-semibold text-slate-700 mb-1">Select Target Asset *</label>
                     <select
-                      value={assetId}
-                      onChange={e => setAssetId(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white"
+                      id="wo-asset"
+                      {...register('assetId')}
+                      {...invalidProps('wo-asset', errors.assetId?.message)}
+                      className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white ${INVALID}`}
                     >
+                      <option value="" disabled>Choose the asset…</option>
                       {assets.map(a => (
                         <option key={a.id} value={a.id}>
                           {a.name} ({a.assetId || a.id})
                         </option>
                       ))}
                     </select>
+                    <FieldError id="wo-asset-error" message={errors.assetId?.message} />
                   </div>
                 )}
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Target Room / Area *</label>
+                  <label htmlFor="wo-room" className="block font-semibold text-slate-700 mb-1">Target Room / Area *</label>
                   <select
-                    value={roomId}
-                    onChange={e => setRoomId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white"
+                    id="wo-room"
+                    {...register('roomId')}
+                    {...invalidProps('wo-room', errors.roomId?.message)}
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white ${INVALID}`}
                   >
+                    <option value="" disabled>Choose a room / area…</option>
                     {rooms.map(r => (
                       <option key={r.id} value={r.id}>
                         {r.name} ({r.roomNumber || r.id})
                       </option>
                     ))}
                   </select>
+                  <FieldError id="wo-room-error" message={errors.roomId?.message} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Assign Technician/Staff *</label>
+                    <label htmlFor="wo-assignee" className="block font-semibold text-slate-700 mb-1">Assign Technician/Staff *</label>
                     <select
-                      value={assignedTechnicianId}
-                      onChange={e => setAssignedTechnicianId(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white"
+                      id="wo-assignee"
+                      {...register('assignedTechnicianId')}
+                      {...invalidProps('wo-assignee', errors.assignedTechnicianId?.message)}
+                      className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white ${INVALID}`}
                     >
+                      <option value="" disabled>Choose a person…</option>
                       {users
-                        .filter(u => (type === 'Housekeeping' ? u.role === 'Housekeeping' || u.role === 'Admin' : u.role !== 'Guest'))
+                        .filter(u => canBeAssigned(u.role, type))
                         .map(u => (
                           <option key={u.id} value={u.id}>
                             {u.fullName} ({u.role})
                           </option>
                         ))}
                     </select>
+                    <FieldError id="wo-assignee-error" message={errors.assignedTechnicianId?.message} />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Priority</label>
+                    <label htmlFor="wo-priority" className="block font-semibold text-slate-700 mb-1">Priority</label>
                     <select
-                      value={priority}
-                      onChange={e => setPriority(e.target.value as any)}
+                      id="wo-priority"
+                      {...register('priority')}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white"
                     >
                       <option value="Low">Low</option>
@@ -638,25 +692,28 @@ export default function WorkOrdersHubPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">SLA Due Date</label>
+                  <label htmlFor="wo-due" className="block font-semibold text-slate-700 mb-1">SLA Due Date *</label>
                   <input
+                    id="wo-due"
                     type="date"
-                    required
-                    value={dueDate}
-                    onChange={e => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    {...register('dueDate')}
+                    {...invalidProps('wo-due', errors.dueDate?.message)}
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   />
+                  <FieldError id="wo-due-error" message={errors.dueDate?.message} />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Scope / Issue Details</label>
+                  <label htmlFor="wo-details" className="block font-semibold text-slate-700 mb-1">Scope / Issue Details</label>
                   <textarea
+                    id="wo-details"
                     rows={2}
-                    value={issueLogged}
-                    onChange={e => setIssueLogged(e.target.value)}
+                    {...register('issueLogged')}
+                    {...invalidProps('wo-details', errors.issueLogged?.message)}
                     placeholder="Instructions or specific fault notes..."
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl ${INVALID}`}
                   ></textarea>
+                  <FieldError id="wo-details-error" message={errors.issueLogged?.message} />
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

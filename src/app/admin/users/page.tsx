@@ -37,6 +37,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, timeOf } from '@/components/ui/DataTable'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function UsersAdminPage() {
   const {
     users,
@@ -214,7 +216,7 @@ export default function UsersAdminPage() {
   // Handle User Delete
   const handleDeleteUser = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
-    if (confirm(`Are you sure you want to delete user "${name}"?`)) {
+    if (await confirmAction(`Are you sure you want to delete user "${name}"?`)) {
       // deleteUser reports any failure itself (toast) and restores the row.
       const res = await deleteUser(id)
       if (res.success && viewingUser?.id === id) {
@@ -227,7 +229,7 @@ export default function UsersAdminPage() {
   const handleDeptSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!deptName.trim()) {
-      alert('Department name is required.')
+      showToast('error', 'Department name is required.')
       return
     }
 
@@ -255,11 +257,11 @@ export default function UsersAdminPage() {
   }
 
   // Handle Department Delete with Dependency Check
-  const handleDeleteDept = (d: Department) => {
-    if (confirm(`Are you sure you want to delete department "${d.name}" (${d.id})?`)) {
+  const handleDeleteDept = async (d: Department) => {
+    if (await confirmAction(`Are you sure you want to delete department "${d.name}" (${d.id})?`)) {
       const res = deleteDepartment(d.id)
       if (!res.success) {
-        alert(res.message || 'Cannot delete department.')
+        showToast('error', res.message || 'Cannot delete department.')
       }
     }
   }

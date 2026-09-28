@@ -37,6 +37,9 @@ export interface ModalProps {
   closeOnOverlayClick?: boolean
   // e.g. while saving: Escape does nothing.
   preventClose?: boolean
+  // Element to focus on open instead of the dialog itself (e.g. the safe
+  // "Cancel" button of a confirmation).
+  initialFocusRef?: React.RefObject<HTMLElement | null>
   children: React.ReactNode
 }
 
@@ -49,6 +52,7 @@ export function Modal({
   overlayClassName = MODAL_OVERLAY,
   closeOnOverlayClick = false,
   preventClose = false,
+  initialFocusRef,
   children,
 }: ModalProps) {
   const contentRef = useRef<HTMLDivElement>(null)
@@ -72,7 +76,7 @@ export function Modal({
           // and never pop up the phone keyboard by focusing a field.
           onOpenAutoFocus={e => {
             e.preventDefault()
-            contentRef.current?.focus()
+            ;(initialFocusRef?.current ?? contentRef.current)?.focus()
           }}
           onPointerDownOutside={e => {
             if (!closeOnOverlayClick || preventClose) e.preventDefault()

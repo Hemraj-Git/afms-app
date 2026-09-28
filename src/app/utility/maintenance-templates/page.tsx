@@ -19,6 +19,8 @@ import {
 import { ChecklistTemplate, ChecklistItemDef } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function MaintenanceTemplatesPage() {
   const {
     checklistTemplates,
@@ -105,12 +107,12 @@ export default function MaintenanceTemplatesPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) {
-      alert('Please enter a Template Title.')
+      showToast('error', 'Please enter a Template Title.')
       return
     }
 
     if (items.length === 0) {
-      alert('Please add at least one checklist item.')
+      showToast('error', 'Please add at least one checklist item.')
       return
     }
 
@@ -141,7 +143,7 @@ export default function MaintenanceTemplatesPage() {
   }
 
   // Deletion Protection: Check if linked to any SubCategory or active Assets
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     const linkedSubCategories = subCategories.filter(
       s => s.pmTemplateId === id || (s.pmTemplateIds && s.pmTemplateIds.includes(id))
     )
@@ -152,13 +154,13 @@ export default function MaintenanceTemplatesPage() {
 
     if (linkedSubCategories.length > 0 || linkedAssets.length > 0) {
       const subNames = linkedSubCategories.map(s => s.name).join(', ')
-      alert(
+      showToast('error', 
         `Deletion Not Permitted: Template "${name}" (${id}) cannot be deleted because it is currently linked to ${linkedSubCategories.length} Sub-Category(s) (${subNames}) and used by ${linkedAssets.length} active asset(s). Please unlink it first.`
       )
       return
     }
 
-    if (confirm(`Are you sure you want to delete Preventive Maintenance template "${name}"?`)) {
+    if (await confirmAction(`Are you sure you want to delete Preventive Maintenance template "${name}"?`)) {
       deleteChecklistTemplate(id)
     }
   }

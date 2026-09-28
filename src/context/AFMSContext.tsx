@@ -1528,7 +1528,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         const windowStatus = getAttemptWindowStatus(targetWo.dueDate, targetWo.frequency)
         if (!windowStatus.canAttempt) {
           if (typeof window !== 'undefined') {
-            alert(`This Preventive Maintenance task cannot be attempted yet. The execution window opens on ${windowStatus.unlockDate} (${windowStatus.windowDescription}).`)
+            showToast('error', `This Preventive Maintenance task cannot be attempted yet. The execution window opens on ${windowStatus.unlockDate} (${windowStatus.windowDescription}).`)
           }
           return false
         }
@@ -1746,7 +1746,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       const windowStatus = getAttemptWindowStatus(targetInsp.dueDate, tmpl?.interval)
       if (!windowStatus.canAttempt) {
         if (typeof window !== 'undefined') {
-          alert(`This inspection cannot be attempted yet. The execution window opens on ${windowStatus.unlockDate} (${windowStatus.windowDescription}).`)
+          showToast('error', `This inspection cannot be attempted yet. The execution window opens on ${windowStatus.unlockDate} (${windowStatus.windowDescription}).`)
         }
         return
       }
@@ -1908,7 +1908,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       console.error('Supabase room_check_in error:', error.message)
       if (typeof window !== 'undefined') {
-        alert(`Could not save this check-in: ${error.message}`)
+        showToast('error', `Could not save this check-in: ${error.message}`)
       }
     }
     // Re-read both, so a failed check-in doesn't leave the room shown as occupied.
@@ -1965,7 +1965,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       console.error('Supabase room_check_out error:', error.message)
       if (typeof window !== 'undefined') {
-        alert(`Could not save this check-out: ${error.message}`)
+        showToast('error', `Could not save this check-out: ${error.message}`)
       }
     }
     queryClient.invalidateQueries({ queryKey: roomKeys.list(currentUser.id) })

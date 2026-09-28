@@ -15,6 +15,8 @@ import { Category } from '@/types/afms'
 import { formatCategoryId } from '@/lib/idGenerator'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function CategoriesPage() {
   const { categories, subCategories, assets, addCategory, updateCategory, deleteCategory } = useAFMS()
   const [searchQuery, setSearchQuery] = useState('')
@@ -44,7 +46,7 @@ export default function CategoriesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
-      alert('Please enter a Category Name.')
+      showToast('error', 'Please enter a Category Name.')
       return
     }
 
@@ -67,13 +69,13 @@ export default function CategoriesPage() {
     setShowModal(false)
   }
 
-  const handleDelete = (cat: Category) => {
+  const handleDelete = async (cat: Category) => {
     const subs = subCategories.filter(s => s.categoryId === cat.id)
     if (subs.length > 0) {
-      alert(`Deletion not permitted: Category "${cat.name}" (${cat.code}) has ${subs.length} linked Sub-Categories (${subs.map(s => s.name).join(', ')}). Please delete or reassign those subcategories first.`)
+      showToast('error', `Deletion not permitted: Category "${cat.name}" (${cat.code}) has ${subs.length} linked Sub-Categories (${subs.map(s => s.name).join(', ')}). Please delete or reassign those subcategories first.`)
       return
     }
-    if (confirm(`Are you sure you want to delete category "${cat.name}" (${cat.code})?`)) {
+    if (await confirmAction(`Are you sure you want to delete category "${cat.name}" (${cat.code})?`)) {
       deleteCategory(cat.id)
     }
   }

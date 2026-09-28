@@ -37,6 +37,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { showToast } from '@/lib/toast'
 // Defined Report Types
 type ReportTypeKey =
   | 'asset_master'
@@ -735,7 +736,7 @@ export default function ReportsHubPage() {
     }
 
     if (rows.length === 0) {
-      alert('No records available to export for the selected filter criteria.')
+      showToast('error', 'No records available to export for the selected filter criteria.')
       return
     }
 

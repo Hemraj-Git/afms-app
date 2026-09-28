@@ -27,6 +27,7 @@ import {
 import { Asset } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
 interface BulkAssetUploadModalProps {
   isOpen: boolean
   onClose: () => void
@@ -178,7 +179,7 @@ export function BulkAssetUploadModal({
       }
     } catch (err) {
       console.error('Import failed:', err)
-      alert('An unexpected error occurred during import. Please try again.')
+      showToast('error', 'An unexpected error occurred during import. Please try again.')
     } finally {
       setIsSubmitting(false)
     }

@@ -22,6 +22,8 @@ import {
 import { Room } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function RoomsPage() {
   const {
     rooms,
@@ -131,7 +133,7 @@ export default function RoomsPage() {
     e.preventDefault()
     const trimmed = newRoomTypeName.trim()
     if (!trimmed) {
-      alert('Please enter a room type name.')
+      showToast('error', 'Please enter a room type name.')
       return
     }
     addRoomType(trimmed)
@@ -143,7 +145,7 @@ export default function RoomsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!buildingId) {
-      alert('Please select a valid building inside the selected campus.')
+      showToast('error', 'Please select a valid building inside the selected campus.')
       return
     }
     const sizeNum = parseFloat(roomSizeSqft) || 0
@@ -176,16 +178,16 @@ export default function RoomsPage() {
     setShowModal(false)
   }
 
-  const handleDelete = (id: string, roomName: string, roomNumber: string) => {
+  const handleDelete = async (id: string, roomName: string, roomNumber: string) => {
     const linkedAssets = assets.filter(a => a.roomId === id)
     if (linkedAssets.length > 0) {
-      alert(
+      showToast('error', 
         `Deletion Not Permitted: Room "${roomName}" (${roomNumber}) cannot be deleted because it has ${linkedAssets.length} asset(s) installed (${linkedAssets.map(a => a.name).join(', ')}). Please reassign or delete those assets first.`
       )
       return
     }
 
-    if (confirm(`Are you sure you want to delete room "${roomName}" (${roomNumber})?`)) {
+    if (await confirmAction(`Are you sure you want to delete room "${roomName}" (${roomNumber})?`)) {
       deleteRoom(id)
     }
   }

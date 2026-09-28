@@ -31,6 +31,9 @@ import { DocumentItem, SlaPriority } from '@/types/afms'
 import { uploadToStorage, validateUpload } from '@/lib/storageUpload'
 
 import { Modal } from '@/components/ui/Modal'
+import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components/ui/FormField'
+import { assetBasicsSchema, assetLocationSchema, fieldErrors } from '@/lib/validation/forms'
+import { showToast } from '@/lib/toast'
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
 
 export default function AddAssetPage() {
@@ -254,7 +257,7 @@ function AddAssetForm() {
     if (file) {
       const invalid = validateUpload(file, 'asset-images')
       if (invalid) {
-        alert(invalid)
+        showToast('error', invalid)
         return
       }
       setIsUploadingImage(true)
@@ -278,7 +281,7 @@ function AddAssetForm() {
     if (file) {
       const invalid = validateUpload(file, 'asset-images')
       if (invalid) {
-        alert(invalid)
+        showToast('error', invalid)
         return
       }
       setIsUploadingImage(true)
@@ -317,7 +320,7 @@ function AddAssetForm() {
   const handleSaveNewVendor = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVendorName.trim()) {
-      alert('Vendor Name is required.')
+      showToast('error', 'Vendor Name is required.')
       return
     }
 
@@ -348,7 +351,7 @@ function AddAssetForm() {
   const handleSaveNewDocument = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newDocTitle.trim()) {
-      alert('Document Title is required.')
+      showToast('error', 'Document Title is required.')
       return
     }
 
@@ -359,7 +362,7 @@ function AddAssetForm() {
     if (rawFile) {
       const invalid = validateUpload(rawFile, 'documents')
       if (invalid) {
-        alert(invalid)
+        showToast('error', invalid)
         return
       }
       setIsUploadingDoc(true)
@@ -391,93 +394,51 @@ function AddAssetForm() {
     }
   }
 
-  // Step Validation Logic (Mandatory vs Optional)
-  const validateStep = (step: number): boolean => {
+  // Step validation (src/lib/validation/forms.ts): every problem in the step is
+  // shown under its field at once, instead of one alert() at a time. After a
+  // failed "Next", the messages follow the fields live, so fixing one clears it.
+  const [checkedStep, setCheckedStep] = useState<number | null>(null)
+
+  const errorsForStep = (step: number): Record<string, string> => {
     if (step === 1) {
-      if (!assetName.trim()) {
-        alert('Please enter Asset Name.')
-        return false
-      }
-      if (!selectedCategoryId) {
-        alert('Please select a Category.')
-        return false
-      }
-      if (!selectedSubCategoryId) {
-        alert('Please select a Sub-Category.')
-        return false
-      }
-      if (!manufacturer.trim()) {
-        alert('Please enter Manufacturer Name.')
-        return false
-      }
-      if (!modelNumber.trim()) {
-        alert('Please enter Model Number.')
-        return false
-      }
-      if (!purchaseDate) {
-        alert('Please select Purchase Date.')
-        return false
-      }
-      if (!installationDate) {
-        alert('Please select Installation Date.')
-        return false
-      }
-      if (installationDate < purchaseDate) {
-        alert('Installation Date cannot be before Purchase Date.')
-        return false
-      }
-      if (lastServicedDate && lastServicedDate < purchaseDate) {
-        alert('Last Serviced Date cannot be before Purchase Date.')
-        return false
-      }
-      if (!warrantyTill) {
-        alert('Please select Warranty Expiry Date.')
-        return false
-      }
-      if (warrantyTill < purchaseDate) {
-        alert('Warranty Till date cannot be before Purchase Date.')
-        return false
-      }
-      if (!purchasedFromId) {
-        alert('Please select Purchased From (Vendor).')
-        return false
-      }
-      if (maintenanceBy === 'Vendor') {
-        if (!amcVendorId) {
-          alert('Please select an AMC Vendor.')
-          return false
-        }
-        if (!amcStartDate) {
-          alert('Please select AMC Start Date.')
-          return false
-        }
-        if (!amcEndDate) {
-          alert('Please select AMC End Date.')
-          return false
-        }
-        if (amcEndDate < amcStartDate) {
-          alert('AMC End Date cannot be before AMC Start Date.')
-          return false
-        }
-      }
+      return fieldErrors(assetBasicsSchema, {
+        assetName,
+        categoryId: selectedCategoryId,
+        subCategoryId: selectedSubCategoryId,
+        manufacturer,
+        modelNumber,
+        purchaseDate,
+        installationDate,
+        lastServicedDate,
+        warrantyTill,
+        purchasedFromId,
+        maintenanceBy,
+        amcVendorId,
+        amcStartDate,
+        amcEndDate,
+      })
     }
-
     if (step === 2) {
-      if (!selectedCampusId) {
-        alert('Please select a Campus.')
-        return false
-      }
-      if (!selectedBuildingId) {
-        alert('Please select a Building / Block.')
-        return false
-      }
-      if (!selectedRoomId) {
-        alert('Please select a Room / Area.')
-        return false
-      }
+      return fieldErrors(assetLocationSchema, {
+        campusId: selectedCampusId,
+        buildingId: selectedBuildingId,
+        roomId: selectedRoomId,
+      })
     }
+    return {}
+  }
 
-    return true
+  const stepErrors = checkedStep === currentStep ? errorsForStep(currentStep) : {}
+
+  const validateStep = (step: number): boolean => {
+    if (Object.keys(errorsForStep(step)).length === 0) {
+      setCheckedStep(null)
+      return true
+    }
+    setCheckedStep(step)
+    // After React paints the messages, bring the first bad field into view.
+    requestAnimationFrame(() => focusFirstError(document.body))
+    return false
   }
 
   const steps = [
@@ -500,7 +461,7 @@ function AddAssetForm() {
 
   const handleFinalSubmit = async () => {
     if (isUploadingImage || isUploadingDoc) {
-      alert('Please wait for the upload to finish before submitting.')
+      showToast('error', 'Please wait for the upload to finish before submitting.')
       return
     }
 
@@ -650,35 +611,40 @@ function AddAssetForm() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Asset Name *</label>
                   <input
                     type="text"
+                    {...invalidProps('asset-assetName', stepErrors.assetName)}
                     value={assetName}
                     onChange={e => setAssetName(e.target.value)}
                     placeholder="e.g. Split AC 2 Ton, Engine Simulator #1"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  <FieldError id="asset-assetName-error" message={stepErrors.assetName} />
                 </div>
 
                 {/* Row 2: Category & Sub-Category (IN SAME ROW, NEXT TO EACH OTHER) */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Category *</label>
                   <select
+                    {...invalidProps('asset-categoryId', stepErrors.categoryId)}
                     value={selectedCategoryId}
                     onChange={e => handleCategoryChange(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   >
                     <option value="">Select Category</option>
                     {categories.map(c => (
                       <option key={c.id} value={c.id}>{c.name} ({c.code || c.id})</option>
                     ))}
                   </select>
+                  <FieldError id="asset-categoryId-error" message={stepErrors.categoryId} />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategory *</label>
                   <select
+                    {...invalidProps('asset-subCategoryId', stepErrors.subCategoryId)}
                     value={selectedSubCategoryId}
                     onChange={e => handleSubCategoryChange(e.target.value)}
                     disabled={!selectedCategoryId}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400 ${INVALID}`}
                   >
                     <option value="">
                       {!selectedCategoryId ? 'Select Category First' : 'Select Sub-Category'}
@@ -687,6 +653,7 @@ function AddAssetForm() {
                       <option key={s.id} value={s.id}>{s.name} ({s.code || s.id})</option>
                     ))}
                   </select>
+                  <FieldError id="asset-subCategoryId-error" message={stepErrors.subCategoryId} />
                   {selectedCategoryId && availableSubCategories.length === 0 && (
                     <p className="text-[10px] text-amber-600 mt-1">No subcategories under this category yet.</p>
                   )}
@@ -714,22 +681,26 @@ function AddAssetForm() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Manufacturer Name *</label>
                   <input
                     type="text"
+                    {...invalidProps('asset-manufacturer', stepErrors.manufacturer)}
                     value={manufacturer}
                     onChange={e => setManufacturer(e.target.value)}
                     placeholder="e.g. Mitsubishi, Daikin, Philips"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  <FieldError id="asset-manufacturer-error" message={stepErrors.manufacturer} />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Model Number *</label>
                   <input
                     type="text"
+                    {...invalidProps('asset-modelNumber', stepErrors.modelNumber)}
                     value={modelNumber}
                     onChange={e => setModelNumber(e.target.value)}
                     placeholder="e.g. DXC18YAMDA-W"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  <FieldError id="asset-modelNumber-error" message={stepErrors.modelNumber} />
                 </div>
 
                 {/* Row 4: Serial Number & Asset Price */}
@@ -764,6 +735,7 @@ function AddAssetForm() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Purchase Date *</label>
                   <input
                     type="date"
+                    {...invalidProps('asset-purchaseDate', stepErrors.purchaseDate)}
                     value={purchaseDate}
                     onChange={e => {
                       const v = e.target.value
@@ -775,20 +747,23 @@ function AddAssetForm() {
                       if (lastServicedDate && v && lastServicedDate < v) setLastServicedDate('')
                       if (warrantyTill && v && warrantyTill < v) setWarrantyTill('')
                     }}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  <FieldError id="asset-purchaseDate-error" message={stepErrors.purchaseDate} />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Installation Date * (PM Anchor)</label>
                   <input
                     type="date"
+                    {...invalidProps('asset-installationDate', stepErrors.installationDate)}
                     value={installationDate}
                     min={purchaseDate || undefined}
                     disabled={isEditMode}
                     onChange={e => setInstallationDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed ${INVALID}`}
                   />
+                  <FieldError id="asset-installationDate-error" message={stepErrors.installationDate} />
                   {isEditMode && (
                     <p className="text-[10px] text-slate-400 mt-1">Locked after creation — used to schedule PM/Inspection cycles.</p>
                   )}
@@ -800,11 +775,13 @@ function AddAssetForm() {
                   </label>
                   <input
                     type="date"
+                    {...invalidProps('asset-lastServicedDate', stepErrors.lastServicedDate)}
                     value={lastServicedDate}
                     min={purchaseDate || undefined}
                     onChange={e => setLastServicedDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  <FieldError id="asset-lastServicedDate-error" message={stepErrors.lastServicedDate} />
                   <p className="text-[10px] text-slate-400 mt-1">
                     If this asset was already installed and serviced before being entered here, set this so the first PM/Inspection cycle is scheduled from this date instead of today.
                   </p>
@@ -815,11 +792,13 @@ function AddAssetForm() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Warranty Till *</label>
                   <input
                     type="date"
+                    {...invalidProps('asset-warrantyTill', stepErrors.warrantyTill)}
                     value={warrantyTill}
                     min={purchaseDate || undefined}
                     onChange={e => setWarrantyTill(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   />
+                  <FieldError id="asset-warrantyTill-error" message={stepErrors.warrantyTill} />
                 </div>
 
                 <div>
@@ -848,9 +827,10 @@ function AddAssetForm() {
                     </button>
                   </div>
                   <select
+                    {...invalidProps('asset-purchasedFromId', stepErrors.purchasedFromId)}
                     value={purchasedFromId}
                     onChange={e => handleVendorSelectChange(e.target.value, 'purchase')}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   >
                     <option value="">Select Vendor</option>
                     {purchasedFromId && !vendors.some(v => v.id === purchasedFromId) && (
@@ -861,6 +841,7 @@ function AddAssetForm() {
                     ))}
                     <option value="__ADD_NEW_VENDOR__">+ Add New Vendor...</option>
                   </select>
+                  <FieldError id="asset-purchasedFromId-error" message={stepErrors.purchasedFromId} />
                 </div>
 
                 <div>
@@ -1030,9 +1011,10 @@ function AddAssetForm() {
                         </button>
                       </div>
                       <select
+                        {...invalidProps('asset-amcVendorId', stepErrors.amcVendorId)}
                         value={amcVendorId}
                         onChange={e => handleVendorSelectChange(e.target.value, 'amc')}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                        className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                       >
                         <option value="">Select AMC Vendor</option>
                         {amcVendorId && !vendors.some(v => v.id === amcVendorId) && (
@@ -1043,31 +1025,36 @@ function AddAssetForm() {
                         ))}
                         <option value="__ADD_NEW_VENDOR__">+ Add New Vendor...</option>
                       </select>
+                      <FieldError id="asset-amcVendorId-error" message={stepErrors.amcVendorId} />
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">AMC Start Date *</label>
                       <input
                         type="date"
+                        {...invalidProps('asset-amcStartDate', stepErrors.amcStartDate)}
                         value={amcStartDate}
                         onChange={e => {
                           const v = e.target.value
                           setAmcStartDate(v)
                           if (amcEndDate && v && amcEndDate < v) setAmcEndDate('')
                         }}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                        className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs ${INVALID}`}
                       />
+                      <FieldError id="asset-amcStartDate-error" message={stepErrors.amcStartDate} />
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">AMC End Date *</label>
                       <input
                         type="date"
+                        {...invalidProps('asset-amcEndDate', stepErrors.amcEndDate)}
                         value={amcEndDate}
                         min={amcStartDate || undefined}
                         onChange={e => setAmcEndDate(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs"
+                        className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs ${INVALID}`}
                       />
+                      <FieldError id="asset-amcEndDate-error" message={stepErrors.amcEndDate} />
                     </div>
                   </div>
                 </div>
@@ -1100,24 +1087,27 @@ function AddAssetForm() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">1. Select Campus *</label>
                   <select
+                    {...invalidProps('asset-campusId', stepErrors.campusId)}
                     value={selectedCampusId}
                     onChange={e => handleCampusChange(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   >
                     <option value="">Select Campus</option>
                     {campuses.map(c => (
                       <option key={c.id} value={c.id}>{c.name} ({c.code || c.id})</option>
                     ))}
                   </select>
+                  <FieldError id="asset-campusId-error" message={stepErrors.campusId} />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">2. Select Building / Block *</label>
                   <select
+                    {...invalidProps('asset-buildingId', stepErrors.buildingId)}
                     value={selectedBuildingId}
                     onChange={e => handleBuildingChange(e.target.value)}
                     disabled={!selectedCampusId}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400 ${INVALID}`}
                   >
                     <option value="">
                       {!selectedCampusId ? 'Select Campus First' : 'Select Building'}
@@ -1126,6 +1116,7 @@ function AddAssetForm() {
                       <option key={b.id} value={b.id}>{b.name} ({b.code || b.id})</option>
                     ))}
                   </select>
+                  <FieldError id="asset-buildingId-error" message={stepErrors.buildingId} />
                   {selectedCampusId && availableBuildings.length === 0 && (
                     <p className="text-[10px] text-amber-600 mt-1">No buildings in this campus yet.</p>
                   )}
@@ -1134,10 +1125,11 @@ function AddAssetForm() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">3. Select Room / Area *</label>
                   <select
+                    {...invalidProps('asset-roomId', stepErrors.roomId)}
                     value={selectedRoomId}
                     onChange={e => setSelectedRoomId(e.target.value)}
                     disabled={!selectedBuildingId}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400"
+                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400 ${INVALID}`}
                   >
                     <option value="">
                       {!selectedBuildingId ? 'Select Building First' : 'Select Room'}
@@ -1146,6 +1138,7 @@ function AddAssetForm() {
                       <option key={r.id} value={r.id}>{r.name} ({r.roomNumber || r.id})</option>
                     ))}
                   </select>
+                  <FieldError id="asset-roomId-error" message={stepErrors.roomId} />
                   {selectedBuildingId && availableRooms.length === 0 && (
                     <p className="text-[10px] text-amber-600 mt-1">No rooms in this building yet.</p>
                   )}

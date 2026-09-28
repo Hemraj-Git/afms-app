@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
-import { useDefaultSelection } from '@/lib/useDefaultSelection'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { serviceRequestSchema, type ServiceRequestForm } from '@/lib/validation/forms'
+import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components/ui/FormField'
+import { showToast } from '@/lib/toast'
 import { lockedSlaPriority } from '@/lib/assetSlaPriority'
 import { PageSkeleton } from '@/components/ui/Skeleton'
 import {
@@ -62,18 +66,37 @@ export default function ServiceRequestsPage() {
   const [showDismissModal, setShowDismissModal] = useState(false)
   const [dismissReason, setDismissReason] = useState('')
 
-  // New Request Form State
-  const [newTitle, setNewTitle] = useState('')
-  const [newDesc, setNewDesc] = useState('')
-  const [newType, setNewType] = useState<'Maintenance' | 'Cleaning' | 'IT Support' | 'General'>('Maintenance')
-  const [newRoomId, setNewRoomId] = useState(rooms[0]?.id || '')
-  useDefaultSelection(newRoomId, setNewRoomId, rooms[0]?.id)
-  const [newAssetId, setNewAssetId] = useState(assets[0]?.id || '')
-  useDefaultSelection(newAssetId, setNewAssetId, assets[0]?.id)
-  const [newPriority, setNewPriority] = useState<SlaPriority>('Medium')
+  // New Request Form: checked by serviceRequestSchema, errors shown under the fields.
+  const blankRequest = (): ServiceRequestForm => ({
+    title: '',
+    description: '',
+    type: 'Maintenance',
+    roomId: rooms[0]?.id || '',
+    assetId: assets[0]?.id || '',
+    priority: 'Medium',
+  })
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<ServiceRequestForm>({
+    resolver: zodResolver(serviceRequestSchema),
+    defaultValues: blankRequest(),
+    mode: 'onTouched',
+  })
+  const newType = watch('type')
+  const newAssetId = watch('assetId')
+  const newPriority = watch('priority')
+  const createFormRef = useRef<HTMLFormElement>(null)
 
-  const handleAssetSelect = (assetId: string) => {
-    setNewAssetId(assetId)
+  // Fresh form each time, with the lists as they are now (they may have
+  // finished loading after the page opened).
+  const openCreateModal = () => {
+    reset(blankRequest())
+    setShowCreateModal(true)
   }
 
   // The asset and its sub-category, and the SLA priority they lock a
@@ -91,8 +114,8 @@ export default function ServiceRequestsPage() {
   // touched the dropdown (the submit-time recompute masked this, but the
   // displayed value was wrong until then).
   useEffect(() => {
-    if (priorityLock) setNewPriority(priorityLock.priority)
-  }, [priorityLock?.priority])
+    if (priorityLock) setValue('priority', priorityLock.priority)
+  }, [priorityLock?.priority, setValue])
 
   // Opened from the header search: show that ticket whatever its status.
   useSearchPrefill(q => {
@@ -135,42 +158,45 @@ export default function ServiceRequestsPage() {
   const isSubmittingRef = useRef(false)
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (isSubmittingRef.current) return
-    isSubmittingRef.current = true
-    setIsSubmittingRequest(true)
-    const finalPriority: SlaPriority = priorityLock?.priority || newPriority
+  // Runs only once the form is valid; otherwise the errors show under the
+  // fields and focus moves to the first one.
+  const handleCreateSubmit = handleSubmit(
+    async values => {
+      if (isSubmittingRef.current) return
+      isSubmittingRef.current = true
+      setIsSubmittingRequest(true)
+      const finalPriority: SlaPriority = priorityLock?.priority || values.priority
 
-    // Calculate SLA Due Time using SLA Configuration
-    const slaHours = slaConfig[finalPriority] || 24
-    const dueTimeMs = Date.now() + slaHours * 60 * 60 * 1000
-    const slaDueDate = new Date(dueTimeMs).toISOString()
+      // Calculate SLA Due Time using SLA Configuration
+      const slaHours = slaConfig[finalPriority] || 24
+      const dueTimeMs = Date.now() + slaHours * 60 * 60 * 1000
+      const slaDueDate = new Date(dueTimeMs).toISOString()
 
-    try {
-      await addServiceRequest({
-        title: newTitle,
-        description: newDesc,
-        requestType: newType,
-        roomId: newRoomId,
-        assetId: newType === 'Maintenance' || newType === 'IT Support' ? newAssetId : undefined,
-        requestedBy: currentUser.fullName,
-        requestedByRole: currentUser.role,
-        status: 'Open',
-        priority: finalPriority,
-        slaDueDate,
-      })
+      try {
+        await addServiceRequest({
+          title: values.title,
+          description: values.description,
+          requestType: values.type,
+          roomId: values.roomId,
+          assetId: values.type === 'Maintenance' || values.type === 'IT Support' ? values.assetId : undefined,
+          requestedBy: currentUser.fullName,
+          requestedByRole: currentUser.role,
+          status: 'Open',
+          priority: finalPriority,
+          slaDueDate,
+        })
 
-      setShowCreateModal(false)
-      setNewTitle('')
-      setNewDesc('')
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create service request. Please try again.')
-    } finally {
-      isSubmittingRef.current = false
-      setIsSubmittingRequest(false)
-    }
-  }
+        setShowCreateModal(false)
+        reset(blankRequest())
+      } catch (err) {
+        showToast('error', err instanceof Error ? err.message : 'Failed to create service request. Please try again.')
+      } finally {
+        isSubmittingRef.current = false
+        setIsSubmittingRequest(false)
+      }
+    },
+    () => focusFirstError(createFormRef.current)
+  )
 
   // Convert Service Request to Corrective Maintenance. This no longer mints
   // a real WO-CR-#### number here -- it creates a "PENDING" placeholder
@@ -419,7 +445,7 @@ export default function ServiceRequestsPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={openCreateModal}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
             >
               <Plus className="w-4 h-4" />
@@ -886,25 +912,26 @@ export default function ServiceRequestsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
+              <form ref={createFormRef} onSubmit={handleCreateSubmit} noValidate className="space-y-4 text-xs">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Issue Title / Subject *</label>
+                  <label htmlFor="sr-title" className="block font-semibold text-slate-700 mb-1">Issue Title / Subject *</label>
                   <input
+                    id="sr-title"
                     type="text"
-                    required
-                    value={newTitle}
-                    onChange={e => setNewTitle(e.target.value)}
+                    {...register('title')}
+                    {...invalidProps('sr-title', errors.title?.message)}
                     placeholder="e.g. Compressor trip in Bridge Simulator"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${INVALID}`}
                   />
+                  <FieldError id="sr-title-error" message={errors.title?.message} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Request Type</label>
+                    <label htmlFor="sr-type" className="block font-semibold text-slate-700 mb-1">Request Type</label>
                     <select
-                      value={newType}
-                      onChange={e => setNewType(e.target.value as any)}
+                      id="sr-type"
+                      {...register('type')}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20"
                     >
                       <option value="Maintenance">Maintenance</option>
@@ -927,8 +954,7 @@ export default function ServiceRequestsPage() {
                       </div>
                     ) : (
                       <select
-                        value={newPriority}
-                        onChange={e => setNewPriority(e.target.value as any)}
+                        {...register('priority')}
                         className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 font-semibold"
                       >
                         <option value="Critical">Critical ({slaConfig.Critical}h SLA)</option>
@@ -941,46 +967,54 @@ export default function ServiceRequestsPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Room / Operational Area *</label>
+                  <label htmlFor="sr-room" className="block font-semibold text-slate-700 mb-1">Room / Operational Area *</label>
                   <select
-                    value={newRoomId}
-                    onChange={e => setNewRoomId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20"
+                    id="sr-room"
+                    {...register('roomId')}
+                    {...invalidProps('sr-room', errors.roomId?.message)}
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   >
+                    <option value="" disabled>Choose a room / area…</option>
                     {rooms.map(r => (
                       <option key={r.id} value={r.id}>
                         {r.name} ({r.roomNumber})
                       </option>
                     ))}
                   </select>
+                  <FieldError id="sr-room-error" message={errors.roomId?.message} />
                 </div>
 
                 {(newType === 'Maintenance' || newType === 'IT Support') && (
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Target Asset</label>
+                    <label htmlFor="sr-asset" className="block font-semibold text-slate-700 mb-1">Target Asset *</label>
                     <select
-                      value={newAssetId}
-                      onChange={e => handleAssetSelect(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20"
+                      id="sr-asset"
+                      {...register('assetId')}
+                      {...invalidProps('sr-asset', errors.assetId?.message)}
+                      className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                     >
+                      <option value="" disabled>Choose the asset…</option>
                       {assets.map(a => (
                         <option key={a.id} value={a.id}>
                           {a.name} ({a.assetId})
                         </option>
                       ))}
                     </select>
+                    <FieldError id="sr-asset-error" message={errors.assetId?.message} />
                   </div>
                 )}
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Description / Observations</label>
+                  <label htmlFor="sr-desc" className="block font-semibold text-slate-700 mb-1">Description / Observations</label>
                   <textarea
+                    id="sr-desc"
                     rows={3}
-                    value={newDesc}
-                    onChange={e => setNewDesc(e.target.value)}
+                    {...register('description')}
+                    {...invalidProps('sr-desc', errors.description?.message)}
                     placeholder="Provide details about symptoms, sound, error codes..."
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${INVALID}`}
                   ></textarea>
+                  <FieldError id="sr-desc-error" message={errors.description?.message} />
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

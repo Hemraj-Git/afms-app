@@ -25,6 +25,7 @@ import { DataTable, timeOf } from '@/components/ui/DataTable'
 import type { Asset, Room } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
 export default function QrDashboardPage() {
   const { assets, rooms, buildings, campuses, updateAsset, updateRoom } = useAFMS()
 
@@ -126,7 +127,7 @@ export default function QrDashboardPage() {
       await generateRoomPlacardsPdf(selectedRooms, buildings, campuses, base)
     } catch (err) {
       console.error('Failed to generate Room PDF:', err)
-      alert('Error generating PDF document. Please try standard print.')
+      showToast('error', 'Error generating PDF document. Please try standard print.')
     } finally {
       setGeneratingPdf(false)
     }
@@ -143,7 +144,7 @@ export default function QrDashboardPage() {
       await generateAssetLabelsPdf(selectedAssets, rooms, base)
     } catch (err) {
       console.error('Failed to generate Asset PDF:', err)
-      alert('Error generating PDF document. Please try standard print.')
+      showToast('error', 'Error generating PDF document. Please try standard print.')
     } finally {
       setGeneratingPdf(false)
     }
@@ -397,7 +398,7 @@ export default function QrDashboardPage() {
               <button
                 onClick={() => {
                   if (selectedRoomIds.length === 0) {
-                    alert('Please select at least one Room to print.')
+                    showToast('error', 'Please select at least one Room to print.')
                     return
                   }
                   setShowRoomPrintModal(true)
@@ -412,7 +413,7 @@ export default function QrDashboardPage() {
               <button
                 onClick={() => {
                   if (selectedAssetIds.length === 0) {
-                    alert('Please select at least one Asset to print.')
+                    showToast('error', 'Please select at least one Asset to print.')
                     return
                   }
                   setShowAssetPrintModal(true)

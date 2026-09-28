@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AFMSProvider } from "@/context/AFMSContext";
 import { Toaster } from "@/components/ui/Toaster";
+import { ConfirmHost } from "@/components/ui/ConfirmHost";
 import { QueryProvider } from "@/components/QueryProvider";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ export default function RootLayout({
           </AFMSProvider>
         </QueryProvider>
         <Toaster />
+        <ConfirmHost />
       </body>
     </html>
   );

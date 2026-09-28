@@ -34,6 +34,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/DataTable'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function InventoryDashboardPage() {
   const router = useRouter()
   const {
@@ -139,7 +141,7 @@ export default function InventoryDashboardPage() {
   const handleConfirmDeploy = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!deployItem || !deployRoomId) {
-      alert('Please select a target Room / Area for deployment.')
+      showToast('error', 'Please select a target Room / Area for deployment.')
       return
     }
 
@@ -335,8 +337,8 @@ export default function InventoryDashboardPage() {
           </Link>
 
           <button
-            onClick={() => {
-              if (confirm(`Are you sure you want to delete spare ${item.name} (${item.id})?`)) {
+            onClick={async () => {
+              if (await confirmAction(`Are you sure you want to delete spare ${item.name} (${item.id})?`)) {
                 deleteInventoryItem(item.id)
               }
             }}

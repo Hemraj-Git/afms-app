@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { CheckCircle2, AlertCircle, X } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react'
 import { dismissToast, subscribeToasts, type ToastItem } from '@/lib/toast'
 
 export function Toaster() {
@@ -21,11 +21,15 @@ export function Toaster() {
           className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-xs shadow-lg ${
             t.type === 'error'
               ? 'border-rose-200 bg-rose-50 text-rose-800'
+              : t.type === 'info'
+              ? 'border-blue-200 bg-blue-50 text-blue-800'
               : 'border-emerald-200 bg-emerald-50 text-emerald-800'
           }`}
         >
           {t.type === 'error' ? (
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+          ) : t.type === 'info' ? (
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
           ) : (
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
           )}

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
 export default function DocumentLibraryPage() {
   const { documents, assets, addDocument, currentUser } = useAFMS()
   const [searchQuery, setSearchQuery] = useState('')
@@ -67,7 +68,7 @@ export default function DocumentLibraryPage() {
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedFile) {
-      alert('Please select a file to upload.')
+      showToast('error', 'Please select a file to upload.')
       return
     }
 
@@ -75,7 +76,7 @@ export default function DocumentLibraryPage() {
     // fallback below and store the rejected file in the database.
     const invalid = validateUpload(selectedFile, 'facility-documents')
     if (invalid) {
-      alert(invalid)
+      showToast('error', invalid)
       return
     }
 
@@ -284,7 +285,7 @@ export default function DocumentLibraryPage() {
                     <button
                       onClick={() => {
                         if (doc.fileUrl) window.open(doc.fileUrl, '_blank', 'noopener,noreferrer')
-                        else alert('No file is available for this document.')
+                        else showToast('error', 'No file is available for this document.')
                       }}
                       className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition"
                       title="Download File"

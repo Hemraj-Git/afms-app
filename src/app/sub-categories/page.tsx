@@ -28,6 +28,8 @@ import { SubCategory, MetadataFieldDef, ChecklistTemplate, ChecklistItemDef } fr
 import { formatSubCategoryId } from '@/lib/idGenerator'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function SubCategoriesPage() {
   const {
     subCategories,
@@ -172,7 +174,7 @@ export default function SubCategoriesPage() {
   const handleSaveInlineTemplate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTemplateTitle.trim()) {
-      alert('Please enter a Template Title.')
+      showToast('error', 'Please enter a Template Title.')
       return
     }
 
@@ -205,18 +207,18 @@ export default function SubCategoriesPage() {
   const validateStep = (step: number): boolean => {
     if (step === 1) {
       if (!selectedCategoryId) {
-        alert('Please select a Parent Category.')
+        showToast('error', 'Please select a Parent Category.')
         return false
       }
       if (!subCategoryName.trim()) {
-        alert('Please enter a Sub-Category Name.')
+        showToast('error', 'Please enter a Sub-Category Name.')
         return false
       }
     }
     if (step === 2) {
       for (let i = 0; i < metadataFields.length; i++) {
         if (!metadataFields[i].label.trim()) {
-          alert(`Please provide a label for Field #${i + 1} or remove it.`)
+          showToast('error', `Please provide a label for Field #${i + 1} or remove it.`)
           return false
         }
       }
@@ -278,16 +280,16 @@ export default function SubCategoriesPage() {
     setShowModal(false)
   }
 
-  const handleDelete = (sub: SubCategory) => {
+  const handleDelete = async (sub: SubCategory) => {
     const linkedAssets = assets.filter(a => a.subCategoryId === sub.id)
     if (linkedAssets.length > 0) {
-      alert(
+      showToast('error', 
         `Deletion Not Permitted: Sub-Category "${sub.name}" (${sub.code}) cannot be deleted because it has ${linkedAssets.length} active asset(s) linked to it. Please reassign or delete those assets first.`
       )
       return
     }
 
-    if (confirm(`Are you sure you want to delete Sub-Category "${sub.name}" (${sub.code})?`)) {
+    if (await confirmAction(`Are you sure you want to delete Sub-Category "${sub.name}" (${sub.code})?`)) {
       deleteSubCategory(sub.id)
     }
   }

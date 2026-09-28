@@ -1,7 +1,7 @@
 // Tiny app-wide toast store. A module-level store (not React state) so code
 // outside components -- e.g. the AFMSContext mutators -- can surface an error
 // without needing a hook. Rendered by <Toaster /> in the root layout.
-export type ToastType = 'success' | 'error'
+export type ToastType = 'success' | 'error' | 'info'
 
 export interface ToastItem {
   id: number

@@ -32,6 +32,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function ReservationsPage() {
   const {
     rooms,
@@ -214,17 +216,17 @@ export default function ReservationsPage() {
   const handleConfirmReservation = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedRoomId) {
-      alert('Please select a reservable facility room.')
+      showToast('error', 'Please select a reservable facility room.')
       return
     }
 
     if (activeBookingDates.length === 0) {
-      alert('No active dates selected in the date range. Please check your start/end dates and day exclusions.')
+      showToast('error', 'No active dates selected in the date range. Please check your start/end dates and day exclusions.')
       return
     }
 
     if (selectedSlotHours.length === 0) {
-      alert('Please select at least one time slot.')
+      showToast('error', 'Please select at least one time slot.')
       return
     }
 
@@ -268,18 +270,19 @@ export default function ReservationsPage() {
     })
 
     if (reservationsPayload.length === 0) {
-      alert('Cannot reserve past time slots. Selected slot(s) have already passed. Please select a future date or time slot.')
+      showToast('error', 'Cannot reserve past time slots. Selected slot(s) have already passed. Please select a future date or time slot.')
       return
     }
 
     const result = addBulkReservations(reservationsPayload)
     if (result.success) {
       setShowBookingModal(false)
+      // Booked, but some slots were already taken: say which, without an error look.
       if (result.conflictCount > 0) {
-        alert(result.message)
+        showToast('info', result.message ?? `${result.conflictCount} slot(s) were already taken and were skipped.`)
       }
     } else {
-      alert(result.message || 'Could not complete reservation due to conflict.')
+      showToast('error', result.message || 'Could not complete reservation due to conflict.')
     }
   }
 
@@ -400,8 +403,8 @@ export default function ReservationsPage() {
           <span className="text-[11px] text-slate-400 italic">Past</span>
         ) : (
           <button
-            onClick={() => {
-              if (confirm(`Delete reservation ${res.reservationNumber}?`)) {
+            onClick={async () => {
+              if (await confirmAction(`Delete reservation ${res.reservationNumber}?`)) {
                 deleteReservation(res.id)
               }
             }}
@@ -585,8 +588,8 @@ export default function ReservationsPage() {
                                   </div>
                                 ) : (
                                   <div
-                                    onClick={() => {
-                                      if (confirm(`Cancel reservation for ${room.name} by ${existingRes.userName} (${existingRes.timeSlot})?`)) {
+                                    onClick={async () => {
+                                      if (await confirmAction(`Cancel reservation for ${room.name} by ${existingRes.userName} (${existingRes.timeSlot})?`, { confirmLabel: 'Cancel reservation', cancelLabel: 'Keep it' })) {
                                         deleteReservation(existingRes.id)
                                       }
                                     }}

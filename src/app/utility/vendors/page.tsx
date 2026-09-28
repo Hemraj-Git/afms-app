@@ -23,6 +23,7 @@ import Link from 'next/link'
 import { useSearchPrefill } from '@/lib/useSearchPrefill'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
 export default function VendorsPage() {
   const { vendors, addVendor, updateVendor, deleteVendor, assets } = useAFMS()
 
@@ -86,7 +87,7 @@ export default function VendorsPage() {
   const handleSaveVendor = (e: React.FormEvent) => {
     e.preventDefault()
     if (!vendorName.trim()) {
-      alert('Vendor Name is required.')
+      showToast('error', 'Vendor Name is required.')
       return
     }
 

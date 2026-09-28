@@ -29,6 +29,7 @@ import { formatId, getNextSequence } from '@/lib/idGenerator'
 import { InventoryItem, DocumentItem } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
 export default function AddInventoryPage() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-slate-500 font-medium">Loading Inventory Wizard...</div>}>
@@ -190,7 +191,7 @@ function AddInventoryForm() {
   const handleSaveNewVendor = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVendorName.trim()) {
-      alert('Vendor Name is required.')
+      showToast('error', 'Vendor Name is required.')
       return
     }
 
@@ -216,7 +217,7 @@ function AddInventoryForm() {
   const handleSaveNewDocument = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newDocTitle.trim()) {
-      alert('Please provide a document title.')
+      showToast('error', 'Please provide a document title.')
       return
     }
 
@@ -252,23 +253,23 @@ function AddInventoryForm() {
   const validateStep = (step: number): boolean => {
     if (step === 1) {
       if (!name.trim()) {
-        alert('Please enter Spare / Item Name.')
+        showToast('error', 'Please enter Spare / Item Name.')
         return false
       }
       if (!selectedCategoryId) {
-        alert('Please select a Category.')
+        showToast('error', 'Please select a Category.')
         return false
       }
       if (!selectedSubCategoryId) {
-        alert('Please select a Sub-Category.')
+        showToast('error', 'Please select a Sub-Category.')
         return false
       }
       if (quantity < 0) {
-        alert('Quantity cannot be negative.')
+        showToast('error', 'Quantity cannot be negative.')
         return false
       }
       if (!storageLocation.trim()) {
-        alert('Please enter a Storage Location / Warehouse Rack.')
+        showToast('error', 'Please enter a Storage Location / Warehouse Rack.')
         return false
       }
     }

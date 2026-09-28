@@ -30,6 +30,7 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { showToast } from '@/lib/toast'
 
 interface NavItem {
   title: string
@@ -218,7 +219,7 @@ export function Sidebar({
               <p className="text-xs font-bold text-slate-800">HMS - Digital Solutions</p>
             </div>
             <button
-              onClick={() => alert('Support line: support@hemrajmarines.com | Tel: +91 22 6600 4400')}
+              onClick={() => showToast('info', 'Support line: support@hemrajmarines.com | Tel: +91 22 6600 4400')}
               className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition text-white text-xs font-medium rounded-lg shadow-sm"
             >
               Contact for Support

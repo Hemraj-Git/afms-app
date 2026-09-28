@@ -20,6 +20,8 @@ import {
 import { ChecklistTemplate, ChecklistItemDef } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
+import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
 export default function InspectionTemplatesPage() {
   const {
     checklistTemplates,
@@ -106,12 +108,12 @@ export default function InspectionTemplatesPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) {
-      alert('Please enter a Template Title.')
+      showToast('error', 'Please enter a Template Title.')
       return
     }
 
     if (items.length === 0) {
-      alert('Please add at least one inspection checkpoint.')
+      showToast('error', 'Please add at least one inspection checkpoint.')
       return
     }
 
@@ -142,7 +144,7 @@ export default function InspectionTemplatesPage() {
   }
 
   // Deletion Protection: Check if linked to any SubCategory or active Assets
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     const linkedSubCategories = subCategories.filter(
       s => s.inspectionTemplateId === id || (s.inspectionTemplateIds && s.inspectionTemplateIds.includes(id))
     )
@@ -153,13 +155,13 @@ export default function InspectionTemplatesPage() {
 
     if (linkedSubCategories.length > 0 || linkedAssets.length > 0) {
       const subNames = linkedSubCategories.map(s => s.name).join(', ')
-      alert(
+      showToast('error', 
         `Deletion Not Permitted: Template "${name}" (${id}) cannot be deleted because it is currently linked to ${linkedSubCategories.length} Sub-Category(s) (${subNames}) and used by ${linkedAssets.length} active asset(s). Please unlink it first.`
       )
       return
     }
 
-    if (confirm(`Are you sure you want to delete inspection template "${name}"?`)) {
+    if (await confirmAction(`Are you sure you want to delete inspection template "${name}"?`)) {
       deleteChecklistTemplate(id)
     }
   }
