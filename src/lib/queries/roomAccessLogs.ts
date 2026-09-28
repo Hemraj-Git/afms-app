@@ -1,5 +1,5 @@
 import type { TableRow } from '@/lib/supabase/typed'
-import type { RoomAccessLog } from '@/types/afms'
+import type { Room, RoomAccessLog } from '@/types/afms'
 import { defineList } from './entity'
 
 // Check-ins and check-outs are written by the room_check_in / room_check_out
@@ -37,6 +37,15 @@ const roomAccessLogs = defineList<RoomAccessLog, 'room_access_logs'>({
   descending: true,
   fromRow: mapRoomAccessLogRow,
 })
+
+// Replace the raw room id in roomName with "Name (number)" from the current rooms.
+export function withRoomNames(logs: RoomAccessLog[], rooms: Room[]): RoomAccessLog[] {
+  const roomById = new Map(rooms.map(r => [r.id, r]))
+  return logs.map(l => {
+    const room = roomById.get(l.roomId)
+    return room ? { ...l, roomName: `${room.name} (${room.roomNumber || room.id})` } : l
+  })
+}
 
 export const roomAccessLogKeys = { list: roomAccessLogs.key }
 export function useRoomAccessLogs(userId: string, enabled: boolean) {

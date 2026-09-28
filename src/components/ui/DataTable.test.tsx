@@ -168,4 +168,24 @@ describe('DataTable', () => {
     expect(screen.getByRole('columnheader').className).toBe('th-x')
     expect(screen.getByRole('cell').className).toBe('td-x')
   })
+
+  it('prints every row in the current sort when printAllRows is set, then pages again', () => {
+    render(<DataTable data={make(60)} columns={columns} tableId="t" printAllRows />)
+    fireEvent.click(screen.getByRole('button', { name: /Name/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Name/ }))
+    expect(firstColumn()).toHaveLength(25)
+
+    fireEvent(window, new Event('beforeprint'))
+    expect(firstColumn()).toHaveLength(60)
+    expect(firstColumn()[0]).toBe('Item 060')
+
+    fireEvent(window, new Event('afterprint'))
+    expect(firstColumn()).toHaveLength(25)
+  })
+
+  it('prints only the current page without printAllRows', () => {
+    render(<DataTable data={make(60)} columns={columns} tableId="t" />)
+    fireEvent(window, new Event('beforeprint'))
+    expect(firstColumn()).toHaveLength(25)
+  })
 })

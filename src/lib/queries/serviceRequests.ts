@@ -1,6 +1,6 @@
 import { db, type TableInsert, type TableRow, type TableUpdate } from '@/lib/supabase/typed'
 import { generateUUID } from '@/lib/uuid'
-import type { ServiceRequest } from '@/types/afms'
+import type { ServiceRequest, UserProfile } from '@/types/afms'
 import { defineList, NO_ROWS } from './entity'
 
 export type NewServiceRequest = Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>
@@ -94,6 +94,16 @@ const serviceRequests = defineList<ServiceRequest, 'service_requests'>({
   descending: true,
   fromRow: mapServiceRequestRow,
 })
+
+// A ticket has no requester-role column, so it reads back as "Staff". Show the
+// requester's real role from their profile instead (Guest, Faculty, ...).
+export function withRequesterRoles(requests: ServiceRequest[], users: UserProfile[]): ServiceRequest[] {
+  const roleByUserId = new Map(users.map(u => [u.id, u.role]))
+  return requests.map(sr => {
+    const role = sr.requestedByUserId ? roleByUserId.get(sr.requestedByUserId) : undefined
+    return role && role !== sr.requestedByRole ? { ...sr, requestedByRole: role } : sr
+  })
+}
 
 export const serviceRequestKeys = { list: serviceRequests.key }
 export function useServiceRequests(userId: string, enabled: boolean) {

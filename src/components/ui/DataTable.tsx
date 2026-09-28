@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import {
   flexRender,
   getCoreRowModel,
@@ -89,6 +90,8 @@ export interface DataTableProps<T> {
   // Padding etc. for every heading / cell; a column's meta overrides it.
   thClassName?: string
   tdClassName?: string
+  // Print (and Save as PDF) every row in the current sort, not just this page.
+  printAllRows?: boolean
 }
 
 export function DataTable<T>({
@@ -107,9 +110,25 @@ export function DataTable<T>({
   tableClassName = 'w-full text-left text-xs',
   thClassName = 'py-3.5 px-4',
   tdClassName = 'py-4 px-4',
+  printAllRows = false,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting)
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: defaultPageSize })
+  const [printing, setPrinting] = useState(false)
+
+  // The browser lays out the printout right after 'beforeprint', so render every
+  // row synchronously there (Ctrl+P too, not only a Print button).
+  useEffect(() => {
+    if (!printAllRows) return
+    const before = () => flushSync(() => setPrinting(true))
+    const after = () => setPrinting(false)
+    window.addEventListener('beforeprint', before)
+    window.addEventListener('afterprint', after)
+    return () => {
+      window.removeEventListener('beforeprint', before)
+      window.removeEventListener('afterprint', after)
+    }
+  }, [printAllRows])
 
   // The remembered size is read after mounting (the server has no localStorage).
   useEffect(() => {
@@ -148,6 +167,7 @@ export function DataTable<T>({
   const first = total === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
   const last = Math.min(total, (pagination.pageIndex + 1) * pagination.pageSize)
   const colCount = table.getVisibleLeafColumns().length
+  const rows = printing ? table.getPrePaginationRowModel().rows : table.getRowModel().rows
 
   return (
     <div>
@@ -199,7 +219,7 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map(row => (
+              rows.map(row => (
                 <tr
                   key={row.id}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
@@ -218,7 +238,7 @@ export function DataTable<T>({
       </div>
 
       {total > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 border-t border-slate-100 text-xs text-slate-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 border-t border-slate-100 text-xs text-slate-500 print:hidden">
           <span>
             Showing <b className="text-slate-700">{first}–{last}</b> of <b className="text-slate-700">{total}</b>
           </span>

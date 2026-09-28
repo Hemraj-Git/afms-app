@@ -44,9 +44,9 @@ import { allocateInventoryItem, inventoryKeys, useAddInventoryItem, useDeleteInv
 import { documentKeys, newDocument, useAddDocument, useDocuments, useUpdateDocument, type DocumentEntity } from '@/lib/queries/documents'
 import { allocateAssets, assetKeys, useAddAssets, useAssets, useUpdateAsset } from '@/lib/queries/assets'
 import { useAddReservations, useDeleteReservation, useReservations, useUpdateReservation, reservationKeys } from '@/lib/queries/reservations'
-import { roomAccessLogKeys, useRoomAccessLogs } from '@/lib/queries/roomAccessLogs'
+import { roomAccessLogKeys, useRoomAccessLogs, withRoomNames } from '@/lib/queries/roomAccessLogs'
 import { inspectionKeys, useAddInspections, useInspections, useUpdateInspection } from '@/lib/queries/inspections'
-import { serviceRequestKeys, useAddServiceRequest, useServiceRequests, useUpdateServiceRequest } from '@/lib/queries/serviceRequests'
+import { serviceRequestKeys, useAddServiceRequest, useServiceRequests, useUpdateServiceRequest, withRequesterRoles } from '@/lib/queries/serviceRequests'
 import { useAddWorkOrders, useUpdateWorkOrder, useWorkOrders, workOrderKeys } from '@/lib/queries/workOrders'
 import { addInvitedUserToCache, useDeleteUser, useUpdateUser, useUsers } from '@/lib/queries/users'
 import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs, withoutRepeats } from '@/lib/queries/assetActivityLogs'
@@ -334,13 +334,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const roomAccessLogsQuery = useRoomAccessLogs(currentUser.id, queriesEnabled)
   // The table has no room name; resolve it against the current rooms, so it also
   // follows a renamed room.
-  const roomAccessLogs = React.useMemo(() => {
-    const roomById = new Map(rooms.map(r => [r.id, r]))
-    return roomAccessLogsQuery.roomAccessLogs.map(l => {
-      const room = roomById.get(l.roomId)
-      return room ? { ...l, roomName: `${room.name} (${room.roomNumber || room.id})` } : l
-    })
-  }, [roomAccessLogsQuery.roomAccessLogs, rooms])
+  const roomAccessLogs = React.useMemo(
+    () => withRoomNames(roomAccessLogsQuery.roomAccessLogs, rooms),
+    [roomAccessLogsQuery.roomAccessLogs, rooms]
+  )
   const assetActivityLogsQuery = useAssetActivityLogs(currentUser.id, queriesEnabled)
   const assetActivityLogs = assetActivityLogsQuery.assetActivityLogs
   const addAssetActivityLogsMutation = useAddAssetActivityLogs(currentUser.id)
@@ -455,13 +452,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
   // A ticket has no requester-role column, so it reads back as "Staff". Show the
   // requester's real role from their profile instead (Guest, Faculty, ...).
-  const serviceRequests = React.useMemo(() => {
-    const roleByUserId = new Map(users.map(u => [u.id, u.role]))
-    return serviceRequestsQuery.serviceRequests.map(sr => {
-      const role = sr.requestedByUserId ? roleByUserId.get(sr.requestedByUserId) : undefined
-      return role && role !== sr.requestedByRole ? { ...sr, requestedByRole: role } : sr
-    })
-  }, [serviceRequestsQuery.serviceRequests, users])
+  const serviceRequests = React.useMemo(
+    () => withRequesterRoles(serviceRequestsQuery.serviceRequests, users),
+    [serviceRequestsQuery.serviceRequests, users]
+  )
   const [notifications, setNotifications] = useState<AppNotification[]>([])
 
   const fetchNotifications = async (userId: string) => {

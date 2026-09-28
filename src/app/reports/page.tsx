@@ -35,9 +35,13 @@ import {
   FileText,
   Clock,
   X,
+  RefreshCw,
 } from 'lucide-react'
 
 import { showToast } from '@/lib/toast'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, PRIORITY_ORDER, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
+import { sourceStatus, useReportData, type ReportSource } from '@/lib/queries/reports'
 // Defined Report Types
 type ReportTypeKey =
   | 'asset_master'
@@ -58,6 +62,8 @@ interface ReportMeta {
   subtitle: string
   category: 'Assets & Facilities' | 'Operations & Maintenance' | 'Personnel & Inventory'
   icon: React.ElementType
+  // The lists it is built from (refreshed together by its Refresh button).
+  sources: readonly ReportSource[]
 }
 
 const REPORT_DEFINITIONS: ReportMeta[] = [
@@ -67,6 +73,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Detailed list of all registered assets, categories, specifications, and custodians',
     category: 'Assets & Facilities',
     icon: Boxes,
+    sources: ['assets', 'rooms', 'buildings', 'campuses', 'categories', 'subCategories', 'vendors', 'users'],
   },
   {
     key: 'location_wise',
@@ -74,6 +81,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Campus and building breakdown of rooms, active assets, and operational status',
     category: 'Assets & Facilities',
     icon: MapPin,
+    sources: ['buildings', 'campuses', 'rooms', 'assets', 'serviceRequests'],
   },
   {
     key: 'room_wise',
@@ -81,6 +89,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Room-level asset counts, square footage, reservable status, and maintenance loads',
     category: 'Assets & Facilities',
     icon: DoorOpen,
+    sources: ['rooms', 'buildings', 'campuses', 'assets'],
   },
   {
     key: 'room_access',
@@ -88,6 +97,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'QR check-in and check-out logs, purpose of access, and duration per room',
     category: 'Assets & Facilities',
     icon: History,
+    sources: ['roomAccessLogs', 'rooms'],
   },
   {
     key: 'warranty_amc',
@@ -95,6 +105,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Warranty expirations, service contract deadlines, and vendor coverages',
     category: 'Operations & Maintenance',
     icon: ShieldCheck,
+    sources: ['assets', 'vendors', 'users'],
   },
   {
     key: 'pm_maintenance',
@@ -102,6 +113,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Routine PM work orders, schedules, frequencies, and technician completions',
     category: 'Operations & Maintenance',
     icon: CalendarRange,
+    sources: ['workOrders', 'assets', 'rooms', 'users'],
   },
   {
     key: 'corrective_maintenance',
@@ -109,6 +121,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Unscheduled maintenance tasks, priority, breakdown resolutions, and remarks',
     category: 'Operations & Maintenance',
     icon: Wrench,
+    sources: ['workOrders', 'assets', 'users'],
   },
   {
     key: 'inspections',
@@ -116,6 +129,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Quality inspections, checklist item outcomes, pass/fail status, and remarks',
     category: 'Operations & Maintenance',
     icon: ClipboardList,
+    sources: ['inspections', 'assets', 'users'],
   },
   {
     key: 'service_requests',
@@ -123,6 +137,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Staff service tickets, turnaround times, priorities, and resolution metrics',
     category: 'Operations & Maintenance',
     icon: MessageSquare,
+    sources: ['serviceRequests', 'assets', 'rooms', 'users'],
   },
   {
     key: 'technician_workload',
@@ -130,6 +145,7 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Assigned maintenance tasks, completed work orders, and technician efficiency',
     category: 'Personnel & Inventory',
     icon: Users,
+    sources: ['users', 'workOrders'],
   },
   {
     key: 'inventory_spares',
@@ -137,10 +153,50 @@ const REPORT_DEFINITIONS: ReportMeta[] = [
     subtitle: 'Stock levels, unit prices, total inventory valuation, and minimum stock alerts',
     category: 'Personnel & Inventory',
     icon: Package,
+    sources: ['inventoryItems', 'subCategories', 'categories', 'vendors'],
   },
 ]
 
+// ==========================================
+// TABLE HELPERS
+// ==========================================
+
+// First and last columns are padded wider; the last is right-aligned.
+const FIRST_TH = 'py-3.5 px-6'
+const LAST_TH = 'py-3.5 px-6 text-right'
+const ID_CELL = 'py-3.5 px-6 font-mono font-bold text-blue-600'
+
+const TONE = {
+  green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  amber: 'bg-amber-50 text-amber-700 border-amber-200',
+  rose: 'bg-rose-50 text-rose-700 border-rose-200',
+  blue: 'bg-blue-50 text-blue-700 border-blue-200',
+  slate: 'bg-slate-100 text-slate-600 border-slate-200',
+} as const
+
+function Badge({ tone, children }: { tone: keyof typeof TONE; children: React.ReactNode }) {
+  return <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${TONE[tone]}`}>{children}</span>
+}
+
+function PriorityPill({ priority }: { priority: string }) {
+  const tone =
+    priority === 'Critical' ? 'bg-rose-100 text-rose-800' : priority === 'High' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tone}`}>{priority}</span>
+}
+
+// Report rows hold display text (they are also the CSV rows), so amounts like
+// "₹1,200", "-5 Days" or "120 sqft" sort by the number in them; "—" goes last.
+function numberIn(text: string): number | undefined {
+  const digits = text.replace(/[^\d.-]/g, '')
+  const n = Number(digits)
+  return digits && !Number.isNaN(n) ? n : undefined
+}
+
+const WARRANTY_ORDER = ['Expired', 'Expiring Soon', 'Active Cover', 'No Expiry Set'] as const
+const STOCK_ORDER = ['Out of Stock', 'Low Stock', 'In Stock'] as const
+
 export default function ReportsHubPage() {
+  const { currentUser, isLoggedIn } = useAFMS()
   const {
     assets,
     campuses,
@@ -155,9 +211,8 @@ export default function ReportsHubPage() {
     roomAccessLogs,
     inventoryItems,
     users,
-    departments,
-    currentUser,
-  } = useAFMS()
+    sources,
+  } = useReportData(currentUser.id, isLoggedIn && currentUser.id !== 'guest')
 
   const [activeReportKey, setActiveReportKey] = useState<ReportTypeKey>('asset_master')
 
@@ -812,6 +867,429 @@ export default function ReportsHubPage() {
     inventoryReportData,
   ])
 
+  // ==========================================
+  // TABLE COLUMNS (click a heading to sort; dates sort by the real date)
+  // ==========================================
+
+  type AssetMasterRow = (typeof assetMasterData)[number]
+  type LocationRow = (typeof locationWiseData)[number]
+  type RoomRow = (typeof roomWiseData)[number]
+  type AccessRow = (typeof roomAccessData)[number]
+  type WarrantyRow = (typeof warrantyAmcData)[number]
+  type PmRow = (typeof pmData)[number]
+  type CorrectiveRow = (typeof correctiveData)[number]
+  type InspectionRow = (typeof inspectionData)[number]
+  type ServiceRequestRow = (typeof serviceRequestData)[number]
+  type WorkloadRow = (typeof technicianWorkloadData)[number]
+  type InventoryRow = (typeof inventoryReportData)[number]
+
+  const assetMasterColumns: ColumnDef<AssetMasterRow>[] = [
+    {
+      accessorKey: 'assetId',
+      header: 'Asset ID',
+      meta: { thClassName: FIRST_TH, tdClassName: ID_CELL },
+      cell: ({ row: { original: r } }) => (
+        <Link href={`/assets/${r.assetId}`} className="hover:underline">
+          {r.assetId}
+        </Link>
+      ),
+    },
+    { accessorKey: 'name', header: 'Asset Name', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    {
+      accessorKey: 'subCategory',
+      header: 'Category / Sub-Category',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+      cell: ({ row: { original: r } }) => (
+        <>
+          <p className="font-semibold">{r.subCategory}</p>
+          <p className="text-[10px] text-slate-400">{r.category}</p>
+        </>
+      ),
+    },
+    { accessorKey: 'location', header: 'Location Hierarchy', meta: { tdClassName: 'py-3.5 px-4 text-slate-600 font-medium' } },
+    { accessorKey: 'serialNumber', header: 'Serial No', meta: { tdClassName: 'py-3.5 px-4 font-mono text-slate-700' } },
+    {
+      id: 'purchaseDate',
+      header: 'Purchase Date',
+      accessorFn: r => timeOf(r.purchaseDate),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.purchaseDate),
+    },
+    {
+      id: 'price',
+      header: 'Price',
+      accessorFn: r => numberIn(r.price),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 font-semibold text-slate-900' },
+      cell: ({ row: { original: r } }) => r.price,
+    },
+    { accessorKey: 'assignedTo', header: 'Custodian / In-Charge', meta: { tdClassName: 'py-3.5 px-4 font-medium text-slate-800' } },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => <Badge tone={r.status === 'Operational' ? 'green' : 'amber'}>{r.status}</Badge>,
+    },
+  ]
+
+  const locationColumns: ColumnDef<LocationRow>[] = [
+    { accessorKey: 'campusName', header: 'Campus', meta: { thClassName: FIRST_TH, tdClassName: 'py-3.5 px-6 font-bold text-slate-900' } },
+    { accessorKey: 'buildingName', header: 'Building / Block', meta: { tdClassName: 'py-3.5 px-4 font-bold text-blue-600' } },
+    { accessorKey: 'totalFloors', header: 'Total Floors', meta: { tdClassName: 'py-3.5 px-4 text-slate-600' } },
+    {
+      accessorKey: 'totalRooms',
+      header: 'Total Rooms',
+      meta: { tdClassName: 'py-3.5 px-4 font-semibold text-slate-900' },
+      cell: ({ row: { original: r } }) => `${r.totalRooms} Rooms`,
+    },
+    {
+      accessorKey: 'totalAssets',
+      header: 'Total Installed Assets',
+      meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' },
+      cell: ({ row: { original: r } }) => `${r.totalAssets} Assets`,
+    },
+    { accessorKey: 'operationalAssets', header: 'Operational Assets', meta: { tdClassName: 'py-3.5 px-4 font-bold text-emerald-600' } },
+    { accessorKey: 'underMaintAssets', header: 'Under Maintenance', meta: { tdClassName: 'py-3.5 px-4 font-bold text-amber-600' } },
+    {
+      accessorKey: 'openServiceRequests',
+      header: 'Open Service Requests',
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right font-bold text-rose-600' },
+    },
+  ]
+
+  const roomColumns: ColumnDef<RoomRow>[] = [
+    {
+      accessorKey: 'roomNumber',
+      header: 'Room ID',
+      meta: { thClassName: FIRST_TH, tdClassName: ID_CELL },
+      cell: ({ row: { original: r } }) => (
+        <Link href={`/organization/rooms/${r.roomNumber}`} className="hover:underline">
+          {r.roomNumber}
+        </Link>
+      ),
+    },
+    {
+      accessorKey: 'roomName',
+      header: 'Room Name & No.',
+      meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' },
+      cell: ({ row: { original: r } }) => (
+        <>
+          <p>{r.roomName}</p>
+          <p className="text-[10px] text-slate-400 font-normal">Room {r.roomNumber}</p>
+        </>
+      ),
+    },
+    { accessorKey: 'roomType', header: 'Room Type', meta: { tdClassName: 'py-3.5 px-4 text-slate-700 font-medium' } },
+    {
+      id: 'location',
+      header: 'Location',
+      accessorFn: r => `${r.campus} > ${r.building} (${r.floor})`,
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+    },
+    {
+      id: 'sizeSqft',
+      header: 'Size',
+      accessorFn: r => numberIn(r.sizeSqft),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+      cell: ({ row: { original: r } }) => r.sizeSqft,
+    },
+    { accessorKey: 'isReservable', header: 'Reservable', meta: { tdClassName: 'py-3.5 px-4 font-semibold text-slate-800' } },
+    { accessorKey: 'totalAssets', header: 'Total Assets', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'operational', header: 'Operational', meta: { tdClassName: 'py-3.5 px-4 font-bold text-emerald-600' } },
+    {
+      accessorKey: 'status',
+      header: 'Room Status',
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => <Badge tone={r.status === 'Available' ? 'green' : 'amber'}>{r.status}</Badge>,
+    },
+  ]
+
+  const accessColumns: ColumnDef<AccessRow>[] = [
+    { accessorKey: 'logId', header: 'Log ID', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
+    { accessorKey: 'roomName', header: 'Room / Space', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    {
+      accessorKey: 'userName',
+      header: 'Accessed By',
+      meta: { tdClassName: 'py-3.5 px-4' },
+      cell: ({ row: { original: r } }) => (
+        <>
+          <p className="font-semibold text-slate-900">{r.userName}</p>
+          <p className="text-[10px] text-slate-400">{r.userRole}</p>
+        </>
+      ),
+    },
+    // Times of day with no date ("11:27:00 PM"), so sorting them would mix days
+    // up. The list already comes newest first.
+    { accessorKey: 'checkInTime', header: 'Check-In Time', enableSorting: false, meta: { tdClassName: 'py-3.5 px-4 text-slate-600 font-medium' } },
+    { accessorKey: 'checkOutTime', header: 'Check-Out Time', enableSorting: false, meta: { tdClassName: 'py-3.5 px-4 text-slate-600 font-medium' } },
+    { accessorKey: 'purpose', header: 'Purpose', meta: { tdClassName: 'py-3.5 px-4 text-slate-700' } },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => <Badge tone={r.status === 'Active' ? 'green' : 'slate'}>{r.status}</Badge>,
+    },
+  ]
+
+  const warrantyColumns: ColumnDef<WarrantyRow>[] = [
+    { accessorKey: 'assetId', header: 'Asset ID', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
+    { accessorKey: 'assetName', header: 'Asset Name', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'vendorName', header: 'Vendor / Maintenance Provider', meta: { tdClassName: 'py-3.5 px-4 text-slate-700 font-medium' } },
+    {
+      id: 'purchaseDate',
+      header: 'Purchase Date',
+      accessorFn: r => timeOf(r.purchaseDate),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.purchaseDate),
+    },
+    {
+      id: 'warrantyExpiry',
+      header: 'Warranty Expiry Date',
+      accessorFn: r => timeOf(r.warrantyExpiry),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 font-semibold text-slate-900' },
+      cell: ({ row: { original: r } }) => r.warrantyExpiry,
+    },
+    {
+      id: 'daysLeft',
+      header: 'Days Left',
+      accessorFn: r => numberIn(r.daysLeft),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-700' },
+      cell: ({ row: { original: r } }) => r.daysLeft,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Coverage Status',
+      sortingFn: sortByOrder(WARRANTY_ORDER),
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => (
+        <Badge tone={r.status === 'Active Cover' ? 'green' : r.status === 'Expiring Soon' ? 'amber' : 'rose'}>{r.status}</Badge>
+      ),
+    },
+  ]
+
+  const pmColumns: ColumnDef<PmRow>[] = [
+    { accessorKey: 'woNumber', header: 'Work Order ID', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
+    { accessorKey: 'title', header: 'Task Title', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'assetName', header: 'Target Asset', meta: { tdClassName: 'py-3.5 px-4 text-slate-800 font-semibold' } },
+    { accessorKey: 'location', header: 'Location', meta: { tdClassName: 'py-3.5 px-4 text-slate-600' } },
+    { accessorKey: 'frequency', header: 'Frequency', meta: { tdClassName: 'py-3.5 px-4 text-slate-700 font-medium' } },
+    {
+      id: 'dueDate',
+      header: 'Due Date',
+      accessorFn: r => timeOf(r.dueDate),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 font-semibold text-slate-900' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.dueDate),
+    },
+    { accessorKey: 'assignedTo', header: 'Assigned Technician', meta: { tdClassName: 'py-3.5 px-4 text-slate-800 font-medium' } },
+    {
+      id: 'completedAt',
+      header: 'Completion Date',
+      accessorFn: r => timeOf(r.completedAt),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.completedAt),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      sortingFn: sortByOrder(WO_STATUS_ORDER),
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => (
+        <Badge tone={r.status === 'Completed' ? 'green' : r.status === 'In Progress' ? 'blue' : 'amber'}>{r.status}</Badge>
+      ),
+    },
+  ]
+
+  const correctiveColumns: ColumnDef<CorrectiveRow>[] = [
+    { accessorKey: 'woNumber', header: 'Work Order ID', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
+    { accessorKey: 'assetName', header: 'Target Asset', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'issue', header: 'Issue Reported', meta: { tdClassName: 'py-3.5 px-4 text-slate-800' } },
+    {
+      accessorKey: 'priority',
+      header: 'Priority',
+      sortingFn: sortByOrder(PRIORITY_ORDER),
+      meta: { tdClassName: 'py-3.5 px-4' },
+      cell: ({ row: { original: r } }) => <PriorityPill priority={r.priority} />,
+    },
+    { accessorKey: 'assignedTo', header: 'Assigned Technician', meta: { tdClassName: 'py-3.5 px-4 text-slate-800 font-medium' } },
+    {
+      id: 'dueDate',
+      header: 'Due Date',
+      accessorFn: r => timeOf(r.dueDate),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600 font-medium' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.dueDate),
+    },
+    { accessorKey: 'solution', header: 'Resolution / Action Taken', meta: { tdClassName: 'py-3.5 px-4 text-slate-600 max-w-xs' } },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      sortingFn: sortByOrder(WO_STATUS_ORDER),
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => <Badge tone={r.status === 'Completed' ? 'green' : 'blue'}>{r.status}</Badge>,
+    },
+  ]
+
+  const inspectionColumns: ColumnDef<InspectionRow>[] = [
+    { accessorKey: 'inspectionNumber', header: 'Inspection ID', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
+    { accessorKey: 'assetName', header: 'Target Asset', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'inspector', header: 'Assigned Inspector', meta: { tdClassName: 'py-3.5 px-4 text-slate-800 font-medium' } },
+    {
+      id: 'dueDate',
+      header: 'Due Date',
+      accessorFn: r => timeOf(r.dueDate),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600 font-medium' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.dueDate),
+    },
+    {
+      id: 'completedAt',
+      header: 'Completion Date',
+      accessorFn: r => timeOf(r.completedAt),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.completedAt),
+    },
+    {
+      accessorKey: 'result',
+      header: 'Outcome / Result',
+      meta: { tdClassName: 'py-3.5 px-4' },
+      cell: ({ row: { original: r } }) => (
+        <Badge tone={r.result === 'Pass' ? 'green' : r.result === 'Fail' ? 'rose' : 'slate'}>{r.result}</Badge>
+      ),
+    },
+    { accessorKey: 'remarks', header: 'Remarks', meta: { tdClassName: 'py-3.5 px-4 text-slate-600 max-w-xs' } },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => <span className="font-semibold text-slate-700">{r.status}</span>,
+    },
+  ]
+
+  const serviceRequestColumns: ColumnDef<ServiceRequestRow>[] = [
+    { accessorKey: 'ticketId', header: 'Ticket ID', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
+    { accessorKey: 'title', header: 'Request Title', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'location', header: 'Location / Asset', meta: { tdClassName: 'py-3.5 px-4 text-slate-700 font-medium' } },
+    { accessorKey: 'requestedBy', header: 'Requested By', meta: { tdClassName: 'py-3.5 px-4 text-slate-800' } },
+    {
+      accessorKey: 'priority',
+      header: 'Priority',
+      sortingFn: sortByOrder(PRIORITY_ORDER),
+      meta: { tdClassName: 'py-3.5 px-4' },
+      cell: ({ row: { original: r } }) => <PriorityPill priority={r.priority} />,
+    },
+    {
+      id: 'createdAt',
+      header: 'Raised Date',
+      accessorFn: r => timeOf(r.createdAt),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.createdAt),
+    },
+    {
+      id: 'slaDueDate',
+      header: 'SLA Deadline',
+      accessorFn: r => timeOf(r.slaDueDate),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 font-medium text-slate-900' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.slaDueDate),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => (
+        <Badge tone={r.status === 'Resolved' || r.status === 'Closed' ? 'green' : 'amber'}>{r.status}</Badge>
+      ),
+    },
+  ]
+
+  const workloadColumns: ColumnDef<WorkloadRow>[] = [
+    { accessorKey: 'techId', header: 'Technician ID', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
+    { accessorKey: 'name', header: 'Technician Name', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'department', header: 'Department', meta: { tdClassName: 'py-3.5 px-4 text-slate-600' } },
+    { accessorKey: 'totalAssigned', header: 'Total Assigned Tasks', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'completedPMs', header: 'Completed PMs', meta: { tdClassName: 'py-3.5 px-4 font-bold text-emerald-600' } },
+    { accessorKey: 'completedCorrective', header: 'Completed Breakdowns', meta: { tdClassName: 'py-3.5 px-4 font-bold text-blue-600' } },
+    { accessorKey: 'inProgress', header: 'In-Progress Tasks', meta: { tdClassName: 'py-3.5 px-4 font-bold text-amber-600' } },
+    {
+      accessorKey: 'overdue',
+      header: 'Overdue Tasks',
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right font-bold text-rose-600' },
+    },
+  ]
+
+  const inventoryColumns: ColumnDef<InventoryRow>[] = [
+    { accessorKey: 'inventoryNumber', header: 'Item Code', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
+    { accessorKey: 'name', header: 'Spare Item Name', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    {
+      accessorKey: 'subCategory',
+      header: 'Category / Sub-Category',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+      cell: ({ row: { original: r } }) => (
+        <>
+          <p className="font-semibold">{r.subCategory}</p>
+          <p className="text-[10px] text-slate-400">{r.category}</p>
+        </>
+      ),
+    },
+    {
+      accessorKey: 'quantity',
+      header: 'Quantity In Stock',
+      meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' },
+      cell: ({ row: { original: r } }) => `${r.quantity} units`,
+    },
+    {
+      id: 'unitPrice',
+      header: 'Unit Price',
+      accessorFn: r => numberIn(r.unitPrice),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 font-semibold text-slate-700' },
+      cell: ({ row: { original: r } }) => r.unitPrice,
+    },
+    {
+      id: 'totalValuation',
+      header: 'Total Valuation',
+      accessorFn: r => numberIn(r.totalValuation),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 font-bold text-emerald-700' },
+      cell: ({ row: { original: r } }) => r.totalValuation,
+    },
+    { accessorKey: 'vendor', header: 'Supplier', meta: { tdClassName: 'py-3.5 px-4 text-slate-600' } },
+    {
+      accessorKey: 'status',
+      header: 'Stock Status',
+      sortingFn: sortByOrder(STOCK_ORDER),
+      meta: { thClassName: LAST_TH, tdClassName: 'py-3.5 px-6 text-right' },
+      cell: ({ row: { original: r } }) => (
+        <Badge tone={r.status === 'In Stock' ? 'green' : r.status === 'Low Stock' ? 'amber' : 'rose'}>{r.status}</Badge>
+      ),
+    },
+  ]
+
+  // Shared by every report table. Each report remembers its own page size; a new
+  // search, filter or date range goes back to page 1.
+  const tableProps = {
+    resetKey: [searchQuery, campusFilter, statusFilter, assetFilter, userFilter, startDate, endDate, datePreset].join('|'),
+    printAllRows: true,
+    headerRowClassName: 'text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium',
+    tdClassName: 'py-3.5 px-4',
+  }
+
+  // Freshness of the lists behind the open report (see REPORT_DEFINITIONS.sources).
+  const reportStatus = sourceStatus(sources, activeReport.sources)
+  const refreshReport = async () => {
+    const results = await reportStatus.refetch()
+    if (results.some(r => r.isError)) showToast('error', 'Some of this report could not be refreshed; showing the last loaded data.')
+  }
+
   return (
     <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Reports & Analytics' }]} loadingFallback={<PageSkeleton tiles={4} rows={6} cols={5} />}>
       <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -901,8 +1379,23 @@ export default function ReportsHubPage() {
               </div>
             </div>
 
-            {/* Total Records Counter */}
+            {/* Total Records Counter + Refresh */}
             <div className="flex items-center gap-2">
+              {reportStatus.updatedAt > 0 && (
+                <span className="text-[11px] text-slate-400" title="When this report's data was last read from the database">
+                  Updated {new Date(reportStatus.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => void refreshReport()}
+                disabled={reportStatus.isFetching}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 transition disabled:opacity-60"
+                title="Re-read this report's data from the database"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${reportStatus.isFetching ? 'animate-spin' : ''}`} />
+                <span>{reportStatus.isFetching ? 'Refreshing…' : 'Refresh'}</span>
+              </button>
               <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
                 {activeRecordCount} Records Found
               </span>
@@ -1123,595 +1616,41 @@ export default function ReportsHubPage() {
           </div>
         </div>
 
-        {/* Dynamic Data Table Rendering */}
+        {/* Dynamic Data Table Rendering (sortable, paged; printing includes every row) */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            {/* 1. ASSET MASTER REPORT */}
-            {activeReportKey === 'asset_master' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Asset ID</th>
-                    <th className="py-3.5 px-4">Asset Name</th>
-                    <th className="py-3.5 px-4">Category / Sub-Category</th>
-                    <th className="py-3.5 px-4">Location Hierarchy</th>
-                    <th className="py-3.5 px-4">Serial No</th>
-                    <th className="py-3.5 px-4">Purchase Date</th>
-                    <th className="py-3.5 px-4">Price</th>
-                    <th className="py-3.5 px-4">Custodian / In-Charge</th>
-                    <th className="py-3.5 px-6 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {assetMasterData.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400">
-                        No assets found matching filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    assetMasterData.map(row => (
-                      <tr key={row.id} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">
-                          <Link href={`/assets/${row.assetId}`} className="hover:underline">
-                            {row.assetId}
-                          </Link>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.name}</td>
-                        <td className="py-3.5 px-4 text-slate-600">
-                          <p className="font-semibold">{row.subCategory}</p>
-                          <p className="text-[10px] text-slate-400">{row.category}</p>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">{row.location}</td>
-                        <td className="py-3.5 px-4 font-mono text-slate-700">{row.serialNumber}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.purchaseDate)}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-900">{row.price}</td>
-                        <td className="py-3.5 px-4 font-medium text-slate-800">{row.assignedTo}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === 'Operational'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 2. LOCATION WISE SUMMARY REPORT */}
-            {activeReportKey === 'location_wise' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Campus</th>
-                    <th className="py-3.5 px-4">Building / Block</th>
-                    <th className="py-3.5 px-4">Total Floors</th>
-                    <th className="py-3.5 px-4">Total Rooms</th>
-                    <th className="py-3.5 px-4">Total Installed Assets</th>
-                    <th className="py-3.5 px-4">Operational Assets</th>
-                    <th className="py-3.5 px-4">Under Maintenance</th>
-                    <th className="py-3.5 px-6 text-right">Open Service Requests</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {locationWiseData.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No locations found matching filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    locationWiseData.map(row => (
-                      <tr key={row.buildingId} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-bold text-slate-900">{row.campusName}</td>
-                        <td className="py-3.5 px-4 font-bold text-blue-600">{row.buildingName}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.totalFloors}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-900">{row.totalRooms} Rooms</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.totalAssets} Assets</td>
-                        <td className="py-3.5 px-4 font-bold text-emerald-600">{row.operationalAssets}</td>
-                        <td className="py-3.5 px-4 font-bold text-amber-600">{row.underMaintAssets}</td>
-                        <td className="py-3.5 px-6 text-right font-bold text-rose-600">{row.openServiceRequests}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 3. ROOM WISE ASSET REPORT */}
-            {activeReportKey === 'room_wise' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Room ID</th>
-                    <th className="py-3.5 px-4">Room Name &amp; No.</th>
-                    <th className="py-3.5 px-4">Room Type</th>
-                    <th className="py-3.5 px-4">Location</th>
-                    <th className="py-3.5 px-4">Size</th>
-                    <th className="py-3.5 px-4">Reservable</th>
-                    <th className="py-3.5 px-4">Total Assets</th>
-                    <th className="py-3.5 px-4">Operational</th>
-                    <th className="py-3.5 px-6 text-right">Room Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {roomWiseData.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400">
-                        No rooms found matching filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    roomWiseData.map(row => (
-                      <tr key={row.roomId} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">
-                          <Link href={`/organization/rooms/${row.roomNumber}`} className="hover:underline">
-                            {row.roomNumber}
-                          </Link>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
-                          <p>{row.roomName}</p>
-                          <p className="text-[10px] text-slate-400 font-normal">Room {row.roomNumber}</p>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-700 font-medium">{row.roomType}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.campus} &gt; {row.building} ({row.floor})</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.sizeSqft}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-800">{row.isReservable}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.totalAssets}</td>
-                        <td className="py-3.5 px-4 font-bold text-emerald-600">{row.operational}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === 'Available'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 4. ROOM ACCESS REPORT */}
-            {activeReportKey === 'room_access' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Log ID</th>
-                    <th className="py-3.5 px-4">Room / Space</th>
-                    <th className="py-3.5 px-4">Accessed By</th>
-                    <th className="py-3.5 px-4">Check-In Time</th>
-                    <th className="py-3.5 px-4">Check-Out Time</th>
-                    <th className="py-3.5 px-4">Purpose</th>
-                    <th className="py-3.5 px-6 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {roomAccessData.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
-                        No access logs found in selected date range.
-                      </td>
-                    </tr>
-                  ) : (
-                    roomAccessData.map(row => (
-                      <tr key={row.logId} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.logId}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.roomName}</td>
-                        <td className="py-3.5 px-4">
-                          <p className="font-semibold text-slate-900">{row.userName}</p>
-                          <p className="text-[10px] text-slate-400">{row.userRole}</p>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">{row.checkInTime}</td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">{row.checkOutTime}</td>
-                        <td className="py-3.5 px-4 text-slate-700">{row.purpose}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === 'Active'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 5. WARRANTY & AMC REPORT */}
-            {activeReportKey === 'warranty_amc' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Asset ID</th>
-                    <th className="py-3.5 px-4">Asset Name</th>
-                    <th className="py-3.5 px-4">Vendor / Maintenance Provider</th>
-                    <th className="py-3.5 px-4">Purchase Date</th>
-                    <th className="py-3.5 px-4">Warranty Expiry Date</th>
-                    <th className="py-3.5 px-4">Days Left</th>
-                    <th className="py-3.5 px-6 text-right">Coverage Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {warrantyAmcData.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
-                        No warranty records found.
-                      </td>
-                    </tr>
-                  ) : (
-                    warrantyAmcData.map(row => (
-                      <tr key={row.assetId} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.assetId}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.assetName}</td>
-                        <td className="py-3.5 px-4 text-slate-700 font-medium">{row.vendorName}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.purchaseDate)}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-900">{row.warrantyExpiry}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-700">{row.daysLeft}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === 'Active Cover'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : row.status === 'Expiring Soon'
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-rose-50 text-rose-700 border-rose-200'
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 6. PREVENTIVE MAINTENANCE REPORT */}
-            {activeReportKey === 'pm_maintenance' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Work Order ID</th>
-                    <th className="py-3.5 px-4">Task Title</th>
-                    <th className="py-3.5 px-4">Target Asset</th>
-                    <th className="py-3.5 px-4">Location</th>
-                    <th className="py-3.5 px-4">Frequency</th>
-                    <th className="py-3.5 px-4">Due Date</th>
-                    <th className="py-3.5 px-4">Assigned Technician</th>
-                    <th className="py-3.5 px-4">Completion Date</th>
-                    <th className="py-3.5 px-6 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {pmData.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400">
-                        No preventive maintenance records found for selected dates.
-                      </td>
-                    </tr>
-                  ) : (
-                    pmData.map(row => (
-                      <tr key={row.woNumber} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.woNumber}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.title}</td>
-                        <td className="py-3.5 px-4 text-slate-800 font-semibold">{row.assetName}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.location}</td>
-                        <td className="py-3.5 px-4 text-slate-700 font-medium">{row.frequency}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-900">{formatDateDisplay(row.dueDate)}</td>
-                        <td className="py-3.5 px-4 text-slate-800 font-medium">{row.assignedTo}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.completedAt)}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === 'Completed'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : row.status === 'In Progress'
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 7. CORRECTIVE MAINTENANCE REPORT */}
-            {activeReportKey === 'corrective_maintenance' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Work Order ID</th>
-                    <th className="py-3.5 px-4">Target Asset</th>
-                    <th className="py-3.5 px-4">Issue Reported</th>
-                    <th className="py-3.5 px-4">Priority</th>
-                    <th className="py-3.5 px-4">Assigned Technician</th>
-                    <th className="py-3.5 px-4">Due Date</th>
-                    <th className="py-3.5 px-4">Resolution / Action Taken</th>
-                    <th className="py-3.5 px-6 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {correctiveData.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No corrective maintenance records found for selected dates.
-                      </td>
-                    </tr>
-                  ) : (
-                    correctiveData.map(row => (
-                      <tr key={row.woNumber} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.woNumber}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.assetName}</td>
-                        <td className="py-3.5 px-4 text-slate-800">{row.issue}</td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              row.priority === 'Critical'
-                                ? 'bg-rose-100 text-rose-800'
-                                : row.priority === 'High'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {row.priority}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-800 font-medium">{row.assignedTo}</td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">{formatDateDisplay(row.dueDate)}</td>
-                        <td className="py-3.5 px-4 text-slate-600 max-w-xs">{row.solution}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === 'Completed'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-blue-50 text-blue-700 border-blue-200'
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 8. INSPECTION REPORT */}
-            {activeReportKey === 'inspections' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Inspection ID</th>
-                    <th className="py-3.5 px-4">Target Asset</th>
-                    <th className="py-3.5 px-4">Assigned Inspector</th>
-                    <th className="py-3.5 px-4">Due Date</th>
-                    <th className="py-3.5 px-4">Completion Date</th>
-                    <th className="py-3.5 px-4">Outcome / Result</th>
-                    <th className="py-3.5 px-4">Remarks</th>
-                    <th className="py-3.5 px-6 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {inspectionData.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No inspection records found for selected dates.
-                      </td>
-                    </tr>
-                  ) : (
-                    inspectionData.map(row => (
-                      <tr key={row.inspectionNumber} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.inspectionNumber}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.assetName}</td>
-                        <td className="py-3.5 px-4 text-slate-800 font-medium">{row.inspector}</td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">{formatDateDisplay(row.dueDate)}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.completedAt)}</td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.result === 'Pass'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : row.result === 'Fail'
-                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                : 'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}
-                          >
-                            {row.result}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600 max-w-xs">{row.remarks}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span className="font-semibold text-slate-700">{row.status}</span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 9. SERVICE REQUESTS REPORT */}
-            {activeReportKey === 'service_requests' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Ticket ID</th>
-                    <th className="py-3.5 px-4">Request Title</th>
-                    <th className="py-3.5 px-4">Location / Asset</th>
-                    <th className="py-3.5 px-4">Requested By</th>
-                    <th className="py-3.5 px-4">Priority</th>
-                    <th className="py-3.5 px-4">Raised Date</th>
-                    <th className="py-3.5 px-4">SLA Deadline</th>
-                    <th className="py-3.5 px-6 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {serviceRequestData.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No service requests found for selected dates.
-                      </td>
-                    </tr>
-                  ) : (
-                    serviceRequestData.map(row => (
-                      <tr key={row.ticketId} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.ticketId}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.title}</td>
-                        <td className="py-3.5 px-4 text-slate-700 font-medium">{row.location}</td>
-                        <td className="py-3.5 px-4 text-slate-800">{row.requestedBy}</td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              row.priority === 'Critical'
-                                ? 'bg-rose-100 text-rose-800'
-                                : row.priority === 'High'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {row.priority}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600">{formatDateDisplay(row.createdAt)}</td>
-                        <td className="py-3.5 px-4 font-medium text-slate-900">{formatDateDisplay(row.slaDueDate)}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === 'Resolved' || row.status === 'Closed'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 10. TECHNICIAN WORKLOAD REPORT */}
-            {activeReportKey === 'technician_workload' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Technician ID</th>
-                    <th className="py-3.5 px-4">Technician Name</th>
-                    <th className="py-3.5 px-4">Department</th>
-                    <th className="py-3.5 px-4">Total Assigned Tasks</th>
-                    <th className="py-3.5 px-4">Completed PMs</th>
-                    <th className="py-3.5 px-4">Completed Breakdowns</th>
-                    <th className="py-3.5 px-4">In-Progress Tasks</th>
-                    <th className="py-3.5 px-6 text-right">Overdue Tasks</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {technicianWorkloadData.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No technician workload data available.
-                      </td>
-                    </tr>
-                  ) : (
-                    technicianWorkloadData.map(row => (
-                      <tr key={row.techId} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.techId}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.name}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.department}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.totalAssigned}</td>
-                        <td className="py-3.5 px-4 font-bold text-emerald-600">{row.completedPMs}</td>
-                        <td className="py-3.5 px-4 font-bold text-blue-600">{row.completedCorrective}</td>
-                        <td className="py-3.5 px-4 font-bold text-amber-600">{row.inProgress}</td>
-                        <td className="py-3.5 px-6 text-right font-bold text-rose-600">{row.overdue}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {/* 11. INVENTORY & SPARES REPORT */}
-            {activeReportKey === 'inventory_spares' && (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/60 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Item Code</th>
-                    <th className="py-3.5 px-4">Spare Item Name</th>
-                    <th className="py-3.5 px-4">Category / Sub-Category</th>
-                    <th className="py-3.5 px-4">Quantity In Stock</th>
-                    <th className="py-3.5 px-4">Unit Price</th>
-                    <th className="py-3.5 px-4">Total Valuation</th>
-                    <th className="py-3.5 px-4">Supplier</th>
-                    <th className="py-3.5 px-6 text-right">Stock Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {inventoryReportData.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No inventory spare records found.
-                      </td>
-                    </tr>
-                  ) : (
-                    inventoryReportData.map(row => (
-                      <tr key={row.inventoryNumber} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600">{row.inventoryNumber}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.name}</td>
-                        <td className="py-3.5 px-4 text-slate-600">
-                          <p className="font-semibold">{row.subCategory}</p>
-                          <p className="text-[10px] text-slate-400">{row.category}</p>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{row.quantity} units</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-700">{row.unitPrice}</td>
-                        <td className="py-3.5 px-4 font-bold text-emerald-700">{row.totalValuation}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{row.vendor}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === 'In Stock'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : row.status === 'Low Stock'
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-rose-50 text-rose-700 border-rose-200'
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
+          {activeReportKey === 'asset_master' && (
+            <DataTable tableId="report-asset_master" data={assetMasterData} columns={assetMasterColumns} emptyState="No assets found matching filters." {...tableProps} />
+          )}
+          {activeReportKey === 'location_wise' && (
+            <DataTable tableId="report-location_wise" data={locationWiseData} columns={locationColumns} emptyState="No locations found matching filters." {...tableProps} />
+          )}
+          {activeReportKey === 'room_wise' && (
+            <DataTable tableId="report-room_wise" data={roomWiseData} columns={roomColumns} emptyState="No rooms found matching filters." {...tableProps} />
+          )}
+          {activeReportKey === 'room_access' && (
+            <DataTable tableId="report-room_access" data={roomAccessData} columns={accessColumns} emptyState="No access logs found in selected date range." {...tableProps} />
+          )}
+          {activeReportKey === 'warranty_amc' && (
+            <DataTable tableId="report-warranty_amc" data={warrantyAmcData} columns={warrantyColumns} emptyState="No warranty records found." {...tableProps} />
+          )}
+          {activeReportKey === 'pm_maintenance' && (
+            <DataTable tableId="report-pm_maintenance" data={pmData} columns={pmColumns} emptyState="No preventive maintenance records found for selected dates." {...tableProps} />
+          )}
+          {activeReportKey === 'corrective_maintenance' && (
+            <DataTable tableId="report-corrective_maintenance" data={correctiveData} columns={correctiveColumns} emptyState="No corrective maintenance records found for selected dates." {...tableProps} />
+          )}
+          {activeReportKey === 'inspections' && (
+            <DataTable tableId="report-inspections" data={inspectionData} columns={inspectionColumns} emptyState="No inspection records found for selected dates." {...tableProps} />
+          )}
+          {activeReportKey === 'service_requests' && (
+            <DataTable tableId="report-service_requests" data={serviceRequestData} columns={serviceRequestColumns} emptyState="No service requests found for selected dates." {...tableProps} />
+          )}
+          {activeReportKey === 'technician_workload' && (
+            <DataTable tableId="report-technician_workload" data={technicianWorkloadData} columns={workloadColumns} emptyState="No technician workload data available." {...tableProps} />
+          )}
+          {activeReportKey === 'inventory_spares' && (
+            <DataTable tableId="report-inventory_spares" data={inventoryReportData} columns={inventoryColumns} emptyState="No inventory spare records found." {...tableProps} />
+          )}
         </div>
       </div>
     </AppLayout>
