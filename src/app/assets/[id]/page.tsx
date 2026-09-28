@@ -34,6 +34,7 @@ import {
 import { Asset } from '@/types/afms'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { getAssetQrUrl } from '@/lib/qrUrls'
+import { lockedSlaPriority } from '@/lib/assetSlaPriority'
 
 export default function AssetDetailPage() {
   const params = useParams()
@@ -66,6 +67,7 @@ export default function AssetDetailPage() {
   const category = subCategory ? categories.find(c => c.id === subCategory.categoryId) : undefined
   const purchaseVendor = asset ? vendors.find(v => v.id === asset.purchaseVendorId) : undefined
   const maintVendor = asset ? vendors.find(v => v.id === asset.maintenanceVendorId) : undefined
+  const slaPriorityLock = lockedSlaPriority(asset, subCategory)
 
   // Associated Work Orders (Maintenance History)
   const assetWorkOrders = asset
@@ -340,6 +342,32 @@ export default function AssetDetailPage() {
                     <div>
                       <p className="text-slate-400 font-medium">Subcategory</p>
                       <p className="text-sm font-semibold text-slate-800 mt-0.5">{subCategory?.name || 'AC'}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-slate-400 font-medium">SLA Priority</p>
+                      <p className="mt-0.5">
+                        {slaPriorityLock ? (
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                            slaPriorityLock.priority === 'Critical'
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : slaPriorityLock.priority === 'High'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : slaPriorityLock.priority === 'Medium'
+                              ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                              : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}>
+                            {slaPriorityLock.priority}
+                          </span>
+                        ) : (
+                          <span className="text-sm font-semibold text-slate-400">Not set</span>
+                        )}
+                        {slaPriorityLock?.source === 'subCategory' && (
+                          <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
+                            Inherited from {subCategory?.name}&rsquo;s priority — this asset has none of its own yet.
+                          </span>
+                        )}
+                      </p>
                     </div>
 
                     <div>
