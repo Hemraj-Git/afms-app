@@ -342,16 +342,6 @@ export default function MaintenanceTemplatesPage() {
                       <option value="Annually">Annually</option>
                     </select>
                   </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Input Response Standard</label>
-                    <input
-                      type="text"
-                      disabled
-                      value="Checked or Not (Completed Checkbox)"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-slate-100 text-slate-600 font-medium cursor-not-allowed"
-                    />
-                  </div>
                 </div>
 
                 <div>
