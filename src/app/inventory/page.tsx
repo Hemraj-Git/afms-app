@@ -29,6 +29,8 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { InventoryItem } from '@/types/afms'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable } from '@/components/ui/DataTable'
 
 export default function InventoryDashboardPage() {
   const router = useRouter()
@@ -151,6 +153,192 @@ export default function InventoryDashboardPage() {
     updateInventoryItem(adjustItem.id, { quantity: Math.max(0, adjustQty) })
     setAdjustItem(null)
   }
+
+  // Out of stock first, then low, then healthy -- the rows that need action.
+  const stockRank = (item: InventoryItem) =>
+    item.quantity === 0 ? 0 : item.quantity <= (item.minStockThreshold || 2) ? 1 : 2
+
+  const inventoryColumns: ColumnDef<InventoryItem>[] = [
+    {
+      id: 'inventoryNumber',
+      header: 'INV Number',
+      accessorFn: item => item.inventoryNumber || item.id,
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6 font-mono font-bold text-blue-600' },
+      cell: ({ row: { original: item } }) => (
+        <Link href={`/inventory/${item.id}`} className="hover:underline">
+          {item.inventoryNumber || item.id}
+        </Link>
+      ),
+    },
+    {
+      id: 'name',
+      header: 'Item & Specifications',
+      accessorFn: item => item.name,
+      meta: { tdClassName: 'py-4 px-4 max-w-xs' },
+      cell: ({ row: { original: item } }) => {
+        const sub = subCategories.find(s => s.id === item.subCategoryId)
+        // Extract custom metadata keys for quick preview
+        const specEntries = Object.entries(item.dynamicSpecifications || {}).filter(
+          ([, val]) => val !== undefined && val !== ''
+        )
+        return (
+          <>
+            <Link href={`/inventory/${item.id}`} className="block">
+              <p className="font-bold text-slate-900 hover:text-blue-600 transition">
+                {item.name}
+              </p>
+            </Link>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {item.manufacturer || 'General Mfr'} {item.modelNumber ? `• ${item.modelNumber}` : ''}
+              {item.serialNumber ? ` (S/N: ${item.serialNumber})` : ''}
+            </p>
+
+            {/* Dynamic Specification Badges from Sub-Category Schema */}
+            {specEntries.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {specEntries.slice(0, 3).map(([key, val]) => {
+                  const schemaField = sub?.metadataFields?.find(f => f.key === key)
+                  const label = schemaField?.label || key
+                  const unit = schemaField?.unit ? ` ${schemaField.unit}` : ''
+                  return (
+                    <span
+                      key={key}
+                      className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/80 rounded text-[10px] text-slate-600 font-medium"
+                    >
+                      <strong className="font-semibold text-slate-700">{label}:</strong> {String(val)}{unit}
+                    </span>
+                  )
+                })}
+                {specEntries.length > 3 && (
+                  <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] text-slate-400">
+                    +{specEntries.length - 3} more
+                  </span>
+                )}
+              </div>
+            )}
+          </>
+        )
+      },
+    },
+    {
+      id: 'taxonomy',
+      header: 'Taxonomy',
+      accessorFn: item => {
+        const sub = subCategories.find(s => s.id === item.subCategoryId)
+        return `${categories.find(c => c.id === sub?.categoryId)?.name || 'General'} ${sub?.name || 'Standard'}`
+      },
+      cell: ({ row: { original: item } }) => {
+        const sub = subCategories.find(s => s.id === item.subCategoryId)
+        const cat = categories.find(c => c.id === sub?.categoryId)
+        return (
+          <>
+            <p className="font-semibold text-slate-800">{cat?.name || 'General'}</p>
+            <p className="text-[11px] text-slate-400">{sub?.name || 'Standard'}</p>
+          </>
+        )
+      },
+    },
+    {
+      id: 'storageLocation',
+      header: 'Storage Location',
+      accessorFn: item => item.storageLocation || 'Central Warehouse',
+      meta: { tdClassName: 'py-4 px-4 text-slate-600 font-medium' },
+    },
+    {
+      id: 'stock',
+      header: 'Stock Level',
+      accessorFn: item => item.quantity,
+      sortingFn: (a, b) =>
+        stockRank(a.original) - stockRank(b.original) || a.original.quantity - b.original.quantity,
+      cell: ({ row: { original: item } }) => {
+        const rank = stockRank(item)
+        return (
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                rank === 0
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                  : rank === 1
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              }`}
+            >
+              {item.quantity} {item.unit || 'Units'}
+            </span>
+            <button
+              onClick={() => {
+                setAdjustItem(item)
+                setAdjustQty(item.quantity)
+              }}
+              className="text-[10px] text-blue-600 hover:underline font-semibold"
+            >
+              Adjust
+            </button>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'unitPrice',
+      header: 'Unit Price',
+      accessorFn: item => item.unitPrice || undefined,
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-4 px-4 font-semibold text-slate-800' },
+      cell: ({ row: { original: item } }) => (item.unitPrice ? `₹${item.unitPrice.toLocaleString('en-IN')}` : '—'),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: item } }) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            onClick={() => {
+              setDeployItem(item)
+              setDeployCampusId(campuses[0]?.id || '')
+              setDeployBuildingId('')
+              setDeployRoomId('')
+              setDeployUserId('')
+            }}
+            className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1"
+            title="Deploy this spare item as an active operational asset"
+          >
+            <ArrowUpRight className="w-3.5 h-3.5" />
+            <span>Deploy as Asset</span>
+          </button>
+
+          <Link
+            href={`/inventory/${item.id}`}
+            className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg transition"
+            title="View Spares Details"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </Link>
+
+          <Link
+            href={`/inventory/create?edit=${item.id}`}
+            className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-lg transition"
+            title="Edit Spare Record"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </Link>
+
+          <button
+            onClick={() => {
+              if (confirm(`Are you sure you want to delete spare ${item.name} (${item.id})?`)) {
+                deleteInventoryItem(item.id)
+              }
+            }}
+            className="p-1.5 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition"
+            title="Delete Spare Item"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ]
 
   return (
     <AppLayout
@@ -331,194 +519,30 @@ export default function InventoryDashboardPage() {
 
         {/* Spares Inventory Master Table */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                  <th className="py-3.5 px-6">INV Number</th>
-                  <th className="py-3.5 px-4">Item &amp; Specifications</th>
-                  <th className="py-3.5 px-4">Taxonomy</th>
-                  <th className="py-3.5 px-4">Storage Location</th>
-                  <th className="py-3.5 px-4">Stock Level</th>
-                  <th className="py-3.5 px-4">Unit Price</th>
-                  <th className="py-3.5 px-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <Package className="w-8 h-8 text-slate-300 stroke-1" />
-                        <p className="text-xs font-semibold text-slate-600">No Spares in Inventory Hub</p>
-                        <p className="text-[11px] text-slate-400 max-w-sm">
-                          Register standby equipment, replacement parts, or emergency buffer assets without generating automatic maintenance schedules.
-                        </p>
-                        <Link
-                          href="/inventory/create"
-                          className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-2xs"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add First Spare</span>
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredItems.map(item => {
-                    const sub = subCategories.find(s => s.id === item.subCategoryId)
-                    const cat = categories.find(c => c.id === sub?.categoryId)
-                    const minThresh = item.minStockThreshold || 2
-                    const isOutOfStock = item.quantity === 0
-                    const isLowStock = item.quantity > 0 && item.quantity <= minThresh
-
-                    // Extract custom metadata keys for quick preview
-                    const specEntries = Object.entries(item.dynamicSpecifications || {}).filter(
-                      ([_, val]) => val !== undefined && val !== ''
-                    )
-
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50/60 transition group">
-                        {/* INV Number */}
-                        <td className="py-4 px-6 font-mono font-bold text-blue-600">
-                          <Link href={`/inventory/${item.id}`} className="hover:underline">
-                            {item.inventoryNumber || item.id}
-                          </Link>
-                        </td>
-
-                        {/* Item & Specifications */}
-                        <td className="py-4 px-4 max-w-xs">
-                          <Link href={`/inventory/${item.id}`} className="block">
-                            <p className="font-bold text-slate-900 hover:text-blue-600 transition">
-                              {item.name}
-                            </p>
-                          </Link>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            {item.manufacturer || 'General Mfr'} {item.modelNumber ? `• ${item.modelNumber}` : ''}
-                            {item.serialNumber ? ` (S/N: ${item.serialNumber})` : ''}
-                          </p>
-
-                          {/* Dynamic Specification Badges from Sub-Category Schema */}
-                          {specEntries.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {specEntries.slice(0, 3).map(([key, val]) => {
-                                const schemaField = sub?.metadataFields?.find(f => f.key === key)
-                                const label = schemaField?.label || key
-                                const unit = schemaField?.unit ? ` ${schemaField.unit}` : ''
-                                return (
-                                  <span
-                                    key={key}
-                                    className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/80 rounded text-[10px] text-slate-600 font-medium"
-                                  >
-                                    <strong className="font-semibold text-slate-700">{label}:</strong> {String(val)}{unit}
-                                  </span>
-                                )
-                              })}
-                              {specEntries.length > 3 && (
-                                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] text-slate-400">
-                                  +{specEntries.length - 3} more
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Taxonomy */}
-                        <td className="py-4 px-4">
-                          <p className="font-semibold text-slate-800">{cat?.name || 'General'}</p>
-                          <p className="text-[11px] text-slate-400">{sub?.name || 'Standard'}</p>
-                        </td>
-
-                        {/* Storage Location */}
-                        <td className="py-4 px-4 text-slate-600 font-medium">
-                          {item.storageLocation || 'Central Warehouse'}
-                        </td>
-
-                        {/* Stock Level */}
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                isOutOfStock
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                  : isLowStock
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              }`}
-                            >
-                              {item.quantity} {item.unit || 'Units'}
-                            </span>
-                            <button
-                              onClick={() => {
-                                setAdjustItem(item)
-                                setAdjustQty(item.quantity)
-                              }}
-                              className="text-[10px] text-blue-600 hover:underline font-semibold"
-                            >
-                              Adjust
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* Unit Price */}
-                        <td className="py-4 px-4 font-semibold text-slate-800">
-                          {item.unitPrice ? `₹${item.unitPrice.toLocaleString('en-IN')}` : '—'}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-4 px-6 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => {
-                                setDeployItem(item)
-                                setDeployCampusId(campuses[0]?.id || '')
-                                setDeployBuildingId('')
-                                setDeployRoomId('')
-                                setDeployUserId('')
-                              }}
-                              className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1"
-                              title="Deploy this spare item as an active operational asset"
-                            >
-                              <ArrowUpRight className="w-3.5 h-3.5" />
-                              <span>Deploy as Asset</span>
-                            </button>
-
-                            <Link
-                              href={`/inventory/${item.id}`}
-                              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg transition"
-                              title="View Spares Details"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </Link>
-
-                            <Link
-                              href={`/inventory/create?edit=${item.id}`}
-                              className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-lg transition"
-                              title="Edit Spare Record"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </Link>
-
-                            <button
-                              onClick={() => {
-                                if (confirm(`Are you sure you want to delete spare ${item.name} (${item.id})?`)) {
-                                  deleteInventoryItem(item.id)
-                                }
-                              }}
-                              className="p-1.5 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition"
-                              title="Delete Spare Item"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            tableId="inventory"
+            data={filteredItems}
+            columns={inventoryColumns}
+            getRowId={item => item.id}
+            resetKey={`${searchQuery}|${selectedCategoryId}|${selectedSubCategoryId}|${stockFilter}`}
+            rowClassName="hover:bg-slate-50/60 transition group"
+            emptyState={
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <Package className="w-8 h-8 text-slate-300 stroke-1" />
+                <p className="text-xs font-semibold text-slate-600">No Spares in Inventory Hub</p>
+                <p className="text-[11px] text-slate-400 max-w-sm">
+                  Register standby equipment, replacement parts, or emergency buffer assets without generating automatic maintenance schedules.
+                </p>
+                <Link
+                  href="/inventory/create"
+                  className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add First Spare</span>
+                </Link>
+              </div>
+            }
+          />
         </div>
 
         {/* Modal 1: Deploy Spare to Active Operational Asset */}

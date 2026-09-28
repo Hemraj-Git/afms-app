@@ -20,6 +20,9 @@ import {
   Loader2,
 } from 'lucide-react'
 import { generateRoomPlacardsPdf, generateAssetLabelsPdf } from '@/lib/qrPdfGenerator'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, timeOf } from '@/components/ui/DataTable'
+import type { Asset, Room } from '@/types/afms'
 
 export default function QrDashboardPage() {
   const { assets, rooms, buildings, campuses, updateAsset, updateRoom } = useAFMS()
@@ -153,6 +156,219 @@ export default function QrDashboardPage() {
   }
 
   const selectedAssets = assets.filter(a => selectedAssetIds.includes(a.id))
+
+  const qrPreview = (qrUrl: string, alt: string) => (
+    <div className="w-12 h-12 bg-white p-1 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-center">
+      <img
+        src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrUrl)}`}
+        alt={alt}
+        className="w-full h-full object-contain"
+      />
+    </div>
+  )
+
+  const printStatus = (lastPrintedAt?: string) =>
+    lastPrintedAt ? (
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        Printed ({lastPrintedAt})
+      </span>
+    ) : (
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+        Ready for Print
+      </span>
+    )
+
+  const allRoomsSelected = selectedRoomIds.length === filteredRooms.length && filteredRooms.length > 0
+  const allAssetsSelected = selectedAssetIds.length === filteredAssets.length && filteredAssets.length > 0
+
+  const roomQrColumns: ColumnDef<Room>[] = [
+    {
+      id: 'select',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 w-12', tdClassName: 'py-4 px-6' },
+      header: () => (
+        <button onClick={toggleSelectAllRooms} className="text-slate-500 hover:text-amber-600">
+          {allRoomsSelected ? <CheckSquare className="w-4 h-4 text-amber-600" /> : <Square className="w-4 h-4" />}
+        </button>
+      ),
+      cell: ({ row: { original: room } }) => (
+        <button onClick={() => toggleSelectRoom(room.id)} className="text-slate-400 hover:text-amber-600">
+          {selectedRoomIds.includes(room.id) ? (
+            <CheckSquare className="w-4 h-4 text-amber-600" />
+          ) : (
+            <Square className="w-4 h-4" />
+          )}
+        </button>
+      ),
+    },
+    {
+      id: 'qr',
+      header: 'QR Preview',
+      enableSorting: false,
+      cell: ({ row: { original: room } }) => qrPreview(getRoomQrUrl(room.id), 'Room QR'),
+    },
+    {
+      id: 'name',
+      header: 'Room / Space Name',
+      accessorFn: r => r.name,
+      cell: ({ row: { original: room } }) => (
+        <>
+          <p className="font-bold text-slate-900">{room.name}</p>
+          <p className="text-[11px] text-slate-400">Floor: {room.floor || 'Ground'}</p>
+        </>
+      ),
+    },
+    {
+      id: 'roomNumber',
+      header: 'Room Number',
+      accessorFn: r => r.roomNumber,
+      meta: { tdClassName: 'py-4 px-4 font-mono font-bold text-amber-700' },
+    },
+    {
+      id: 'building',
+      header: 'Building & Campus',
+      accessorFn: r => buildings.find(b => b.id === r.buildingId)?.name || 'Main Building',
+      meta: { tdClassName: 'py-4 px-4 text-slate-600' },
+      cell: ({ row: { original: room } }) => {
+        const bld = buildings.find(b => b.id === room.buildingId)
+        const camp = bld ? campuses.find(c => c.id === bld.campusId) : undefined
+        return (
+          <>
+            <p className="font-medium">{bld?.name || 'Main Building'}</p>
+            <p className="text-[10px] text-slate-400">{camp?.name || 'Main Campus'}</p>
+          </>
+        )
+      },
+    },
+    {
+      id: 'type',
+      header: 'Type',
+      accessorFn: r => r.type,
+      cell: ({ getValue }) => (
+        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">{getValue() as string}</span>
+      ),
+    },
+    {
+      id: 'printed',
+      header: 'Print Status',
+      accessorFn: r => timeOf(r.lastPrintedAt),
+      sortUndefined: 'last',
+      cell: ({ row: { original: room } }) => printStatus(room.lastPrintedAt),
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: room } }) => (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => {
+              setSelectedRoomIds([room.id])
+              setShowRoomPrintModal(true)
+            }}
+            className="px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition inline-flex items-center gap-1"
+          >
+            <Printer className="w-3 h-3" />
+            <span>Print Placard</span>
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const assetQrColumns: ColumnDef<Asset>[] = [
+    {
+      id: 'select',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 w-12', tdClassName: 'py-4 px-6' },
+      header: () => (
+        <button onClick={toggleSelectAllAssets} className="text-slate-500 hover:text-blue-600">
+          {allAssetsSelected ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
+        </button>
+      ),
+      cell: ({ row: { original: asset } }) => (
+        <button onClick={() => toggleSelectAsset(asset.id)} className="text-slate-400 hover:text-blue-600">
+          {selectedAssetIds.includes(asset.id) ? (
+            <CheckSquare className="w-4 h-4 text-blue-600" />
+          ) : (
+            <Square className="w-4 h-4" />
+          )}
+        </button>
+      ),
+    },
+    {
+      id: 'qr',
+      header: 'QR Preview',
+      enableSorting: false,
+      cell: ({ row: { original: asset } }) => qrPreview(getAssetQrUrl(asset.id), 'Asset QR'),
+    },
+    {
+      id: 'name',
+      header: 'Asset Name',
+      accessorFn: a => a.name,
+      cell: ({ row: { original: asset } }) => (
+        <>
+          <p className="font-bold text-slate-900">{asset.name}</p>
+          <p className="text-[10px] text-slate-400">{asset.status}</p>
+        </>
+      ),
+    },
+    {
+      id: 'assetId',
+      header: 'Asset ID Code',
+      accessorFn: a => a.assetId,
+      meta: { tdClassName: 'py-4 px-4 font-mono font-bold text-blue-600' },
+    },
+    {
+      id: 'room',
+      header: 'Room Location',
+      accessorFn: a => rooms.find(r => r.id === a.roomId)?.name || 'General Campus',
+      meta: { tdClassName: 'py-4 px-4 text-slate-600' },
+      cell: ({ row: { original: asset } }) => {
+        const room = rooms.find(r => r.id === asset.roomId)
+        return (
+          <>
+            <p className="font-medium">{room?.name || 'General Campus'}</p>
+            <p className="text-[10px] text-slate-400 font-mono">Room {room?.roomNumber || 'N/A'}</p>
+          </>
+        )
+      },
+    },
+    {
+      id: 'manufacturer',
+      header: 'Manufacturer / Model',
+      accessorFn: a => `${a.manufacturer || 'Standard'} ${a.modelNumber ? `(${a.modelNumber})` : ''}`,
+      meta: { tdClassName: 'py-4 px-4 text-slate-600' },
+    },
+    {
+      id: 'printed',
+      header: 'Print Status',
+      accessorFn: a => timeOf(a.lastPrintedAt),
+      sortUndefined: 'last',
+      cell: ({ row: { original: asset } }) => printStatus(asset.lastPrintedAt),
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: asset } }) => (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => {
+              setSelectedAssetIds([asset.id])
+              setShowAssetPrintModal(true)
+            }}
+            className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition inline-flex items-center gap-1"
+          >
+            <Printer className="w-3 h-3" />
+            <span>Print 5x5cm</span>
+          </button>
+        </div>
+      ),
+    },
+  ]
 
   return (
     <AppLayout
@@ -291,121 +507,20 @@ export default function QrDashboardPage() {
             </div>
 
             {/* Rooms Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6 w-12">
-                      <button
-                        onClick={toggleSelectAllRooms}
-                        className="text-slate-500 hover:text-amber-600"
-                      >
-                        {selectedRoomIds.length === filteredRooms.length && filteredRooms.length > 0 ? (
-                          <CheckSquare className="w-4 h-4 text-amber-600" />
-                        ) : (
-                          <Square className="w-4 h-4" />
-                        )}
-                      </button>
-                    </th>
-                    <th className="py-3.5 px-4">QR Preview</th>
-                    <th className="py-3.5 px-4">Room / Space Name</th>
-                    <th className="py-3.5 px-4">Room Number</th>
-                    <th className="py-3.5 px-4">Building & Campus</th>
-                    <th className="py-3.5 px-4">Type</th>
-                    <th className="py-3.5 px-4">Print Status</th>
-                    <th className="py-3.5 px-6 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredRooms.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center justify-center space-y-2">
-                          <DoorOpen className="w-8 h-8 text-slate-300 stroke-1" />
-                          <p className="text-xs font-semibold text-slate-600">No Matching Rooms Found</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRooms.map(room => {
-                      const isSelected = selectedRoomIds.includes(room.id)
-                      const qrUrl = getRoomQrUrl(room.id)
-                      const bld = buildings.find(b => b.id === room.buildingId)
-                      const camp = bld ? campuses.find(c => c.id === bld.campusId) : undefined
-
-                      return (
-                        <tr key={room.id} className="hover:bg-amber-50/20 transition">
-                          <td className="py-4 px-6">
-                            <button
-                              onClick={() => toggleSelectRoom(room.id)}
-                              className="text-slate-400 hover:text-amber-600"
-                            >
-                              {isSelected ? (
-                                <CheckSquare className="w-4 h-4 text-amber-600" />
-                              ) : (
-                                <Square className="w-4 h-4" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="w-12 h-12 bg-white p-1 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-center">
-                              <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(
-                                  qrUrl
-                                )}`}
-                                alt="Room QR"
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <p className="font-bold text-slate-900">{room.name}</p>
-                            <p className="text-[11px] text-slate-400">Floor: {room.floor || 'Ground'}</p>
-                          </td>
-                          <td className="py-4 px-4 font-mono font-bold text-amber-700">
-                            {room.roomNumber}
-                          </td>
-                          <td className="py-4 px-4 text-slate-600">
-                            <p className="font-medium">{bld?.name || 'Main Building'}</p>
-                            <p className="text-[10px] text-slate-400">{camp?.name || 'Main Campus'}</p>
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
-                              {room.type}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4">
-                            {room.lastPrintedAt ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Printed ({room.lastPrintedAt})
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                                Ready for Print
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-4 px-6 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedRoomIds([room.id])
-                                  setShowRoomPrintModal(true)
-                                }}
-                                className="px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition inline-flex items-center gap-1"
-                              >
-                                <Printer className="w-3 h-3" />
-                                <span>Print Placard</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              tableId="qr-rooms"
+              data={filteredRooms}
+              columns={roomQrColumns}
+              getRowId={r => r.id}
+              resetKey={searchQuery}
+              rowClassName="hover:bg-amber-50/20 transition"
+              emptyState={
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <DoorOpen className="w-8 h-8 text-slate-300 stroke-1" />
+                  <p className="text-xs font-semibold text-slate-600">No Matching Rooms Found</p>
+                </div>
+              }
+            />
           </div>
         )}
 
@@ -437,118 +552,20 @@ export default function QrDashboardPage() {
             </div>
 
             {/* Assets Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6 w-12">
-                      <button
-                        onClick={toggleSelectAllAssets}
-                        className="text-slate-500 hover:text-blue-600"
-                      >
-                        {selectedAssetIds.length === filteredAssets.length && filteredAssets.length > 0 ? (
-                          <CheckSquare className="w-4 h-4 text-blue-600" />
-                        ) : (
-                          <Square className="w-4 h-4" />
-                        )}
-                      </button>
-                    </th>
-                    <th className="py-3.5 px-4">QR Preview</th>
-                    <th className="py-3.5 px-4">Asset Name</th>
-                    <th className="py-3.5 px-4">Asset ID Code</th>
-                    <th className="py-3.5 px-4">Room Location</th>
-                    <th className="py-3.5 px-4">Manufacturer / Model</th>
-                    <th className="py-3.5 px-4">Print Status</th>
-                    <th className="py-3.5 px-6 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredAssets.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center justify-center space-y-2">
-                          <Boxes className="w-8 h-8 text-slate-300 stroke-1" />
-                          <p className="text-xs font-semibold text-slate-600">No Matching Assets Found</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredAssets.map(asset => {
-                      const isSelected = selectedAssetIds.includes(asset.id)
-                      const qrUrl = getAssetQrUrl(asset.id)
-                      const room = rooms.find(r => r.id === asset.roomId)
-
-                      return (
-                        <tr key={asset.id} className="hover:bg-blue-50/20 transition">
-                          <td className="py-4 px-6">
-                            <button
-                              onClick={() => toggleSelectAsset(asset.id)}
-                              className="text-slate-400 hover:text-blue-600"
-                            >
-                              {isSelected ? (
-                                <CheckSquare className="w-4 h-4 text-blue-600" />
-                              ) : (
-                                <Square className="w-4 h-4" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="w-12 h-12 bg-white p-1 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-center">
-                              <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(
-                                  qrUrl
-                                )}`}
-                                alt="Asset QR"
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <p className="font-bold text-slate-900">{asset.name}</p>
-                            <p className="text-[10px] text-slate-400">{asset.status}</p>
-                          </td>
-                          <td className="py-4 px-4 font-mono font-bold text-blue-600">
-                            {asset.assetId}
-                          </td>
-                          <td className="py-4 px-4 text-slate-600">
-                            <p className="font-medium">{room?.name || 'General Campus'}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">Room {room?.roomNumber || 'N/A'}</p>
-                          </td>
-                          <td className="py-4 px-4 text-slate-600">
-                            {asset.manufacturer || 'Standard'} {asset.modelNumber ? `(${asset.modelNumber})` : ''}
-                          </td>
-                          <td className="py-4 px-4">
-                            {asset.lastPrintedAt ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Printed ({asset.lastPrintedAt})
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                                Ready for Print
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-4 px-6 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedAssetIds([asset.id])
-                                  setShowAssetPrintModal(true)
-                                }}
-                                className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition inline-flex items-center gap-1"
-                              >
-                                <Printer className="w-3 h-3" />
-                                <span>Print 5x5cm</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              tableId="qr-assets"
+              data={filteredAssets}
+              columns={assetQrColumns}
+              getRowId={a => a.id}
+              resetKey={searchQuery}
+              rowClassName="hover:bg-blue-50/20 transition"
+              emptyState={
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <Boxes className="w-8 h-8 text-slate-300 stroke-1" />
+                  <p className="text-xs font-semibold text-slate-600">No Matching Assets Found</p>
+                </div>
+              }
+            />
           </div>
         )}
         </div>

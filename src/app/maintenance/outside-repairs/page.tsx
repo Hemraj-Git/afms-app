@@ -9,6 +9,9 @@ import { OutsideRepairStatusPill } from '@/components/outsideRepair/OutsideRepai
 import { formatDateDisplay } from '@/lib/dateUtils'
 import { daysOut, isOutForRepair, isOverdueReturn, repairItemLabel } from '@/lib/outsideRepairState'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, timeOf } from '@/components/ui/DataTable'
+import type { OutsideRepair } from '@/types/afms'
 
 // Every part or asset sent to an outside workshop: what is away, with whom, when
 // it is due back, and what came back. Sending and returning are recorded on the
@@ -56,6 +59,103 @@ export default function OutsideRepairsPage() {
   }, [outsideRepairs, tab, vendorFilter, query, assets, workOrders])
 
   const usedVendors = vendors.filter(v => outsideRepairs.some(r => r.vendorId === v.id))
+
+  const columns = useMemo<ColumnDef<OutsideRepair>[]>(() => [
+    {
+      id: 'item',
+      header: 'Repair',
+      accessorFn: r => repairItemLabel(r),
+      meta: { thClassName: 'py-3.5 px-5', tdClassName: 'py-3.5 px-5' },
+      cell: ({ row: { original: r } }) => (
+        <>
+          <p className="font-bold text-slate-900">{repairItemLabel(r)}</p>
+          <p className="font-mono text-[11px] text-blue-600 font-semibold">{r.repairNumber}</p>
+          {r.faultDescription && <p className="text-[11px] text-slate-500 mt-0.5 max-w-56">{r.faultDescription}</p>}
+        </>
+      ),
+    },
+    {
+      id: 'asset',
+      header: 'Asset / Work order',
+      accessorFn: r => assets.find(a => a.id === r.assetId)?.name ?? '',
+      cell: ({ row: { original: r } }) => {
+        const asset = assets.find(a => a.id === r.assetId)
+        const wo = workOrders.find(w => w.id === r.workOrderId)
+        return (
+          <>
+            <p className="font-semibold text-slate-800">{asset?.name || '—'}</p>
+            <p className="text-[11px] text-slate-400 font-mono">
+              {asset?.assetId || ''}{wo && !isPendingWorkOrder(wo.woNumber) ? ` · ${wo.woNumber}` : ''}
+            </p>
+          </>
+        )
+      },
+    },
+    {
+      id: 'vendor',
+      header: 'Vendor',
+      accessorFn: r => vendors.find(v => v.id === r.vendorId)?.name ?? '',
+      cell: ({ row: { original: r } }) => (
+        <>
+          <p className="font-semibold text-slate-800">{vendors.find(v => v.id === r.vendorId)?.name || '—'}</p>
+          <p className="text-[11px] text-slate-400">
+            Sent by {r.sentBy === 'Vendor' ? 'vendor' : 'technician'}
+            {r.dispatchRef ? ` · GP/DC ${r.dispatchRef}` : ''}
+          </p>
+        </>
+      ),
+    },
+    {
+      id: 'sentDate',
+      header: 'Sent',
+      accessorFn: r => timeOf(r.sentDate),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-700' },
+      cell: ({ row: { original: r } }) => formatDateDisplay(r.sentDate),
+    },
+    {
+      id: 'expectedReturnDate',
+      header: 'Expected back',
+      accessorFn: r => timeOf(r.expectedReturnDate),
+      sortUndefined: 'last',
+      cell: ({ row: { original: r } }) => (
+        <>
+          <p className={isOverdueReturn(r) ? 'font-bold text-rose-600' : 'text-slate-700'}>{formatDateDisplay(r.expectedReturnDate)}</p>
+          {r.returnedDate && <p className="text-[11px] text-emerald-700">Back {formatDateDisplay(r.returnedDate)}</p>}
+        </>
+      ),
+    },
+    {
+      id: 'days',
+      header: 'Days',
+      accessorFn: r => daysOut(r),
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-700' },
+    },
+    {
+      id: 'cost',
+      header: 'Cost',
+      // The actual cost once known, otherwise the estimate.
+      accessorFn: r => r.actualCost ?? r.estimatedCost,
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-700' },
+      cell: ({ row: { original: r } }) =>
+        r.actualCost !== undefined ? inr(r.actualCost) : (
+          <span className="text-slate-400">{r.estimatedCost !== undefined ? `est. ${inr(r.estimatedCost)}` : '—'}</span>
+        ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: r => r.status,
+      meta: { tdClassName: 'py-3.5 px-4 space-y-1' },
+      cell: ({ row: { original: r } }) => (
+        <>
+          <OutsideRepairStatusPill repair={r} />
+          {r.outcome && <p className="text-[11px] text-slate-500">{r.outcome}</p>}
+        </>
+      ),
+    },
+  ], [assets, workOrders, vendors])
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'Out', label: 'Out for repair' },
@@ -118,76 +218,20 @@ export default function OutsideRepairsPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                  <th className="py-3.5 px-5">Repair</th>
-                  <th className="py-3.5 px-4">Asset / Work order</th>
-                  <th className="py-3.5 px-4">Vendor</th>
-                  <th className="py-3.5 px-4">Sent</th>
-                  <th className="py-3.5 px-4">Expected back</th>
-                  <th className="py-3.5 px-4">Days</th>
-                  <th className="py-3.5 px-4">Cost</th>
-                  <th className="py-3.5 px-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      {outsideRepairs.length === 0
-                        ? 'Nothing has been sent outside for repair yet.'
-                        : 'Nothing matches this filter.'}
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map(r => {
-                    const asset = assets.find(a => a.id === r.assetId)
-                    const wo = workOrders.find(w => w.id === r.workOrderId)
-                    const vendor = vendors.find(v => v.id === r.vendorId)
-                    return (
-                      <tr key={r.id} className="hover:bg-slate-50/60 align-top">
-                        <td className="py-3.5 px-5">
-                          <p className="font-bold text-slate-900">{repairItemLabel(r)}</p>
-                          <p className="font-mono text-[11px] text-blue-600 font-semibold">{r.repairNumber}</p>
-                          {r.faultDescription && <p className="text-[11px] text-slate-500 mt-0.5 max-w-56">{r.faultDescription}</p>}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <p className="font-semibold text-slate-800">{asset?.name || '—'}</p>
-                          <p className="text-[11px] text-slate-400 font-mono">
-                            {asset?.assetId || ''}{wo && !isPendingWorkOrder(wo.woNumber) ? ` · ${wo.woNumber}` : ''}
-                          </p>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <p className="font-semibold text-slate-800">{vendor?.name || '—'}</p>
-                          <p className="text-[11px] text-slate-400">
-                            Sent by {r.sentBy === 'Vendor' ? 'vendor' : 'technician'}
-                            {r.dispatchRef ? ` · GP/DC ${r.dispatchRef}` : ''}
-                          </p>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-700">{formatDateDisplay(r.sentDate)}</td>
-                        <td className="py-3.5 px-4">
-                          <p className={isOverdueReturn(r) ? 'font-bold text-rose-600' : 'text-slate-700'}>{formatDateDisplay(r.expectedReturnDate)}</p>
-                          {r.returnedDate && <p className="text-[11px] text-emerald-700">Back {formatDateDisplay(r.returnedDate)}</p>}
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-700">{daysOut(r)}</td>
-                        <td className="py-3.5 px-4 text-slate-700">
-                          {r.actualCost !== undefined ? inr(r.actualCost) : (
-                            <span className="text-slate-400">{r.estimatedCost !== undefined ? `est. ${inr(r.estimatedCost)}` : '—'}</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 space-y-1">
-                          <OutsideRepairStatusPill repair={r} />
-                          {r.outcome && <p className="text-[11px] text-slate-500">{r.outcome}</p>}
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            tableId="outside-repairs"
+            data={rows}
+            columns={columns}
+            getRowId={r => r.id}
+            resetKey={`${tab}|${vendorFilter}|${query}`}
+            rowClassName="hover:bg-slate-50/60 align-top"
+            tdClassName="py-3.5 px-4"
+            emptyState={
+              outsideRepairs.length === 0
+                ? 'Nothing has been sent outside for repair yet.'
+                : 'Nothing matches this filter.'
+            }
+          />
         </div>
       </div>
     </AppLayout>

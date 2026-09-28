@@ -38,6 +38,8 @@ import {
 import { WorkOrder } from '@/types/afms'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { getNextSequence, formatYearlyId, isPendingWorkOrder } from '@/lib/idGenerator'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, PRIORITY_ORDER, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 export default function WorkOrdersHubPage() {
   const {
@@ -114,6 +116,189 @@ export default function WorkOrdersHubPage() {
 
     return matchesTab && matchesStatus && matchesSearch
   })
+
+  const workOrderColumns: ColumnDef<WorkOrder>[] = [
+    {
+      id: 'woNumber',
+      header: 'WO Number',
+      accessorFn: wo => wo.woNumber,
+      meta: { tdClassName: 'py-3.5 px-4 font-mono font-bold text-blue-600' },
+    },
+    {
+      id: 'title',
+      header: 'Type & Title',
+      accessorFn: wo => wo.title || `${wo.type} Work Order`,
+      cell: ({ row: { original: wo } }) => (
+        <>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span
+              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                wo.type === 'Preventive'
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                  : wo.type === 'Corrective'
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                  : 'bg-purple-50 text-purple-700 border border-purple-200'
+              }`}
+            >
+              {wo.type}
+            </span>
+            <span className="text-[10px] text-slate-400 font-semibold">• {wo.source}</span>
+          </div>
+          <p className="font-bold text-slate-900">{wo.title || `${wo.type} Work Order`}</p>
+          {wo.issueLogged && (
+            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{wo.issueLogged}</p>
+          )}
+        </>
+      ),
+    },
+    {
+      id: 'target',
+      header: 'Target (Asset / Room)',
+      accessorFn: wo => {
+        const asset = assets.find(a => a.id === wo.assetId)
+        return asset?.name || rooms.find(r => r.id === wo.roomId)?.name || ''
+      },
+      sortUndefined: 'last',
+      cell: ({ row: { original: wo } }) => {
+        const asset = assets.find(a => a.id === wo.assetId)
+        const room = rooms.find(r => r.id === (wo.roomId || asset?.roomId))
+        return asset ? (
+          <div>
+            <p className="font-bold text-slate-900">{asset.name}</p>
+            <p className="text-[10px] text-slate-400 font-mono">{asset.assetId || asset.id} • {room?.name || 'Main Campus'}</p>
+          </div>
+        ) : room ? (
+          <div>
+            <p className="font-bold text-slate-900">{room.name}</p>
+            <p className="text-[10px] text-slate-400 font-mono">{room.roomNumber || room.id}</p>
+          </div>
+        ) : (
+          <span className="text-slate-400">General Facility</span>
+        )
+      },
+    },
+    {
+      id: 'assignedTo',
+      header: 'Assigned To',
+      accessorFn: wo => wo.assignedTechnicianName || 'Unassigned',
+      cell: ({ row: { original: wo } }) => (
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-[10px]">
+            {wo.assignedTechnicianName ? wo.assignedTechnicianName[0] : 'U'}
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">{wo.assignedTechnicianName || 'Unassigned'}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'dueDate',
+      header: 'Due Date',
+      accessorFn: wo => timeOf(wo.dueDate),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-3.5 px-4 font-medium text-slate-600' },
+      cell: ({ row: { original: wo } }) => (
+        <>
+          <div className="flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+            <span>{formatDateDisplay(wo.dueDate)}</span>
+          </div>
+          {wo.type === 'Preventive' && wo.status !== 'Completed' && (() => {
+            const win = getAttemptWindowStatus(wo.dueDate, wo.frequency)
+            return (
+              <div className="mt-1">
+                {win.canAttempt ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    <CheckCircle2 className="w-2.5 h-2.5" />
+                    Window Open
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title={`Attempt window opens ${win.unlockDate}`}>
+                    <Lock className="w-2.5 h-2.5 text-amber-600" />
+                    Opens {win.unlockDate}
+                  </span>
+                )}
+              </div>
+            )
+          })()}
+        </>
+      ),
+    },
+    {
+      id: 'priority',
+      header: 'Priority',
+      accessorFn: wo => wo.priority || 'Medium',
+      sortingFn: sortByOrder(PRIORITY_ORDER),
+      cell: ({ row: { original: wo } }) => (
+        <span
+          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            wo.priority === 'Critical'
+              ? 'bg-rose-100 text-rose-800'
+              : wo.priority === 'High'
+              ? 'bg-amber-100 text-amber-800'
+              : wo.priority === 'Medium'
+              ? 'bg-blue-100 text-blue-800'
+              : 'bg-slate-100 text-slate-700'
+          }`}
+        >
+          {wo.priority || 'Medium'}
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: wo => wo.status,
+      sortingFn: sortByOrder(WO_STATUS_ORDER),
+      cell: ({ row: { original: wo } }) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+              wo.status === 'Completed'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : wo.status === 'In Progress'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                : wo.status === 'Cancelled'
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : 'bg-slate-100 text-slate-600 border border-slate-200'
+            }`}
+          >
+            {wo.status}
+          </span>
+          {isWithVendor(wo) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              With vendor
+            </span>
+          )}
+          <OutsideRepairTag workOrderId={wo.id} theme="light" />
+          {isWorkOrderOverdue(wo) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
+              Overdue
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-4 text-right', tdClassName: 'py-3.5 px-4 text-right' },
+      cell: ({ row: { original: wo } }) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            onClick={() => setSelectedWoForDetails(wo)}
+            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition inline-flex items-center gap-1 shadow-2xs"
+            title="View complete work order telemetry and records"
+          >
+            <Eye className="w-3.5 h-3.5 text-blue-600" />
+            <span>View Details</span>
+          </button>
+        </div>
+      ),
+    },
+  ]
 
   const handleSaveSla = (e: React.FormEvent) => {
     e.preventDefault()
@@ -312,189 +497,24 @@ export default function WorkOrdersHubPage() {
 
         {/* Work Orders Master Table */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                  <th className="py-3.5 px-4">WO Number</th>
-                  <th className="py-3.5 px-4">Type & Title</th>
-                  <th className="py-3.5 px-4">Target (Asset / Room)</th>
-                  <th className="py-3.5 px-4">Assigned To</th>
-                  <th className="py-3.5 px-4">Due Date</th>
-                  <th className="py-3.5 px-4">Priority</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredWorkOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <ClipboardList className="w-8 h-8 text-slate-300 stroke-1" />
-                        <p className="text-xs font-semibold text-slate-600">No Work Orders Found</p>
-                        <p className="text-[11px] text-slate-400 max-w-sm">
-                          Work orders will be populated automatically when preventive schedules trigger, service requests are escalated to corrective repairs, or created manually.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredWorkOrders.map(wo => {
-                    const asset = assets.find(a => a.id === wo.assetId)
-                    const room = rooms.find(r => r.id === (wo.roomId || asset?.roomId))
-
-                    return (
-                      <tr key={wo.id} className="hover:bg-slate-50/60 transition group">
-                        {/* WO Number */}
-                        <td className="py-3.5 px-4 font-mono font-bold text-blue-600">
-                          {wo.woNumber}
-                        </td>
-
-                        {/* Type & Title */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                wo.type === 'Preventive'
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                  : wo.type === 'Corrective'
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                  : 'bg-purple-50 text-purple-700 border border-purple-200'
-                              }`}
-                            >
-                              {wo.type}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-semibold">• {wo.source}</span>
-                          </div>
-                          <p className="font-bold text-slate-900">{wo.title || `${wo.type} Work Order`}</p>
-                          {wo.issueLogged && (
-                            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{wo.issueLogged}</p>
-                          )}
-                        </td>
-
-                        {/* Target */}
-                        <td className="py-3.5 px-4">
-                          {asset ? (
-                            <div>
-                              <p className="font-bold text-slate-900">{asset.name}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">{asset.assetId || asset.id} • {room?.name || 'Main Campus'}</p>
-                            </div>
-                          ) : room ? (
-                            <div>
-                              <p className="font-bold text-slate-900">{room.name}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">{room.roomNumber || room.id}</p>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">General Facility</span>
-                          )}
-                        </td>
-
-                        {/* Assigned To */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-[10px]">
-                              {wo.assignedTechnicianName ? wo.assignedTechnicianName[0] : 'U'}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-slate-800">{wo.assignedTechnicianName || 'Unassigned'}</p>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Due Date */}
-                        <td className="py-3.5 px-4 font-medium text-slate-600">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{formatDateDisplay(wo.dueDate)}</span>
-                          </div>
-                          {wo.type === 'Preventive' && wo.status !== 'Completed' && (() => {
-                            const win = getAttemptWindowStatus(wo.dueDate, wo.frequency)
-                            return (
-                              <div className="mt-1">
-                                {win.canAttempt ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                    <CheckCircle2 className="w-2.5 h-2.5" />
-                                    Window Open
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title={`Attempt window opens ${win.unlockDate}`}>
-                                    <Lock className="w-2.5 h-2.5 text-amber-600" />
-                                    Opens {win.unlockDate}
-                                  </span>
-                                )}
-                              </div>
-                            )
-                          })()}
-                        </td>
-
-                        {/* Priority */}
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              wo.priority === 'Critical'
-                                ? 'bg-rose-100 text-rose-800'
-                                : wo.priority === 'High'
-                                ? 'bg-amber-100 text-amber-800'
-                                : wo.priority === 'Medium'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {wo.priority || 'Medium'}
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                wo.status === 'Completed'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : wo.status === 'In Progress'
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                  : wo.status === 'Cancelled'
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
-                              }`}
-                            >
-                              {wo.status}
-                            </span>
-                            {isWithVendor(wo) && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                With vendor
-                              </span>
-                            )}
-                            <OutsideRepairTag workOrderId={wo.id} theme="light" />
-                            {isWorkOrderOverdue(wo) && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
-                                Overdue
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => setSelectedWoForDetails(wo)}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition inline-flex items-center gap-1 shadow-2xs"
-                              title="View complete work order telemetry and records"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-blue-600" />
-                              <span>View Details</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            tableId="work-orders"
+            data={filteredWorkOrders}
+            columns={workOrderColumns}
+            getRowId={wo => wo.id}
+            resetKey={`${activeTab}|${statusFilter}|${searchQuery}`}
+            rowClassName="hover:bg-slate-50/60 transition group"
+            tdClassName="py-3.5 px-4"
+            emptyState={
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <ClipboardList className="w-8 h-8 text-slate-300 stroke-1" />
+                <p className="text-xs font-semibold text-slate-600">No Work Orders Found</p>
+                <p className="text-[11px] text-slate-400 max-w-sm">
+                  Work orders will be populated automatically when preventive schedules trigger, service requests are escalated to corrective repairs, or created manually.
+                </p>
+              </div>
+            }
+          />
         </div>
 
         {/* Modal: Create Work Order */}

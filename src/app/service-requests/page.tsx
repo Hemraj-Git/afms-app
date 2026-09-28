@@ -34,6 +34,8 @@ import {
 import { ServiceRequest, SlaPriority } from '@/types/afms'
 import { getNextSequence, formatYearlyId } from '@/lib/idGenerator'
 import { getLocalDateStr, formatDateDisplay, formatDateTimeDisplay } from '@/lib/dateUtils'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, PRIORITY_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 export default function ServiceRequestsPage() {
   const router = useRouter()
@@ -275,6 +277,112 @@ export default function ServiceRequestsPage() {
     }
   }
 
+  const requestColumns: ColumnDef<ServiceRequest>[] = [
+    {
+      id: 'ticketId',
+      header: 'Service Request ID',
+      accessorFn: r => r.ticketId,
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6 font-mono font-bold text-blue-600' },
+    },
+    {
+      id: 'createdAt',
+      header: 'Date',
+      accessorFn: r => timeOf(r.createdAt),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-4 px-4 text-slate-500 font-medium' },
+      cell: ({ row: { original: req } }) => formatDateDisplay(req.createdAt),
+    },
+    {
+      id: 'title',
+      header: 'Subject & Target Asset',
+      accessorFn: r => r.title,
+      cell: ({ row: { original: req } }) => {
+        const asset = assets.find(a => a.id === req.assetId)
+        return (
+          <>
+            <p className="font-bold text-slate-900">{req.title}</p>
+            <p className="text-[11px] text-slate-500 font-medium">
+              {asset?.name ? `${asset.name} (${asset.assetId || asset.id})` : req.requestType}
+            </p>
+          </>
+        )
+      },
+    },
+    {
+      id: 'location',
+      header: 'Location',
+      accessorFn: r => rooms.find(rm => rm.id === r.roomId)?.name || 'General Area',
+      cell: ({ row: { original: req } }) => {
+        const room = rooms.find(r => r.id === req.roomId)
+        return (
+          <>
+            <p className="font-semibold text-slate-800">{room?.name || 'General Area'}</p>
+            <p className="text-[11px] text-slate-400">Room {room?.roomNumber}</p>
+          </>
+        )
+      },
+    },
+    {
+      id: 'requestedBy',
+      header: 'Requested By',
+      accessorFn: r => r.requestedBy,
+      cell: ({ row: { original: req } }) => (
+        <>
+          <p className="font-semibold text-slate-800">{req.requestedBy}</p>
+          <p className="text-[11px] text-slate-400">{req.requestedByRole}</p>
+        </>
+      ),
+    },
+    {
+      id: 'priority',
+      header: 'SLA Priority',
+      accessorFn: r => r.priority,
+      sortingFn: sortByOrder(PRIORITY_ORDER),
+      cell: ({ row: { original: req } }) => (
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+          req.priority === 'Critical'
+            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+            : req.priority === 'High'
+            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+            : 'bg-blue-50 text-blue-700 border border-blue-200'
+        }`}>
+          {req.priority} ({slaConfig[req.priority as SlaPriority] || 24}h SLA)
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: r => r.status,
+      sortingFn: sortByOrder(['Open', 'In Progress', 'Resolved', 'Closed']),
+      cell: ({ row: { original: req } }) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {getStatusBadge(req.status)}
+          {isTicketOverdue(req) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
+              Overdue
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: req } }) => (
+        <button
+          onClick={() => setSelectedTicket(req)}
+          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-blue-500 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition inline-flex items-center gap-1 font-semibold text-xs shadow-2xs"
+        >
+          <span>Action</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      ),
+    },
+  ]
+
   const currentTicket = selectedTicket
     ? serviceRequests.find(s => s.id === selectedTicket.id) || selectedTicket
     : null
@@ -407,97 +515,23 @@ export default function ServiceRequestsPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                  <th className="py-3.5 px-6">Service Request ID</th>
-                  <th className="py-3.5 px-4">Date</th>
-                  <th className="py-3.5 px-4">Subject & Target Asset</th>
-                  <th className="py-3.5 px-4">Location</th>
-                  <th className="py-3.5 px-4">Requested By</th>
-                  <th className="py-3.5 px-4">SLA Priority</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-6 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredRequests.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <MessageSquare className="w-8 h-8 text-slate-300 stroke-1" />
-                        <p className="text-xs font-semibold text-slate-600">No Service Requests Found</p>
-                        <p className="text-[11px] text-slate-400 max-w-sm">
-                          Create a service request to report an asset breakdown, room maintenance requirement, or cleaning ticket.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredRequests.map(req => {
-                  const room = rooms.find(r => r.id === req.roomId)
-                  const asset = assets.find(a => a.id === req.assetId)
-                  const sub = asset ? subCategories.find(s => s.id === asset.subCategoryId) : undefined
-
-                  return (
-                    <tr key={req.id} className="hover:bg-slate-50/60 transition group">
-                      <td className="py-4 px-6 font-mono font-bold text-blue-600">
-                        {req.ticketId}
-                      </td>
-                      <td className="py-4 px-4 text-slate-500 font-medium">
-                        {formatDateDisplay(req.createdAt)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-bold text-slate-900">{req.title}</p>
-                        <p className="text-[11px] text-slate-500 font-medium">
-                          {asset?.name ? `${asset.name} (${asset.assetId || asset.id})` : req.requestType}
-                        </p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-semibold text-slate-800">{room?.name || 'General Area'}</p>
-                        <p className="text-[11px] text-slate-400">Room {room?.roomNumber}</p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-semibold text-slate-800">{req.requestedBy}</p>
-                        <p className="text-[11px] text-slate-400">{req.requestedByRole}</p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          req.priority === 'Critical'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : req.priority === 'High'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-blue-50 text-blue-700 border border-blue-200'
-                        }`}>
-                          {req.priority} ({slaConfig[req.priority as SlaPriority] || 24}h SLA)
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {getStatusBadge(req.status)}
-                          {isTicketOverdue(req) && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
-                              Overdue
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <button
-                          onClick={() => setSelectedTicket(req)}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-blue-500 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition inline-flex items-center gap-1 font-semibold text-xs shadow-2xs"
-                        >
-                          <span>Action</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                }))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            tableId="service-requests"
+            data={filteredRequests}
+            columns={requestColumns}
+            getRowId={r => r.id}
+            resetKey={`${activeTab}|${searchQuery}`}
+            rowClassName="hover:bg-slate-50/60 transition group"
+            emptyState={
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <MessageSquare className="w-8 h-8 text-slate-300 stroke-1" />
+                <p className="text-xs font-semibold text-slate-600">No Service Requests Found</p>
+                <p className="text-[11px] text-slate-400 max-w-sm">
+                  Create a service request to report an asset breakdown, room maintenance requirement, or cleaning ticket.
+                </p>
+              </div>
+            }
+          />
         </div>
 
         {/* TICKET DETAIL & ACTION MODAL / DRAWER */}

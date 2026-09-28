@@ -32,6 +32,8 @@ import {
 import { UserProfile, UserRole, Department, ServiceRequest } from '@/types/afms'
 import { inviteUser } from '@/app/actions/users'
 import { formatDateDisplay } from '@/lib/dateUtils'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, timeOf } from '@/components/ui/DataTable'
 
 export default function UsersAdminPage() {
   const {
@@ -330,6 +332,152 @@ export default function UsersAdminPage() {
     }
   }
 
+  const assignedCount = (user: UserProfile) =>
+    assets.filter(a => a.assignedToUserId === user.id || a.assignedToUserName === user.fullName).length
+
+  const userColumns: ColumnDef<UserProfile>[] = [
+    {
+      id: 'fullName',
+      header: 'User Profile',
+      accessorFn: u => u.fullName,
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6' },
+      cell: ({ row: { original: user } }) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm shrink-0 border border-blue-200">
+            {user.fullName.charAt(0)}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-bold text-slate-900 group-hover:text-blue-600 transition">
+                {user.fullName}
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">{user.email}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'role',
+      header: 'Role',
+      accessorFn: u => u.role,
+      cell: ({ row: { original: user } }) => getRoleBadge(user.role),
+    },
+    {
+      id: 'department',
+      header: 'Department',
+      accessorFn: u => u.department || 'General',
+      cell: ({ getValue }) => <span className="font-semibold text-slate-800">{getValue() as string}</span>,
+    },
+    {
+      id: 'phone',
+      header: 'Contact Details',
+      accessorFn: u => u.phone || undefined,
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-4 px-4 text-slate-600 font-mono' },
+      cell: ({ row: { original: user } }) => user.phone || '—',
+    },
+    {
+      id: 'assets',
+      header: 'Assigned Assets',
+      accessorFn: u => assignedCount(u),
+      cell: ({ getValue }) => {
+        const countAssigned = getValue() as number
+        return (
+          <span
+            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+              countAssigned > 0
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : 'bg-slate-50 text-slate-500 border-slate-200'
+            }`}
+          >
+            {countAssigned} {countAssigned === 1 ? 'Asset' : 'Assets'}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: user } }) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={e => openEditUserModal(user, e)}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition"
+            title="Edit User Profile"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={e => handleDeleteUser(user.id, user.fullName, e)}
+            className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
+            title="Delete User"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const guestColumns: ColumnDef<GuestGroup>[] = [
+    {
+      id: 'fullName',
+      header: 'Guest Profile',
+      accessorFn: g => g.fullName,
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6' },
+      cell: ({ row: { original: group } }) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-sm shrink-0 border border-slate-200">
+            {group.fullName.charAt(0)}
+          </div>
+          <div>
+            <p className="font-bold text-slate-900 group-hover:text-blue-600 transition">
+              {group.fullName}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{group.email}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'phone',
+      header: 'Contact Details',
+      accessorFn: g => g.phone || undefined,
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-4 px-4 text-slate-600 font-mono' },
+      cell: ({ row: { original: group } }) => group.phone || '—',
+    },
+    {
+      id: 'visitCount',
+      header: 'Visits',
+      accessorFn: g => g.visitCount,
+      cell: ({ row: { original: group } }) => (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-slate-50 text-slate-600 border-slate-200">
+          {group.visitCount} {group.visitCount === 1 ? 'Visit' : 'Visits'}
+        </span>
+      ),
+    },
+    {
+      id: 'lastSeen',
+      header: 'Last Visit',
+      accessorFn: g => timeOf(g.lastSeen),
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-4 px-4 text-slate-500' },
+      cell: ({ row: { original: group } }) => (group.lastSeen ? new Date(group.lastSeen).toLocaleDateString() : '—'),
+    },
+    {
+      id: 'open',
+      header: () => <>&nbsp;</>,
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: () => <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 inline-block transition" />,
+    },
+  ]
+
   // Assets assigned to the viewing user
   const userAssignedAssets = viewingUser
     ? assets.filter(a => a.assignedToUserId === viewingUser.id || a.assignedToUserName === viewingUser.fullName)
@@ -466,171 +614,29 @@ export default function UsersAdminPage() {
             </div>
 
             {personnelSubTab === 'registered' ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">User Profile</th>
-                    <th className="py-3.5 px-4">Role</th>
-                    <th className="py-3.5 px-4">Department</th>
-                    <th className="py-3.5 px-4">Contact Details</th>
-                    <th className="py-3.5 px-4">Assigned Assets</th>
-                    <th className="py-3.5 px-6 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
-                        No personnel found matching search criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map(user => {
-                      const countAssigned = assets.filter(
-                        a => a.assignedToUserId === user.id || a.assignedToUserName === user.fullName
-                      ).length
-
-                      return (
-                        <tr
-                          key={user.id}
-                          onClick={() => setViewingUser(user)}
-                          className="hover:bg-blue-50/40 transition cursor-pointer group"
-                        >
-                          {/* User Profile */}
-                          <td className="py-4 px-6 flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm shrink-0 border border-blue-200">
-                              {user.fullName.charAt(0)}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-bold text-slate-900 group-hover:text-blue-600 transition">
-                                  {user.fullName}
-                                </p>
-                              </div>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{user.email}</p>
-                            </div>
-                          </td>
-
-                          {/* Role */}
-                          <td className="py-4 px-4">{getRoleBadge(user.role)}</td>
-
-                          {/* Department */}
-                          <td className="py-4 px-4">
-                            <span className="font-semibold text-slate-800">{user.department || 'General'}</span>
-                          </td>
-
-                          {/* Phone */}
-                          <td className="py-4 px-4 text-slate-600 font-mono">
-                            {user.phone || '—'}
-                          </td>
-
-                          {/* Assigned Assets Count */}
-                          <td className="py-4 px-4">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                countAssigned > 0
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : 'bg-slate-50 text-slate-500 border-slate-200'
-                              }`}
-                            >
-                              {countAssigned} {countAssigned === 1 ? 'Asset' : 'Assets'}
-                            </span>
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-4 px-6 text-right">
-                            <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                              <button
-                                onClick={e => openEditUserModal(user, e)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition"
-                                title="Edit User Profile"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-
-                              <button
-                                onClick={e => handleDeleteUser(user.id, user.fullName, e)}
-                                className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
-                                title="Delete User"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              key="registered"
+              tableId="users-registered"
+              data={filteredUsers}
+              columns={userColumns}
+              getRowId={u => u.id}
+              resetKey={searchQuery}
+              onRowClick={setViewingUser}
+              rowClassName="hover:bg-blue-50/40 transition group"
+              emptyState="No personnel found matching search criteria."
+            />
             ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Guest Profile</th>
-                    <th className="py-3.5 px-4">Contact Details</th>
-                    <th className="py-3.5 px-4">Visits</th>
-                    <th className="py-3.5 px-4">Last Visit</th>
-                    <th className="py-3.5 px-6 text-right">&nbsp;</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredGuestGroups.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-12 text-center text-slate-400">
-                        No guest visitors found matching search criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredGuestGroups.map(group => (
-                      <tr
-                        key={group.email}
-                        onClick={() => setViewingGuestGroup(group)}
-                        className="hover:bg-blue-50/40 transition cursor-pointer group"
-                      >
-                        {/* Guest Profile */}
-                        <td className="py-4 px-6 flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-sm shrink-0 border border-slate-200">
-                            {group.fullName.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-900 group-hover:text-blue-600 transition">
-                              {group.fullName}
-                            </p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">{group.email}</p>
-                          </div>
-                        </td>
-
-                        {/* Phone */}
-                        <td className="py-4 px-4 text-slate-600 font-mono">
-                          {group.phone || '—'}
-                        </td>
-
-                        {/* Visit Count */}
-                        <td className="py-4 px-4">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-slate-50 text-slate-600 border-slate-200">
-                            {group.visitCount} {group.visitCount === 1 ? 'Visit' : 'Visits'}
-                          </span>
-                        </td>
-
-                        {/* Last Visit */}
-                        <td className="py-4 px-4 text-slate-500">
-                          {group.lastSeen ? new Date(group.lastSeen).toLocaleDateString() : '—'}
-                        </td>
-
-                        {/* View Chevron */}
-                        <td className="py-4 px-6 text-right">
-                          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 inline-block transition" />
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              key="guests"
+              tableId="users-guests"
+              data={filteredGuestGroups}
+              columns={guestColumns}
+              getRowId={g => g.email}
+              resetKey={searchQuery}
+              onRowClick={setViewingGuestGroup}
+              rowClassName="hover:bg-blue-50/40 transition group"
+              emptyState="No guest visitors found matching search criteria."
+            />
             )}
           </div>
         )}

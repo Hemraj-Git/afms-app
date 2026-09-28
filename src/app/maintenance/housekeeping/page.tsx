@@ -19,6 +19,8 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { WorkOrder } from '@/types/afms'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 export default function HousekeepingPage() {
   const { workOrders, rooms, users, addWorkOrder, updateWorkOrderStatus } = useAFMS()
@@ -113,6 +115,130 @@ export default function HousekeepingPage() {
     setSelectedWoForAssign(null)
   }
 
+  const housekeepingColumns: ColumnDef<WorkOrder>[] = [
+    {
+      id: 'woNumber',
+      header: 'WO Number',
+      accessorFn: wo => wo.woNumber,
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6 font-mono font-bold text-purple-700' },
+    },
+    {
+      id: 'title',
+      header: 'Task',
+      accessorFn: wo => wo.title ?? '',
+      cell: ({ row: { original: wo } }) => (
+        <>
+          <p className="font-bold text-slate-900">{wo.title}</p>
+          {wo.issueLogged && (
+            <p className="text-[11px] text-slate-400 max-w-xs truncate">{wo.issueLogged}</p>
+          )}
+        </>
+      ),
+    },
+    {
+      id: 'room',
+      header: 'Room / Area',
+      accessorFn: wo => rooms.find(r => r.id === wo.roomId)?.name || 'Classroom / Area',
+      cell: ({ row: { original: wo } }) => {
+        const room = rooms.find(r => r.id === wo.roomId)
+        return (
+          <div className="flex items-center gap-1 text-slate-600">
+            <DoorOpen className="w-3.5 h-3.5 text-slate-400" />
+            <span>{room?.name || 'Classroom / Area'} ({room?.roomNumber || wo.roomId})</span>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'staff',
+      header: 'Assigned Staff',
+      // Unassigned rows sort last.
+      accessorFn: wo => wo.assignedTechnicianName || undefined,
+      sortUndefined: 'last',
+      cell: ({ row: { original: wo } }) =>
+        wo.assignedTechnicianName ? (
+          <div className="flex items-center gap-1.5 font-medium text-slate-800">
+            <User className="w-3.5 h-3.5 text-purple-600" />
+            <span>{wo.assignedTechnicianName}</span>
+          </div>
+        ) : (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            Unassigned
+          </span>
+        ),
+    },
+    {
+      id: 'dueDate',
+      header: 'Due Date',
+      accessorFn: wo => timeOf(wo.dueDate),
+      sortUndefined: 'last',
+      cell: ({ row: { original: wo } }) => (
+        <div className="flex items-center gap-1 text-slate-500 font-medium">
+          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+          <span>{formatDateDisplay(wo.dueDate)}</span>
+        </div>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: wo => wo.status,
+      sortingFn: sortByOrder(WO_STATUS_ORDER),
+      cell: ({ row: { original: wo } }) => (
+        <span
+          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+            wo.status === 'Completed'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : wo.status === 'In Progress'
+              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+              : 'bg-slate-100 text-slate-600'
+          }`}
+        >
+          {wo.status}
+        </span>
+      ),
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: wo } }) =>
+        wo.status !== 'Completed' && (
+          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+            <button
+              onClick={() => {
+                setSelectedWoForAssign(wo)
+                setSelectedStaffId(wo.assignedTechnicianId || housekeepingStaff[0]?.id || '')
+                setAssignRemarks('')
+              }}
+              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
+            >
+              <User className="w-3.5 h-3.5 text-slate-500" />
+              <span>{wo.assignedTechnicianName ? 'Reassign' : 'Assign'}</span>
+            </button>
+
+            {wo.status === 'Scheduled' || (wo.status as string) === 'Assigned' ? (
+              <button
+                onClick={() => updateWorkOrderStatus(wo.id, 'In Progress')}
+                className="px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition"
+              >
+                Start Cleaning
+              </button>
+            ) : (
+              <button
+                onClick={() => updateWorkOrderStatus(wo.id, 'Completed', 'Sanitization completed.')}
+                className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Complete</span>
+              </button>
+            )}
+          </div>
+        ),
+    },
+  ]
+
   return (
     <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Maintenance' }, { label: 'Housekeeping' }]}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -147,130 +273,29 @@ export default function HousekeepingPage() {
 
         {/* Work Orders Table */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                  <th className="py-3.5 px-6">WO Number</th>
-                  <th className="py-3.5 px-4">Task</th>
-                  <th className="py-3.5 px-4">Room / Area</th>
-                  <th className="py-3.5 px-4">Assigned Staff</th>
-                  <th className="py-3.5 px-4">Due Date</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-6 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <Sparkles className="w-8 h-8 text-slate-300 stroke-1" />
-                        <p className="text-xs font-semibold text-slate-600">No Housekeeping Tasks Scheduled</p>
-                        <p className="text-[11px] text-slate-400 max-w-sm">
-                          Schedule routine sanitization, room deep-cleaning, or facility hygiene checks to assign housekeeping staff.
-                        </p>
-                        <button
-                          onClick={() => setShowModal(true)}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs transition mt-1"
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span>Schedule First Task</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredOrders.map(wo => {
-                    const room = rooms.find(r => r.id === wo.roomId)
-
-                    return (
-                      <tr key={wo.id} className="hover:bg-slate-50/60 transition">
-                        <td className="py-4 px-6 font-mono font-bold text-purple-700">{wo.woNumber}</td>
-                        <td className="py-4 px-4">
-                          <p className="font-bold text-slate-900">{wo.title}</p>
-                          {wo.issueLogged && (
-                            <p className="text-[11px] text-slate-400 max-w-xs truncate">{wo.issueLogged}</p>
-                          )}
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-1 text-slate-600">
-                            <DoorOpen className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{room?.name || 'Classroom / Area'} ({room?.roomNumber || wo.roomId})</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          {wo.assignedTechnicianName ? (
-                            <div className="flex items-center gap-1.5 font-medium text-slate-800">
-                              <User className="w-3.5 h-3.5 text-purple-600" />
-                              <span>{wo.assignedTechnicianName}</span>
-                            </div>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                              Unassigned
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-1 text-slate-500 font-medium">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{formatDateDisplay(wo.dueDate)}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              wo.status === 'Completed'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : wo.status === 'In Progress'
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {wo.status}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          {wo.status !== 'Completed' && (
-                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                              <button
-                                onClick={() => {
-                                  setSelectedWoForAssign(wo)
-                                  setSelectedStaffId(wo.assignedTechnicianId || housekeepingStaff[0]?.id || '')
-                                  setAssignRemarks('')
-                                }}
-                                className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
-                              >
-                                <User className="w-3.5 h-3.5 text-slate-500" />
-                                <span>{wo.assignedTechnicianName ? 'Reassign' : 'Assign'}</span>
-                              </button>
-
-                              {wo.status === 'Scheduled' || (wo.status as string) === 'Assigned' ? (
-                                <button
-                                  onClick={() => updateWorkOrderStatus(wo.id, 'In Progress')}
-                                  className="px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition"
-                                >
-                                  Start Cleaning
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => updateWorkOrderStatus(wo.id, 'Completed', 'Sanitization completed.')}
-                                  className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Complete</span>
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            tableId="housekeeping"
+            data={filteredOrders}
+            columns={housekeepingColumns}
+            getRowId={wo => wo.id}
+            resetKey={searchQuery}
+            emptyState={
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <Sparkles className="w-8 h-8 text-slate-300 stroke-1" />
+                <p className="text-xs font-semibold text-slate-600">No Housekeeping Tasks Scheduled</p>
+                <p className="text-[11px] text-slate-400 max-w-sm">
+                  Schedule routine sanitization, room deep-cleaning, or facility hygiene checks to assign housekeeping staff.
+                </p>
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs transition mt-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Schedule First Task</span>
+                </button>
+              </div>
+            }
+          />
         </div>
 
         {/* Modal: Assign / Reassign Staff */}

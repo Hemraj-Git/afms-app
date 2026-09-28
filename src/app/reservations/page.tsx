@@ -28,6 +28,8 @@ import {
   CalendarRange,
 } from 'lucide-react'
 import { Reservation, UserProfile, Department } from '@/types/afms'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 export default function ReservationsPage() {
   const {
@@ -313,6 +315,104 @@ export default function ReservationsPage() {
     setSelectedGridDate(getLocalDateStr(d))
   }
 
+  const reservationColumns: ColumnDef<Reservation>[] = [
+    {
+      id: 'reservationNumber',
+      header: 'Reservation ID',
+      accessorFn: r => r.reservationNumber,
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6 font-mono font-bold text-blue-600' },
+    },
+    {
+      id: 'when',
+      header: 'Date & Time Slot',
+      // The day, then the hour within it.
+      accessorFn: r => {
+        const day = timeOf(r.date)
+        return day === undefined ? undefined : day + r.slotHour * 3_600_000
+      },
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-4 px-4 font-semibold text-slate-900' },
+      cell: ({ row: { original: res } }) => (
+        <>
+          <p>{formatDateDisplay(res.date)}</p>
+          <p className="text-[11px] text-slate-400 font-normal">{res.timeSlot}</p>
+        </>
+      ),
+    },
+    {
+      id: 'roomName',
+      header: 'Room / Space',
+      accessorFn: r => r.roomName,
+      meta: { tdClassName: 'py-4 px-4 font-bold text-slate-800' },
+    },
+    {
+      id: 'userName',
+      header: 'Reserved By',
+      accessorFn: r => r.userName,
+      cell: ({ row: { original: res } }) => (
+        <>
+          <p className="font-semibold text-slate-900">{res.userName}</p>
+          <p className="text-[10px] text-slate-400">{res.userRole || 'Staff'}</p>
+        </>
+      ),
+    },
+    {
+      id: 'departmentName',
+      header: 'Department',
+      accessorFn: r => r.departmentName || undefined,
+      sortUndefined: 'last',
+      meta: { tdClassName: 'py-4 px-4 text-slate-600 font-medium' },
+      cell: ({ row: { original: res } }) => res.departmentName || '—',
+    },
+    {
+      id: 'purpose',
+      header: 'Purpose',
+      accessorFn: r => r.purpose,
+      meta: { tdClassName: 'py-4 px-4 text-slate-700 max-w-xs' },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: r => r.status,
+      sortingFn: sortByOrder(['Confirmed', 'Completed', 'Cancelled']),
+      cell: ({ row: { original: res } }) => (
+        <span
+          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+            res.status === 'Confirmed'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : res.status === 'Completed'
+              ? 'bg-blue-50 text-blue-700 border-blue-200'
+              : 'bg-slate-100 text-slate-500 border-slate-200'
+          }`}
+        >
+          {res.status}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: res } }) =>
+        isSlotInPast(res.date, res.slotHour) ? (
+          <span className="text-[11px] text-slate-400 italic">Past</span>
+        ) : (
+          <button
+            onClick={() => {
+              if (confirm(`Delete reservation ${res.reservationNumber}?`)) {
+                deleteReservation(res.id)
+              }
+            }}
+            className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
+            title="Delete Reservation"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        ),
+    },
+  ]
+
   return (
     <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Operation' }, { label: 'Reservations' }]}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -575,78 +675,14 @@ export default function ReservationsPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                    <th className="py-3.5 px-6">Reservation ID</th>
-                    <th className="py-3.5 px-4">Date &amp; Time Slot</th>
-                    <th className="py-3.5 px-4">Room / Space</th>
-                    <th className="py-3.5 px-4">Reserved By</th>
-                    <th className="py-3.5 px-4">Department</th>
-                    <th className="py-3.5 px-4">Purpose</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-6 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredReservationsList.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No reservations found matching filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredReservationsList.map(res => (
-                      <tr key={res.id} className="hover:bg-slate-50/60 transition">
-                        <td className="py-4 px-6 font-mono font-bold text-blue-600">{res.reservationNumber}</td>
-                        <td className="py-4 px-4 font-semibold text-slate-900">
-                          <p>{formatDateDisplay(res.date)}</p>
-                          <p className="text-[11px] text-slate-400 font-normal">{res.timeSlot}</p>
-                        </td>
-                        <td className="py-4 px-4 font-bold text-slate-800">{res.roomName}</td>
-                        <td className="py-4 px-4">
-                          <p className="font-semibold text-slate-900">{res.userName}</p>
-                          <p className="text-[10px] text-slate-400">{res.userRole || 'Staff'}</p>
-                        </td>
-                        <td className="py-4 px-4 text-slate-600 font-medium">{res.departmentName || '—'}</td>
-                        <td className="py-4 px-4 text-slate-700 max-w-xs">{res.purpose}</td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              res.status === 'Confirmed'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : res.status === 'Completed'
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                : 'bg-slate-100 text-slate-500 border-slate-200'
-                            }`}
-                          >
-                            {res.status}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          {isSlotInPast(res.date, res.slotHour) ? (
-                            <span className="text-[11px] text-slate-400 italic">Past</span>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                if (confirm(`Delete reservation ${res.reservationNumber}?`)) {
-                                  deleteReservation(res.id)
-                                }
-                              }}
-                              className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
-                              title="Delete Reservation"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              tableId="reservations"
+              data={filteredReservationsList}
+              columns={reservationColumns}
+              getRowId={r => r.id}
+              resetKey={`${listSearchQuery}|${listTimeframeFilter}|${listRoomFilter}|${listStatusFilter}`}
+              emptyState="No reservations found matching filters."
+            />
           </div>
         )}
 

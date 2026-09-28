@@ -33,6 +33,8 @@ import {
 } from 'lucide-react'
 import { WorkOrder, WorkOrderPartItem } from '@/types/afms'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable, WO_STATUS_ORDER, sortByOrder } from '@/components/ui/DataTable'
 
 // A not-yet-assigned Corrective record has a 'PENDING-<uuid>' placeholder
 // woNumber (see makePendingWoNumber) -- show something readable instead of
@@ -121,6 +123,124 @@ export default function CorrectiveMaintenancePage() {
     setSelectedWoForResolve(null)
   }
 
+  const correctiveColumns: ColumnDef<WorkOrder>[] = [
+    {
+      id: 'woNumber',
+      header: 'WO Number',
+      accessorFn: wo => displayWoNumber(wo.woNumber),
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6 font-mono font-bold text-rose-600' },
+    },
+    {
+      id: 'source',
+      header: 'Trigger Source',
+      accessorFn: wo => wo.source,
+      cell: ({ row: { original: wo } }) => (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          {wo.source} ({wo.sourceRefId || 'SR'})
+        </span>
+      ),
+    },
+    {
+      id: 'asset',
+      header: 'Target Asset & Location',
+      accessorFn: wo => assets.find(a => a.id === wo.assetId)?.name || 'Facility Area',
+      cell: ({ row: { original: wo } }) => {
+        const asset = assets.find(a => a.id === wo.assetId)
+        const room = rooms.find(r => r.id === (wo.roomId || asset?.roomId))
+        return (
+          <>
+            <p className="font-bold text-slate-900">{asset?.name || 'Facility Area'}</p>
+            <p className="text-[11px] text-slate-400">{room?.name || 'General'}</p>
+          </>
+        )
+      },
+    },
+    {
+      id: 'issueLogged',
+      header: 'Issue Logged',
+      accessorFn: wo => wo.issueLogged || 'Defect reported',
+      meta: { tdClassName: 'py-4 px-4 text-slate-600 max-w-xs truncate' },
+    },
+    {
+      id: 'technician',
+      header: 'Assigned Technician',
+      // Unassigned rows sort last.
+      accessorFn: wo => wo.assignedTechnicianName || undefined,
+      sortUndefined: 'last',
+      cell: ({ row: { original: wo } }) =>
+        wo.assignedTechnicianName ? (
+          <div className="flex items-center gap-1.5 font-medium text-slate-800">
+            <User className="w-3.5 h-3.5 text-blue-600" />
+            <span>{wo.assignedTechnicianName}</span>
+          </div>
+        ) : (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            Pending Assignment
+          </span>
+        ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: wo => wo.status,
+      sortingFn: sortByOrder(WO_STATUS_ORDER),
+      cell: ({ row: { original: wo } }) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+              wo.status === 'Completed'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : wo.status === 'In Progress'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }`}
+          >
+            {wo.status === 'Completed' ? 'Resolved' : wo.status}
+          </span>
+          {isWithVendor(wo) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              With vendor
+            </span>
+          )}
+          <OutsideRepairTag workOrderId={wo.id} theme="light" />
+          {isWorkOrderOverdue(wo) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
+              Overdue
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: wo } }) =>
+        !wo.assignedTechnicianName ? (
+          <button
+            onClick={() => {
+              setSelectedWoForAssign(wo)
+              setSelectedTechnicianId(technicians[0]?.id || '')
+              setAssignRemarks('')
+            }}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5"
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>Assign Technician</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setSelectedWoForDetails(wo)}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5"
+          >
+            <Eye className="w-3.5 h-3.5 text-slate-500" />
+            <span>View Details</span>
+          </button>
+        ),
+    },
+  ]
+
   return (
     <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Maintenance' }, { label: 'Corrective' }]}>
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -145,119 +265,21 @@ export default function CorrectiveMaintenancePage() {
             <h2 className="text-base font-bold text-slate-900">Corrective Maintenance Queue ({correctiveOrders.length})</h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
-                  <th className="py-3.5 px-6">WO Number</th>
-                  <th className="py-3.5 px-4">Trigger Source</th>
-                  <th className="py-3.5 px-4">Target Asset & Location</th>
-                  <th className="py-3.5 px-4">Issue Logged</th>
-                  <th className="py-3.5 px-4">Assigned Technician</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-6 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {correctiveOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <AlertTriangle className="w-8 h-8 text-slate-300 stroke-1" />
-                        <p className="text-xs font-semibold text-slate-600">Corrective Maintenance Queue Empty</p>
-                        <p className="text-[11px] text-slate-400 max-w-sm">
-                          No pending corrective repair orders. Corrective maintenance work orders are created when service requests or inspections fail.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  correctiveOrders.map(wo => {
-                  const asset = assets.find(a => a.id === wo.assetId)
-                  const room = rooms.find(r => r.id === (wo.roomId || asset?.roomId))
-                  const isPendingAssignment = !wo.assignedTechnicianName
-                  const isOverdue = isWorkOrderOverdue(wo)
-
-                  return (
-                    <tr key={wo.id} className="hover:bg-slate-50/60 transition">
-                      <td className="py-4 px-6 font-mono font-bold text-rose-600">{displayWoNumber(wo.woNumber)}</td>
-                      <td className="py-4 px-4">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                          {wo.source} ({wo.sourceRefId || 'SR'})
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-bold text-slate-900">{asset?.name || 'Facility Area'}</p>
-                        <p className="text-[11px] text-slate-400">{room?.name || 'General'}</p>
-                      </td>
-                      <td className="py-4 px-4 text-slate-600 max-w-xs truncate">{wo.issueLogged || 'Defect reported'}</td>
-                      <td className="py-4 px-4">
-                        {wo.assignedTechnicianName ? (
-                          <div className="flex items-center gap-1.5 font-medium text-slate-800">
-                            <User className="w-3.5 h-3.5 text-blue-600" />
-                            <span>{wo.assignedTechnicianName}</span>
-                          </div>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            Pending Assignment
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                              wo.status === 'Completed'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : wo.status === 'In Progress'
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}
-                          >
-                            {wo.status === 'Completed' ? 'Resolved' : wo.status}
-                          </span>
-                          {isWithVendor(wo) && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                              With vendor
-                            </span>
-                          )}
-                          <OutsideRepairTag workOrderId={wo.id} theme="light" />
-                          {isOverdue && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
-                              Overdue
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        {isPendingAssignment ? (
-                          <button
-                            onClick={() => {
-                              setSelectedWoForAssign(wo)
-                              setSelectedTechnicianId(technicians[0]?.id || '')
-                              setAssignRemarks('')
-                            }}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5"
-                          >
-                            <User className="w-3.5 h-3.5" />
-                            <span>Assign Technician</span>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => setSelectedWoForDetails(wo)}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-slate-500" />
-                            <span>View Details</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                }))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            tableId="corrective"
+            data={correctiveOrders}
+            columns={correctiveColumns}
+            getRowId={wo => wo.id}
+            emptyState={
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <AlertTriangle className="w-8 h-8 text-slate-300 stroke-1" />
+                <p className="text-xs font-semibold text-slate-600">Corrective Maintenance Queue Empty</p>
+                <p className="text-[11px] text-slate-400 max-w-sm">
+                  No pending corrective repair orders. Corrective maintenance work orders are created when service requests or inspections fail.
+                </p>
+              </div>
+            }
+          />
         </div>
 
         {/* Modal 1: Assign / Reassign Technician Modal (Generates / Activates Work Order) */}
