@@ -65,7 +65,7 @@ async function ensureAccount(db: SupabaseClient, a: { email: string; name: strin
       email: a.email,
       password,
       email_confirm: true,
-      // app_metadata: only the service role can set it, so the database trusts it (migration 0045).
+      // Informational only: nothing reads app_metadata.role (see migration 0048).
       app_metadata: { role: a.role },
       user_metadata: { full_name: a.name, department: 'E2E Testing' },
     }),
@@ -223,4 +223,32 @@ export async function cleanUp({ keepAccounts = false } = {}) {
   // Guest visits make a fresh anonymous account each time.
   for (const id of guestIds) await db.auth.admin.deleteUser(id)
   if (!keepAccounts) for (const id of staffIds) await db.auth.admin.deleteUser(id)
+
+  // Test accounts without a profile row (see createProfilelessAccount) can't be
+  // found through `profiles`, so sweep the auth users by their test domain too.
+  if (!keepAccounts) {
+    for (let page = 1; ; page++) {
+      const { data, error } = await db.auth.admin.listUsers({ page, perPage: 1000 })
+      if (error || !data.users.length) break
+      for (const u of data.users) {
+        if (u.email?.endsWith('@afms-e2e.test') && !staffIds.includes(u.id)) await db.auth.admin.deleteUser(u.id)
+      }
+      if (data.users.length < 1000) break
+    }
+  }
+}
+
+// A real, confirmed account whose `profiles` row has been removed -- the state
+// in which a sign-in used to leave a live session behind and the route guard
+// used to wave the session through onto the Admin desktop.
+export async function createProfilelessAccount(): Promise<string> {
+  const db = adminDb()
+  const { password } = readState()
+  const email = `e2e-noprofile-${Date.now().toString(36)}@afms-e2e.test`
+  const created = must(
+    await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: `${E2E} No profile` } }),
+    `create ${email}`
+  )
+  must(await db.from('profiles').delete().eq('id', created.user!.id).select('id'), `remove profile of ${email}`)
+  return email
 }

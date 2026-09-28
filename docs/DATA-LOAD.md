@@ -18,7 +18,7 @@ Why two: the asset columns depend on the custom fields the client defines in ste
 
 ## Before the real load
 
-- The target database exists and has **every migration applied through `0042`** (`supabase/migrations/`). `0042` adds `assets.sla_priority`; the assets stage refuses to run without it.
+- The target database exists and has **every migration applied through `0049`** (`supabase/migrations/`). `0042` adds `assets.sla_priority`; the assets stage refuses to run without it.
 - An env file for that project, e.g. `.env.client`, with `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (the service-role key bypasses row-level security: keep it out of git and out of chat). The default is `.env.local`. **Check which database an env file points at before every commit.**
 - **Node 22 or newer** (Node 24 recommended; `npm test` does not start on Node 20) and `npm install`.
 - Test data from development (about 20 guest profiles, demo assets, etc.) is cleared if this project becomes the client's production.

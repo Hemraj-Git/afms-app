@@ -18,14 +18,16 @@ Things only you can do (dashboards, accounts, decisions). Code and database work
 
 | Setting | Where | What to do |
 |---|---|---|
-| **Public sign-up (urgent)** | Authentication → Sign In / Providers → Email (or *User Signups*) | Turn **off** "Allow new users to sign up". The app never uses it: staff are invited, guests use anonymous sign-in (keep that **on**). Until it is off, anyone can create an account for themselves (as Faculty / Technician; no longer as Admin after migration 0045). |
+| **"Allow new users to sign up" — keep ON** | Authentication → Sign In / Providers → User Signups | Must stay **on**. Turning it off **also blocks anonymous sign-ins**, so every guest login and QR check-in fails with "Signups not allowed for this instance" (happened 29 Sep, reverted the same day). It is safe on: since migrations 0048/0049 a self-registered account can only ever be a **Guest** (no staff directory, same access as any QR visitor), and staff roles come only from the app's invite. |
 | Leaked-password protection | Authentication → Policies (Password) | Turn **on**. (May require the Pro plan.) |
 | Password-reset email | Authentication → Email Templates → *Reset password* | Set the link to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery` instead of the default `{{ .ConfirmationURL }}`. Without this the "Forgot password" link may not open the app's *set password* page. Same change for the *Invite user* template with `&type=invite` (see the comment in `src/app/auth/confirm/route.ts`). |
 | Site URL / redirect URLs | Authentication → URL Configuration | Site URL = your production domain. Add `http://localhost:3000` under redirect URLs for testing. |
 | Anonymous sign-ins | Authentication → Providers | Must stay **enabled** (guests use it). |
+| Adding staff | — | Always through the app (*Users → Add New Personnel*), never *Add user* in the Supabase dashboard: a dashboard-created account starts as a **Guest** (migration 0049) and the app will not promote a Guest to staff. |
+| Email templates and `/auth/confirm` | Authentication → Email Templates | `/auth/confirm` now accepts only **invite** and **recovery** links. If you ever point another template (magic link, email change) at it, tell me so its type is added to the allowlist in `src/app/auth/confirm/route.ts`. |
 | Realtime limits | Project Settings → (Realtime / Usage) | The app uses one live connection per open browser tab. Check your plan's concurrent connection limit if many people will have the app open. |
 
-**No SQL to run.** All migrations (up to `0044`) were applied to the live project as they were built. The files are in `supabase/migrations/` for the record.
+**No SQL to run.** All migrations (up to `0049`) were applied to the live project as they were built. The files are in `supabase/migrations/` for the record.
 
 **Phone alerts (Edge Function `send-push`):** already deployed on this project, with **no secret to set**: it creates its own push keys on first use and keeps them in the database (table `push_config`, readable only by the server). For the **client's production project** it must be deployed once there too (I do it with the migrations; it runs with *Verify JWT* **off**, because the database calls it, and it only ever sends a fresh alert once to its real recipient). No Vercel variable is needed for it.
 
@@ -50,7 +52,7 @@ The database is already ahead of production, so deploy soon after testing.
 
 Full runbook: `DATA-LOAD.md`. From your side:
 
-1. **Tell me when the client's production database exists** (a Supabase project with migrations `0001`–`0044` applied and the `send-push` Edge Function deployed) and give me its env file (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) **privately**, not in chat. Until then I test only on the current project.
+1. **Tell me when the client's production database exists** (a Supabase project with migrations `0001`–`0049` applied and the `send-push` Edge Function deployed) and give me its env file (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) **privately**, not in chat. Until then I test only on the current project.
 2. **Decide the data-entry deadline** with the client and who at their end fills each workbook (one person is easiest).
 3. **Send the client the Masters workbook first** (`npm run data:masters-template`), then the Assets workbook only after I have loaded their masters (it is built from them).
 4. **Open both workbooks in Excel once** yourself (checklist 6.14 and 6.15) before sending; I can check the file structure and the formulas, but not how Excel looks.
@@ -60,5 +62,5 @@ Full runbook: `DATA-LOAD.md`. From your side:
 ## F. Decisions I need from you (any time)
 
 - Whether to add TanStack Table + pagination now or after the demo (you said later).
-- **Remove the three anonymous write policies?** (`PENDING-WORK.md` 3.1). I reviewed them: nothing in the app uses them and they let anyone with the public key insert fake access logs or spam tickets. Say "drop them" and I apply it (a small migration; tested to leave guest check-in and ticket raising working).
+- ~~Remove the three anonymous write policies~~ — done (migration 0047, `PENDING-WORK.md` 3.1); guest check-in and guest tickets tested still working.
 - ~~Delete the 9 duplicate asset-timeline rows~~ — done (`PENDING-WORK.md` 4.5).
