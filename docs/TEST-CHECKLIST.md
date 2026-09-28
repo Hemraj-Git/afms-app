@@ -146,6 +146,10 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
 
 ---
 
+## 7b. Automated end-to-end tests (Playwright)
+
+Run `npm run e2e` (Node 22+, with `.env.local` holding the Supabase URL, anon key and **service-role key**; it starts `npm run dev` if nothing is on port 3000). About 2–3 minutes, 10 checks: every main Admin screen, list search/sort/paging, Ctrl+K, inline form errors, guest check-in/out, guest request, the work-order journey with an outside repair, and an inspection. It creates `[E2E]` test accounts, a room, an asset and an inspection first and deletes everything afterwards. Run it when nobody is demoing: Admins with the app open may see the "[E2E]" request for a moment (no phone alert is sent). If a run is stopped half-way: `npm run e2e:cleanup`. To watch it click through: `npm run e2e:ui`. The report of the last run: `npx playwright show-report`.
+
 ## 8. Not built (don't demo as working)
 
 - [ ] Search (6.22) is desktop-only and matches numbers, names and tags, not the text inside descriptions or remarks.

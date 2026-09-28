@@ -508,7 +508,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const unreadNotificationCount = notifications.filter(n => !n.isRead).length
 
   useEffect(() => {
-    if (isLoggedIn && currentUser?.id) {
+    // Not for the 'guest' placeholder the page shows before the profile loads:
+    // it isn't a user id (the query failed with "invalid input syntax for type uuid").
+    if (isLoggedIn && currentUser?.id && currentUser.id !== 'guest') {
       fetchNotifications(currentUser.id)
     } else {
       setNotifications([])

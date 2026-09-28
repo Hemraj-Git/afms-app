@@ -12,7 +12,10 @@
     "data:masters-template": "tsx scripts/data/cli.ts masters-template",
     "data:assets-template": "tsx scripts/data/cli.ts assets-template",
     "data:load": "tsx scripts/data/cli.ts load",
-    "data:undo": "tsx scripts/data/cli.ts undo"
+    "data:undo": "tsx scripts/data/cli.ts undo",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:cleanup": "tsx e2e/support/cleanup-cli.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -51,6 +54,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

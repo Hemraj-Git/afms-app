@@ -18,6 +18,7 @@ Things only you can do (dashboards, accounts, decisions). Code and database work
 
 | Setting | Where | What to do |
 |---|---|---|
+| **Public sign-up (urgent)** | Authentication → Sign In / Providers → Email (or *User Signups*) | Turn **off** "Allow new users to sign up". The app never uses it: staff are invited, guests use anonymous sign-in (keep that **on**). Until it is off, anyone can create an account for themselves (as Faculty / Technician; no longer as Admin after migration 0045). |
 | Leaked-password protection | Authentication → Policies (Password) | Turn **on**. (May require the Pro plan.) |
 | Password-reset email | Authentication → Email Templates → *Reset password* | Set the link to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery` instead of the default `{{ .ConfirmationURL }}`. Without this the "Forgot password" link may not open the app's *set password* page. Same change for the *Invite user* template with `&type=invite` (see the comment in `src/app/auth/confirm/route.ts`). |
 | Site URL / redirect URLs | Authentication → URL Configuration | Site URL = your production domain. Add `http://localhost:3000` under redirect URLs for testing. |

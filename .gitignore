@@ -46,3 +46,9 @@ next-env.d.ts
 
 # client data workbooks, import reports and load manifests (contain client data)
 /data-loads/
+
+# Playwright end-to-end tests
+/e2e/.auth/
+/test-results/
+/playwright-report/
+/blob-report/

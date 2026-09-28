@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAFMS } from '@/context/AFMSContext'
 import { formatDateDisplay } from '@/lib/dateUtils'
@@ -46,6 +46,9 @@ const ALERT_LINKS: Record<AppNotification['type'], string> = {
   outside_repair_overdue: '/maintenance/outside-repairs',
 }
 
+// True only in the browser after hydration (see the sign-in corner below).
+const noSubscribe = () => () => {}
+
 interface HeaderProps {
   breadcrumbs?: { label: string; href?: string }[]
   sidebarCollapsed?: boolean
@@ -64,6 +67,7 @@ export function Header({
     currentUser, activeCheckIn, checkOutRoom, serviceRequests, rooms, isLoggedIn, logout, isDataLoading,
     notifications, markNotificationRead,
   } = useAFMS()
+  const hydrated = useSyncExternalStore(noSubscribe, () => true, () => false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
@@ -363,8 +367,12 @@ export function Header({
           )}
         </div>
 
-        {/* User profile avatar or Sign In */}
-        {isLoggedIn ? (
+        {/* User profile avatar or Sign In. Only after hydration: the sign-in
+            state comes from this browser's storage, which the server can't see,
+            so rendering it on the server made the page fail hydration. */}
+        {!hydrated ? (
+          <div className="w-8 h-8" aria-hidden="true" />
+        ) : isLoggedIn ? (
           <div className="flex items-center gap-2">
             <button
               type="button"
