@@ -25,9 +25,10 @@ import {
   Download,
   FileSpreadsheet,
 } from 'lucide-react'
-import { Asset } from '@/types/afms'
+import { Asset, SlaPriority } from '@/types/afms'
 import { BulkAssetUploadModal } from '@/components/assets/BulkAssetUploadModal'
 import { downloadAssetExcelTemplate } from '@/utils/assetExcelUtils'
+import { lockedSlaPriority } from '@/lib/assetSlaPriority'
 
 export default function AssetsListPage() {
   const {
@@ -53,6 +54,7 @@ export default function AssetsListPage() {
   const [selectedRoom, setSelectedRoom] = useState<string>('All')
   const [selectedStatus, setSelectedStatus] = useState<string>('All')
   const [selectedMaintenanceBy, setSelectedMaintenanceBy] = useState<string>('All')
+  const [selectedSlaPriority, setSelectedSlaPriority] = useState<string>('All')
   
   // Show / Hide filter panel
   const [showFilters, setShowFilters] = useState(false)
@@ -106,6 +108,7 @@ export default function AssetsListPage() {
     setSelectedRoom('All')
     setSelectedStatus('All')
     setSelectedMaintenanceBy('All')
+    setSelectedSlaPriority('All')
     setSearchQuery('')
   }
 
@@ -118,6 +121,7 @@ export default function AssetsListPage() {
     selectedRoom !== 'All',
     selectedStatus !== 'All',
     selectedMaintenanceBy !== 'All',
+    selectedSlaPriority !== 'All',
   ].filter(Boolean).length
 
   // Filtered Assets List
@@ -157,6 +161,14 @@ export default function AssetsListPage() {
         return false
       }
 
+      // 5b. SLA Priority Filter -- the asset's own priority, or (for one that
+      // predates the field) its sub-category's, same fallback the request
+      // forms and the detail page use.
+      if (selectedSlaPriority !== 'All') {
+        const sub = subCategories.find(s => s.id === asset.subCategoryId)
+        if (lockedSlaPriority(asset, sub)?.priority !== selectedSlaPriority) return false
+      }
+
       // 6. Location Filter (Campus, Building, Room)
       const assetRoom = rooms.find(r => r.id === asset.roomId)
       const assetBuilding = buildings.find(b => b.id === assetRoom?.buildingId)
@@ -180,6 +192,7 @@ export default function AssetsListPage() {
     selectedSubCategory,
     selectedStatus,
     selectedMaintenanceBy,
+    selectedSlaPriority,
     selectedRoom,
     selectedBuilding,
     selectedCampus,
@@ -221,6 +234,22 @@ export default function AssetsListPage() {
           </span>
         )
     }
+  }
+
+  // Same colours as the SLA priority badge on the asset detail page and the
+  // Service Requests priority pill.
+  const getSlaPriorityPill = (priority: SlaPriority) => {
+    const styles: Record<SlaPriority, string> = {
+      Critical: 'bg-rose-50 text-rose-700 border-rose-200',
+      High: 'bg-amber-50 text-amber-700 border-amber-200',
+      Medium: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+      Low: 'bg-blue-50 text-blue-700 border-blue-200',
+    }
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${styles[priority]}`}>
+        {priority}
+      </span>
+    )
   }
 
   return (
@@ -398,7 +427,25 @@ export default function AssetsListPage() {
                 </select>
               </div>
 
-              {/* Filter 5: Campus */}
+              {/* Filter 5: SLA Priority */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  SLA Priority
+                </label>
+                <select
+                  value={selectedSlaPriority}
+                  onChange={e => setSelectedSlaPriority(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="All">All Priorities</option>
+                  <option value="Critical">Critical</option>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+
+              {/* Filter 6: Campus */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                   Campus
@@ -417,7 +464,7 @@ export default function AssetsListPage() {
                 </select>
               </div>
 
-              {/* Filter 6: Building */}
+              {/* Filter 7: Building */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                   Building / Block
@@ -436,7 +483,7 @@ export default function AssetsListPage() {
                 </select>
               </div>
 
-              {/* Filter 7: Room / Area */}
+              {/* Filter 8: Room / Area */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                   Room / Area
@@ -455,7 +502,7 @@ export default function AssetsListPage() {
                 </select>
               </div>
 
-              {/* Filter 8: Reset Button Tile */}
+              {/* Filter 9: Reset Button Tile */}
               <div className="flex items-end">
                 <button
                   type="button"
@@ -486,6 +533,7 @@ export default function AssetsListPage() {
                   <th className="py-3.5 px-4">Location</th>
                   <th className="py-3.5 px-4">Manufacturer / Model</th>
                   <th className="py-3.5 px-4">Maintenance</th>
+                  <th className="py-3.5 px-4">SLA Priority</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-6 text-right">Details</th>
                 </tr>
@@ -493,7 +541,7 @@ export default function AssetsListPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredAssets.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <Boxes className="w-8 h-8 text-slate-300 stroke-1" />
                         <p className="text-xs font-semibold text-slate-600">No matching assets found</p>
@@ -553,6 +601,12 @@ export default function AssetsListPage() {
                           }`}>
                             {asset.maintenanceBy || 'In House'}
                           </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          {(() => {
+                            const lock = lockedSlaPriority(asset, sub)
+                            return lock ? getSlaPriorityPill(lock.priority) : <span className="text-slate-400">—</span>
+                          })()}
                         </td>
                         <td className="py-4 px-4">
                           {getStatusPill(asset.status)}
