@@ -35,6 +35,8 @@ import { Asset } from '@/types/afms'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { getAssetQrUrl } from '@/lib/qrUrls'
 import { lockedSlaPriority } from '@/lib/assetSlaPriority'
+import { OutsideRepairStatusPill } from '@/components/outsideRepair/OutsideRepairPanel'
+import { daysOut, isOutForRepair, isOverdueReturn, repairItemLabel } from '@/lib/outsideRepairState'
 
 export default function AssetDetailPage() {
   const params = useParams()
@@ -50,6 +52,7 @@ export default function AssetDetailPage() {
     documents,
     assetActivityLogs,
     vendors,
+    outsideRepairs,
   } = useAFMS()
 
   const [activeTab, setActiveTab] = useState<'basic' | 'maintenance' | 'inspection' | 'documents' | 'activity'>('basic')
@@ -68,6 +71,9 @@ export default function AssetDetailPage() {
   const purchaseVendor = asset ? vendors.find(v => v.id === asset.purchaseVendorId) : undefined
   const maintVendor = asset ? vendors.find(v => v.id === asset.maintenanceVendorId) : undefined
   const slaPriorityLock = lockedSlaPriority(asset, subCategory)
+  // Parts or the whole asset sent to outside workshops; the one still away, if any.
+  const assetRepairs = asset ? outsideRepairs.filter(r => r.assetId === asset.id) : []
+  const offSiteRepair = assetRepairs.find(r => r.scope === 'Complete Asset' && isOutForRepair(r))
 
   // Associated Work Orders (Maintenance History)
   const assetWorkOrders = asset
@@ -177,6 +183,17 @@ export default function AssetDetailPage() {
             </button>
           </div>
         </div>
+
+        {offSiteRepair && (
+          <div className={`rounded-2xl border p-4 text-xs flex items-center gap-3 ${isOverdueReturn(offSiteRepair) ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-orange-50 border-orange-200 text-orange-800'}`}>
+            <Wrench className="w-5 h-5 shrink-0" />
+            <p>
+              <b>Off site for repair</b> with {vendors.find(v => v.id === offSiteRepair.vendorId)?.name || 'a vendor'} since{' '}
+              {formatDateDisplay(offSiteRepair.sentDate)} ({offSiteRepair.repairNumber}) — expected back {formatDateDisplay(offSiteRepair.expectedReturnDate)}
+              {isOverdueReturn(offSiteRepair) ? ', now overdue.' : '.'}
+            </p>
+          </div>
+        )}
 
         {/* Top Metric KPI Cards (Next Scheduled Maintenance, Last Inspection, Asset Age) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -533,6 +550,46 @@ export default function AssetDetailPage() {
                     </tbody>
                   </table>
                 </div>
+
+                {assetRepairs.length > 0 && (
+                  <div className="pt-4 border-t border-slate-100 space-y-2">
+                    <h3 className="text-sm font-bold text-slate-900">Outside Repairs</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-slate-400 border-b border-slate-100 font-medium">
+                            <th className="pb-3 pr-4">Repair</th>
+                            <th className="pb-3 px-3">Vendor</th>
+                            <th className="pb-3 px-3">Sent</th>
+                            <th className="pb-3 px-3">Expected / Back</th>
+                            <th className="pb-3 px-3">Days</th>
+                            <th className="pb-3 pl-3 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {assetRepairs.map(r => (
+                            <tr key={r.id}>
+                              <td className="py-3 pr-4">
+                                <p className="font-semibold text-slate-800">{repairItemLabel(r)}</p>
+                                <p className="font-mono text-[11px] text-slate-400">{r.repairNumber}</p>
+                              </td>
+                              <td className="py-3 px-3 text-slate-700">{vendors.find(v => v.id === r.vendorId)?.name || '—'}</td>
+                              <td className="py-3 px-3 text-slate-500">{formatDateDisplay(r.sentDate)}</td>
+                              <td className="py-3 px-3 text-slate-500">
+                                {r.returnedDate ? `Back ${formatDateDisplay(r.returnedDate)}` : formatDateDisplay(r.expectedReturnDate)}
+                              </td>
+                              <td className="py-3 px-3 text-slate-500">{daysOut(r)}</td>
+                              <td className="py-3 pl-3 text-right">
+                                <OutsideRepairStatusPill repair={r} />
+                                {r.outcome && <p className="text-[10px] text-slate-500 mt-0.5">{r.outcome}</p>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -311,9 +311,46 @@ export interface Inspection {
   createdAt: string
 }
 
+// A part, or the whole asset, sent to an outside workshop during a corrective
+// work order, and its return. The work order cannot be completed while any is
+// still out. Numbered OSR-YYYY-#### by the database.
+export interface OutsideRepair {
+  id: string
+  repairNumber: string
+  workOrderId: string
+  assetId?: string
+  scope: 'Component' | 'Complete Asset'
+  componentName?: string
+  faultDescription?: string
+  // Who sent it: the in-house technician, or the vendor working the job on site.
+  sentBy: 'Technician' | 'Vendor'
+  vendorId?: string
+  sentDate: string // YYYY-MM-DD
+  expectedReturnDate: string // YYYY-MM-DD (ETD)
+  dispatchRef?: string // gate pass / delivery challan no.
+  vendorRef?: string // the repair vendor's job no.
+  estimatedCost?: number
+  dispatchPhotoUrl?: string
+  status: 'Out for Repair' | 'Returned'
+  returnedDate?: string
+  outcome?: 'Repaired' | 'Replaced by vendor' | 'Not repairable'
+  actualCost?: number
+  returnRemarks?: string
+  returnPhotoUrl?: string
+  recordedBy?: string
+  returnedBy?: string
+  createdAt: string
+}
+
 export interface AppNotification {
   id: string
-  type: 'wo_assigned' | 'inspection_assigned' | 'auto_checkout' | 'vendor_handover'
+  type:
+    | 'wo_assigned'
+    | 'inspection_assigned'
+    | 'auto_checkout'
+    | 'vendor_handover'
+    | 'outside_repair_sent'
+    | 'outside_repair_overdue'
   title: string
   body?: string
   refTable?: string

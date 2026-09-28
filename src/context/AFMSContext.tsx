@@ -24,6 +24,7 @@ import {
   SlaConfig,
   SlaPriority,
   AppNotification,
+  OutsideRepair,
 } from '@/types/afms'
 import { formatId, formatYearlyId, getNextSequence, addIntervalToDate, makePendingWoNumber, isPendingWorkOrder } from '@/lib/idGenerator'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
@@ -49,6 +50,8 @@ import { serviceRequestKeys, useAddServiceRequest, useServiceRequests, useUpdate
 import { useAddWorkOrders, useUpdateWorkOrder, useWorkOrders, workOrderKeys } from '@/lib/queries/workOrders'
 import { addInvitedUserToCache, useDeleteUser, useUpdateUser, useUsers } from '@/lib/queries/users'
 import { assetActivityLogKeys, useAddAssetActivityLogs, useAssetActivityLogs, withoutRepeats } from '@/lib/queries/assetActivityLogs'
+import { outsideRepairKeys, useOutsideRepairs, useSendOutsideRepair, useUpdateOutsideRepair, type NewOutsideRepair } from '@/lib/queries/outsideRepairs'
+import { completionBlockedMessage, repairItemLabel } from '@/lib/outsideRepairState'
 import { showToast } from '@/lib/toast'
 import { installAudioUnlock, playNotificationSound } from '@/lib/notificationSound'
 import { useRealtimeSync, type RealtimeStatus } from '@/lib/realtime/useRealtimeSync'
@@ -138,12 +141,23 @@ interface AFMSContextType {
   // Work Orders & Inspections
   workOrders: WorkOrder[]
   addWorkOrder: (wo: Omit<WorkOrder, 'id' | 'createdAt'>) => void
+  // false when it was refused before saving (a preventive order outside its
+  // window, or a work order with something still out for repair).
   updateWorkOrderStatus: (
     id: string,
     status: WorkOrder['status'],
     remarks?: string,
     extraUpdates?: Partial<WorkOrder>
-  ) => void
+  ) => boolean
+  // Parts or whole assets sent off site during a corrective job (see OutsideRepair).
+  outsideRepairs: OutsideRepair[]
+  sendOutsideRepair: (input: Omit<NewOutsideRepair, 'recordedBy'>) => Promise<OutsideRepair | null>
+  recordOutsideRepairReturn: (
+    id: string,
+    ret: Pick<OutsideRepair, 'returnedDate' | 'outcome'> & Partial<Pick<OutsideRepair, 'actualCost' | 'returnRemarks' | 'returnPhotoUrl'>>
+  ) => Promise<boolean>
+  // Corrections to a send-out (vendor, ETD, references...).
+  updateOutsideRepair: (id: string, changes: Partial<OutsideRepair>) => void
   inspections: Inspection[]
   addInspection: (insp: Omit<Inspection, 'id' | 'createdAt'>) => void
   updateInspection: (id: string, updates: Partial<Inspection>) => void
@@ -352,11 +366,16 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }, [departmentsQuery.departments, users])
   const updateUserMutation = useUpdateUser(currentUser.id)
   const deleteUserMutation = useDeleteUser(currentUser.id)
+  const outsideRepairsQuery = useOutsideRepairs(currentUser.id, queriesEnabled)
+  const outsideRepairs = outsideRepairsQuery.outsideRepairs
+  const sendOutsideRepairMutation = useSendOutsideRepair(currentUser.id)
+  const updateOutsideRepairMutation = useUpdateOutsideRepair(currentUser.id)
   // Every migrated query, for the loading / error / reload plumbing below.
   const migratedQueries = [
     vendorsQuery, departmentsQuery, campusesQuery, buildingsQuery, categoriesQuery, subCategoriesQuery,
     roomsQuery, checklistTemplatesQuery, inventoryQuery, documentsQuery, assetsQuery,
     reservationsQuery, roomAccessLogsQuery, assetActivityLogsQuery, inspectionsQuery, serviceRequestsQuery, workOrdersQuery, usersQuery,
+    outsideRepairsQuery,
   ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
@@ -650,6 +669,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       refetchRoomAccessLogs: () => { queryClient.invalidateQueries({ queryKey: roomAccessLogKeys.list(currentUser.id) }) },
       refetchAssets: () => { queryClient.invalidateQueries({ queryKey: assetKeys.list(currentUser.id) }) },
       refetchAssetActivityLogs: () => { queryClient.invalidateQueries({ queryKey: assetActivityLogKeys.list(currentUser.id) }) },
+      refetchOutsideRepairs: () => { queryClient.invalidateQueries({ queryKey: outsideRepairKeys.list(currentUser.id) }) },
       refetchNotifications: refreshNotifications,
       onNotification: addNotification,
     },
@@ -1507,8 +1527,19 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           if (typeof window !== 'undefined') {
             alert(`This Preventive Maintenance task cannot be attempted yet. The execution window opens on ${windowStatus.unlockDate} (${windowStatus.windowDescription}).`)
           }
-          return
+          return false
         }
+      }
+    }
+
+    // Nothing may be completed while a part (or the asset) is still at an outside
+    // workshop. The database refuses it too (0043); this says so before trying.
+    if (status === 'Completed' && targetWo && targetWo.status !== 'Completed') {
+      const latestRepairs = queryClient.getQueryData<OutsideRepair[]>(outsideRepairKeys.list(currentUser.id)) ?? outsideRepairs
+      const blocked = completionBlockedMessage(latestRepairs, targetWo.id)
+      if (blocked) {
+        showToast('error', blocked)
+        return false
       }
     }
 
@@ -1638,6 +1669,58 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         }
       }
     })()
+    return true
+  }
+
+  // Outside repairs: a part or the whole asset sent to an outside workshop during
+  // a corrective job. Each send-out and each return goes on the asset's timeline.
+  const sendOutsideRepair = async (input: Omit<NewOutsideRepair, 'recordedBy'>): Promise<OutsideRepair | null> => {
+    try {
+      const saved = await sendOutsideRepairMutation.mutateAsync({ ...input, recordedBy: currentUser.fullName })
+      if (saved.assetId) {
+        addAssetLog({
+          assetId: saved.assetId,
+          action: 'Sent for Outside Repair',
+          byUser: currentUser.fullName,
+          source: 'Manual',
+          referenceId: saved.repairNumber,
+          remarks: `${repairItemLabel(saved)} sent to ${vendors.find(v => v.id === saved.vendorId)?.name || 'vendor'}; expected back ${saved.expectedReturnDate}.`,
+        })
+      }
+      return saved
+    } catch {
+      return null // the mutation already showed why
+    }
+  }
+
+  const recordOutsideRepairReturn = async (
+    id: string,
+    ret: Pick<OutsideRepair, 'returnedDate' | 'outcome'> & Partial<Pick<OutsideRepair, 'actualCost' | 'returnRemarks' | 'returnPhotoUrl'>>
+  ): Promise<boolean> => {
+    const repair = outsideRepairs.find(r => r.id === id)
+    try {
+      await updateOutsideRepairMutation.mutateAsync({
+        id,
+        changes: { ...ret, status: 'Returned', returnedBy: currentUser.fullName },
+      })
+    } catch {
+      return false
+    }
+    if (repair?.assetId) {
+      addAssetLog({
+        assetId: repair.assetId,
+        action: 'Returned from Outside Repair',
+        byUser: currentUser.fullName,
+        source: 'Manual',
+        referenceId: repair.repairNumber,
+        remarks: `${repairItemLabel(repair)} returned: ${ret.outcome}.${ret.returnRemarks ? ` ${ret.returnRemarks}` : ''}`,
+      })
+    }
+    return true
+  }
+
+  const updateOutsideRepair = (id: string, changes: Partial<OutsideRepair>) => {
+    updateOutsideRepairMutation.mutate({ id, changes })
   }
 
   const addInspection = (insp: Omit<Inspection, 'id' | 'createdAt'>) => {
@@ -2084,6 +2167,10 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         workOrders,
         addWorkOrder,
         updateWorkOrderStatus,
+        outsideRepairs,
+        sendOutsideRepair,
+        recordOutsideRepairReturn,
+        updateOutsideRepair,
         inspections,
         addInspection,
         updateInspection,

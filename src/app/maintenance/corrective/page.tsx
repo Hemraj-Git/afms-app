@@ -9,6 +9,7 @@ import { formatDateDisplay } from '@/lib/dateUtils'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import { isWithVendor } from '@/lib/workOrderState'
 import { VendorHandoverCard } from '@/components/VendorHandoverCard'
+import { OutsideRepairPanel, OutsideRepairTag } from '@/components/outsideRepair/OutsideRepairPanel'
 import {
   AlertTriangle,
   Wrench,
@@ -88,7 +89,8 @@ export default function CorrectiveMaintenancePage() {
     if (!selectedWoForResolve) return
     const now = new Date().toJSON().split('T')[0]
 
-    updateWorkOrderStatus(
+    // Refused (and explained) while something is still out for repair; the form stays open.
+    const accepted = updateWorkOrderStatus(
       selectedWoForResolve.id,
       'Completed',
       solutionTaken || 'Issue diagnosed and rectified.',
@@ -102,6 +104,7 @@ export default function CorrectiveMaintenancePage() {
         completedAt: now,
       }
     )
+    if (!accepted) return
 
     setSelectedWoForDetails(prev => prev && prev.id === selectedWoForResolve.id ? {
       ...prev,
@@ -218,6 +221,7 @@ export default function CorrectiveMaintenancePage() {
                               With vendor
                             </span>
                           )}
+                          <OutsideRepairTag workOrderId={wo.id} theme="light" />
                           {isOverdue && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
                               Overdue
@@ -585,6 +589,7 @@ export default function CorrectiveMaintenancePage() {
                     </div>
 
                     <VendorHandoverCard wo={wo} />
+                    <OutsideRepairPanel workOrder={wo} theme="light" readOnly={wo.status === 'Completed' || wo.status === 'Cancelled'} />
 
                     {/* IF COMPLETED: Problem found, Action taken, Parts, Photo */}
                     {isCompleted ? (

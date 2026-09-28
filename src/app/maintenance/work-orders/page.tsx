@@ -10,6 +10,7 @@ import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import { isWithVendor } from '@/lib/workOrderState'
 import { VendorHandoverCard } from '@/components/VendorHandoverCard'
+import { OutsideRepairPanel, OutsideRepairTag } from '@/components/outsideRepair/OutsideRepairPanel'
 import {
   ClipboardList,
   Wrench,
@@ -465,6 +466,7 @@ export default function WorkOrdersHubPage() {
                                 With vendor
                               </span>
                             )}
+                            <OutsideRepairTag workOrderId={wo.id} theme="light" />
                             {isWorkOrderOverdue(wo) && (
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
                                 Overdue
@@ -890,6 +892,9 @@ export default function WorkOrdersHubPage() {
                     </div>
 
                     <VendorHandoverCard wo={wo} />
+                    {wo.type === 'Corrective' && (
+                      <OutsideRepairPanel workOrder={wo} theme="light" readOnly={wo.status === 'Completed' || wo.status === 'Cancelled'} />
+                    )}
 
                     {/* Start of Work Evidence Photo (Proof of Presence) */}
                     <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">

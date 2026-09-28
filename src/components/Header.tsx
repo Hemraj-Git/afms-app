@@ -17,6 +17,8 @@ import {
   Wrench,
   ClipboardCheck,
   Phone,
+  Truck,
+  TimerOff,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { AppNotification } from '@/types/afms'
@@ -30,12 +32,16 @@ const ALERT_ICONS: Record<AppNotification['type'], React.ReactNode> = {
   inspection_assigned: <ClipboardCheck className="w-3.5 h-3.5" />,
   auto_checkout: <LogOut className="w-3.5 h-3.5" />,
   vendor_handover: <Phone className="w-3.5 h-3.5" />,
+  outside_repair_sent: <Truck className="w-3.5 h-3.5" />,
+  outside_repair_overdue: <TimerOff className="w-3.5 h-3.5" />,
 }
 const ALERT_LINKS: Record<AppNotification['type'], string> = {
   wo_assigned: '/maintenance/work-orders',
   inspection_assigned: '/inspections',
   auto_checkout: '/dashboard',
   vendor_handover: '/maintenance/corrective',
+  outside_repair_sent: '/maintenance/outside-repairs',
+  outside_repair_overdue: '/maintenance/outside-repairs',
 }
 
 interface HeaderProps {

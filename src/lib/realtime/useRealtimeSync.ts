@@ -33,6 +33,8 @@ export interface RealtimeHandlers {
   // Asset status (Under Maintenance <-> Operational) and its activity timeline.
   refetchAssets: () => void
   refetchAssetActivityLogs: () => void
+  // Parts or whole assets sent off site, and their returns.
+  refetchOutsideRepairs: () => void
   onNotification: (row: NotificationRow) => void
 }
 
@@ -53,6 +55,7 @@ type Table =
   | 'room_access_logs'
   | 'assets'
   | 'asset_activity_logs'
+  | 'outside_repairs'
 
 // A burst of changes (an asset that schedules several work orders at once)
 // should cost one refetch, not one per row.
@@ -92,6 +95,7 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
       else if (table === 'room_access_logs') h.refetchRoomAccessLogs()
       else if (table === 'assets') h.refetchAssets()
       else if (table === 'asset_activity_logs') h.refetchAssetActivityLogs()
+      else if (table === 'outside_repairs') h.refetchOutsideRepairs()
       else h.refetchNotifications()
     }
 
@@ -109,7 +113,7 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
 
     const tables: Table[] = isGuest
       ? ['service_requests']
-      : ['work_orders', 'service_requests', 'inspections', 'notifications', 'rooms', 'room_access_logs', 'assets', 'asset_activity_logs']
+      : ['work_orders', 'service_requests', 'inspections', 'notifications', 'rooms', 'room_access_logs', 'assets', 'asset_activity_logs', 'outside_repairs']
     const refetchAll = () => tables.forEach(schedule)
 
     const unsubscribe = () => {
@@ -158,7 +162,7 @@ export function useRealtimeSync({ enabled, userId, role, email, handlers }: Opti
         // and the nightly auto-checkout does the reverse with nobody's tab open.
         // Assets and their timeline: completing a work order flips the asset back to Operational
         // (often from a technician's phone) and logs it, and an open Assets page must follow.
-        ;(['work_orders', 'service_requests', 'inspections', 'rooms', 'room_access_logs', 'assets', 'asset_activity_logs'] as const).forEach(table => {
+        ;(['work_orders', 'service_requests', 'inspections', 'rooms', 'room_access_logs', 'assets', 'asset_activity_logs', 'outside_repairs'] as const).forEach(table => {
           ch.on('postgres_changes', { event: '*', schema: 'public', table }, () => schedule(table))
         })
       }

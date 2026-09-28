@@ -60,6 +60,7 @@ function makeHandlers(): RealtimeHandlers {
     refetchRoomAccessLogs: vi.fn(),
     refetchAssets: vi.fn(),
     refetchAssetActivityLogs: vi.fn(),
+    refetchOutsideRepairs: vi.fn(),
     onNotification: vi.fn(),
   }
 }
@@ -91,7 +92,7 @@ afterEach(() => {
 })
 
 describe('useRealtimeSync — staff', () => {
-  it('subscribes with the session token and listens to the eight tables', async () => {
+  it('subscribes with the session token and listens to the nine tables', async () => {
     const handlers = makeHandlers()
     renderHook(() => useRealtimeSync({ ...staff, handlers }))
     await flush()
@@ -103,7 +104,7 @@ describe('useRealtimeSync — staff', () => {
     const notif = ch.listeners.find(l => l.filter.table === 'notifications')
     expect(notif?.filter).toMatchObject({ event: 'INSERT', filter: 'user_id=eq.u1' })
     expect(ch.listeners.map(l => l.filter.table).sort()).toEqual(
-      ['asset_activity_logs', 'assets', 'inspections', 'notifications', 'room_access_logs', 'rooms', 'service_requests', 'work_orders']
+      ['asset_activity_logs', 'assets', 'inspections', 'notifications', 'outside_repairs', 'room_access_logs', 'rooms', 'service_requests', 'work_orders']
     )
   })
 
@@ -125,6 +126,21 @@ describe('useRealtimeSync — staff', () => {
     expect(handlers.refetchRoomAccessLogs).toHaveBeenCalledTimes(1)
     expect(handlers.refetchAssets).toHaveBeenCalledTimes(1)
     expect(handlers.refetchAssetActivityLogs).toHaveBeenCalledTimes(1)
+    expect(handlers.refetchOutsideRepairs).toHaveBeenCalledTimes(1)
+  })
+
+  it('an outside-repair change refreshes only that table', async () => {
+    const handlers = makeHandlers()
+    renderHook(() => useRealtimeSync({ ...staff, handlers }))
+    await flush()
+
+    act(() => {
+      h.channels[0].fire('outside_repairs')
+      h.channels[0].fire('outside_repairs')
+    })
+    await advance(300)
+    expect(handlers.refetchOutsideRepairs).toHaveBeenCalledTimes(1)
+    expect(handlers.refetchWorkOrders).not.toHaveBeenCalled()
   })
 
   it('an asset or timeline change refreshes only that table (asset status goes live)', async () => {

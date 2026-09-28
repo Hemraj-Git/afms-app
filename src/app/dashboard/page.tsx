@@ -7,11 +7,13 @@ import { AppLayout } from '@/components/AppLayout'
 import { PageSkeleton } from '@/components/ui/Skeleton'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { formatDateDisplay, formatTimeDisplay } from '@/lib/dateUtils'
+import { isOutForRepair, isOverdueReturn } from '@/lib/outsideRepairState'
 import {
   Boxes,
   MessageSquare,
   CalendarClock,
   ShieldAlert,
+  PackageOpen,
   Calendar,
   Plus,
   ArrowUpRight,
@@ -28,7 +30,9 @@ import {
 } from 'lucide-react'
 
 export default function DashboardPage() {
-  const { assets, serviceRequests, workOrders, inspections, rooms, currentUser } = useAFMS()
+  const { assets, serviceRequests, workOrders, inspections, rooms, currentUser, outsideRepairs } = useAFMS()
+  const outForRepairCount = outsideRepairs.filter(isOutForRepair).length
+  const overdueRepairCount = outsideRepairs.filter(r => isOverdueReturn(r)).length
   const [showNotificationBanner, setShowNotificationBanner] = useState(true)
   const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([])
 
@@ -264,8 +268,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 5 Dynamic KPI Cards Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* 6 Dynamic KPI Cards Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {/* Card 1: Total Assets */}
           <Link
             href="/assets"
@@ -360,6 +364,29 @@ export default function DashboardPage() {
             <div className="inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
               Active Use
             </div>
+          </Link>
+
+          {/* Card 6: Outside Repairs */}
+          <Link
+            href="/maintenance/outside-repairs"
+            className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs space-y-3 hover:border-blue-400 transition"
+          >
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+              <PackageOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500">Out for Repair</p>
+              <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">{outForRepairCount}</h3>
+            </div>
+            {overdueRepairCount > 0 ? (
+              <div className="inline-flex items-center text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                {overdueRepairCount} Overdue return
+              </div>
+            ) : (
+              <div className="inline-flex items-center text-[11px] font-semibold text-orange-700 bg-orange-50 px-2.5 py-0.5 rounded-full">
+                At outside workshops
+              </div>
+            )}
           </Link>
         </div>
 

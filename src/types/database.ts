@@ -1,5 +1,5 @@
 // Generated from the live Supabase schema (Supabase MCP `generate_typescript_types`,
-// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037 added by hand). Do not edit by hand -- regenerate after a
+// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043 added by hand). Do not edit by hand -- regenerate after a
 // migration changes a table, e.g. `npx supabase gen types typescript --project-id <id>`.
 // Convenience aliases (Row/Insert/Update by table name) live in src/lib/supabase/typed.ts.
 
@@ -593,6 +593,115 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      outside_repairs: {
+        Row: {
+          actual_cost: number | null
+          asset_id: string | null
+          component_name: string | null
+          created_at: string
+          dispatch_photo_url: string | null
+          dispatch_ref: string | null
+          estimated_cost: number | null
+          expected_return_date: string
+          fault_description: string | null
+          id: string
+          outcome: string | null
+          overdue_notified_at: string | null
+          recorded_by: string | null
+          repair_number: string
+          return_photo_url: string | null
+          return_remarks: string | null
+          returned_by: string | null
+          returned_date: string | null
+          scope: string
+          sent_by: string
+          sent_date: string
+          status: string
+          updated_at: string
+          vendor_id: string | null
+          vendor_ref: string | null
+          work_order_id: string
+        }
+        Insert: {
+          actual_cost?: number | null
+          asset_id?: string | null
+          component_name?: string | null
+          created_at?: string
+          dispatch_photo_url?: string | null
+          dispatch_ref?: string | null
+          estimated_cost?: number | null
+          expected_return_date: string
+          fault_description?: string | null
+          id?: string
+          outcome?: string | null
+          overdue_notified_at?: string | null
+          recorded_by?: string | null
+          repair_number?: string
+          return_photo_url?: string | null
+          return_remarks?: string | null
+          returned_by?: string | null
+          returned_date?: string | null
+          scope: string
+          sent_by?: string
+          sent_date: string
+          status?: string
+          updated_at?: string
+          vendor_id?: string | null
+          vendor_ref?: string | null
+          work_order_id: string
+        }
+        Update: {
+          actual_cost?: number | null
+          asset_id?: string | null
+          component_name?: string | null
+          created_at?: string
+          dispatch_photo_url?: string | null
+          dispatch_ref?: string | null
+          estimated_cost?: number | null
+          expected_return_date?: string
+          fault_description?: string | null
+          id?: string
+          outcome?: string | null
+          overdue_notified_at?: string | null
+          recorded_by?: string | null
+          repair_number?: string
+          return_photo_url?: string | null
+          return_remarks?: string | null
+          returned_by?: string | null
+          returned_date?: string | null
+          scope?: string
+          sent_by?: string
+          sent_date?: string
+          status?: string
+          updated_at?: string
+          vendor_id?: string | null
+          vendor_ref?: string | null
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outside_repairs_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outside_repairs_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outside_repairs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

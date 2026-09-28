@@ -26,6 +26,7 @@ import {
   Sparkles,
   ChevronRight,
   Package,
+  PackageOpen,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -80,6 +81,7 @@ const navSections: NavSection[] = [
       { title: 'Preventive', href: '/maintenance/preventive', icon: Wrench },
       { title: 'Corrective', href: '/maintenance/corrective', icon: AlertTriangle },
       { title: 'Housekeeping', href: '/maintenance/housekeeping', icon: Sparkles },
+      { title: 'Outside Repairs', href: '/maintenance/outside-repairs', icon: PackageOpen },
     ],
   },
   {
