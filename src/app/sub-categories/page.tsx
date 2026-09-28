@@ -33,6 +33,9 @@ import { confirmAction } from '@/lib/confirm'
 import { useFormCheck } from '@/lib/useFormCheck'
 import { subCategorySchema, templateSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable } from '@/components/ui/DataTable'
+
 export default function SubCategoriesPage() {
   const {
     subCategories,
@@ -299,6 +302,107 @@ export default function SubCategoriesPage() {
     )
   })
 
+  const categoryName = (sub: SubCategory) => categories.find(c => c.id === sub.categoryId)?.name || sub.categoryId
+  const pmCount = (sub: SubCategory) => sub.pmTemplateIds?.length || (sub.pmTemplateId ? 1 : 0)
+  const inspCount = (sub: SubCategory) => sub.inspectionTemplateIds?.length || (sub.inspectionTemplateId ? 1 : 0)
+  const assetCount = (sub: SubCategory) => assets.filter(a => a.subCategoryId === sub.id).length
+
+  const subCategoryColumns: ColumnDef<SubCategory>[] = [
+    {
+      accessorKey: 'code',
+      header: 'Code',
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6' },
+      cell: ({ row: { original: sub } }) => (
+        <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">{sub.code}</span>
+      ),
+    },
+    {
+      accessorKey: 'name',
+      header: 'Sub-Category',
+      meta: { tdClassName: 'py-4 px-4 max-w-xs' },
+      cell: ({ row: { original: sub } }) => (
+        <>
+          <p className="font-bold text-slate-900">{sub.name}</p>
+          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{sub.description || 'No description provided.'}</p>
+        </>
+      ),
+    },
+    {
+      id: 'category',
+      header: 'Category',
+      accessorFn: categoryName,
+      meta: { tdClassName: 'py-4 px-4 font-semibold text-slate-600' },
+    },
+    {
+      id: 'metadataFields',
+      header: 'Metadata Fields',
+      accessorFn: sub => sub.metadataFields?.length || 0,
+      meta: { tdClassName: 'py-4 px-4 max-w-xs' },
+      cell: ({ row: { original: sub } }) => {
+        const fields = sub.metadataFields || []
+        if (fields.length === 0) return <span className="text-slate-400">—</span>
+        return (
+          <div className="flex flex-wrap gap-1">
+            {fields.slice(0, 3).map(f => (
+              <span key={f.key} className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                {f.label} ({f.type})
+              </span>
+            ))}
+            {fields.length > 3 && <span className="px-1.5 py-0.5 text-[10px] text-slate-400 font-semibold">+{fields.length - 3} more</span>}
+          </div>
+        )
+      },
+    },
+    {
+      id: 'pm',
+      header: 'PM SOPs',
+      accessorFn: pmCount,
+      cell: ({ getValue }) => (
+        <span className="bg-blue-50 text-blue-700 font-semibold px-2 py-0.5 rounded text-[11px]">{getValue<number>()}</span>
+      ),
+    },
+    {
+      id: 'inspections',
+      header: 'Inspections',
+      accessorFn: inspCount,
+      cell: ({ getValue }) => (
+        <span className="bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded text-[11px]">{getValue<number>()}</span>
+      ),
+    },
+    {
+      id: 'assets',
+      header: 'Assets',
+      accessorFn: assetCount,
+      meta: { tdClassName: 'py-4 px-4 font-bold text-slate-800' },
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
+      cell: ({ row: { original: sub } }) => (
+        <div className="inline-flex items-center gap-1">
+          <button
+            onClick={() => openEditModal(sub)}
+            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition"
+            title="Edit Sub-Category"
+            aria-label={`Edit ${sub.name}`}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleDelete(sub)}
+            className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
+            title="Delete Sub-Category"
+            aria-label={`Delete ${sub.name}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   const wizardSteps = [
     { number: 1, title: 'Basic Info' },
     { number: 2, title: 'Metadata (Fields)' },
@@ -339,8 +443,8 @@ export default function SubCategoriesPage() {
           />
         </div>
 
-        {/* Sub-Category Cards Grid */}
-        {filteredSubs.length === 0 ? (
+        {/* Sub-Category Table (sortable, paged) */}
+        {subCategories.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto">
               <Tags className="w-6 h-6" />
@@ -358,88 +462,18 @@ export default function SubCategoriesPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {filteredSubs.map(sub => {
-            const cat = categories.find(c => c.id === sub.categoryId)
-            const linkedAssetsCount = assets.filter(a => a.subCategoryId === sub.id).length
-            const pmCount = sub.pmTemplateIds?.length || (sub.pmTemplateId ? 1 : 0)
-            const inspCount = sub.inspectionTemplateIds?.length || (sub.inspectionTemplateId ? 1 : 0)
-
-            return (
-              <div key={sub.id} className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4 hover:border-slate-300 transition group flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-                      <Tags className="w-5 h-5" />
-                    </div>
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
-                      <button
-                        onClick={() => openEditModal(sub)}
-                        className="p-1 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition"
-                        title="Edit Sub-Category"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(sub)}
-                        className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
-                        title="Delete Sub-Category"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
-                        {sub.code}
-                      </span>
-                      <span className="text-[11px] font-semibold text-slate-500">
-                        {cat?.name || sub.categoryId}
-                      </span>
-                    </div>
-                    <h3 className="font-bold text-sm text-slate-900 mt-1">{sub.name}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{sub.description || 'No description provided.'}</p>
-                  </div>
-
-                  {/* Metadata fields badges */}
-                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Metadata Fields ({sub.metadataFields?.length || 0})
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {sub.metadataFields?.slice(0, 3).map(f => (
-                        <span key={f.key} className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
-                          {f.label} ({f.type})
-                        </span>
-                      ))}
-                      {(sub.metadataFields?.length || 0) > 3 && (
-                        <span className="px-1.5 py-0.5 text-[10px] text-slate-400 font-semibold">
-                          +{(sub.metadataFields?.length || 0) - 3} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer Template Counters */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-blue-50 text-blue-700 font-semibold px-2 py-0.5 rounded">
-                      {pmCount} PM SOP(s)
-                    </span>
-                    <span className="bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded">
-                      {inspCount} Inspection(s)
-                    </span>
-                  </div>
-                  <span className="font-bold text-slate-800">{linkedAssetsCount} Assets</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+            <DataTable
+              tableId="sub-categories"
+              data={filteredSubs}
+              columns={subCategoryColumns}
+              getRowId={sub => sub.id}
+              resetKey={searchQuery}
+              rowClassName="hover:bg-slate-50/60 transition group"
+              emptyState={`No sub-categories match "${searchQuery}".`}
+            />
+          </div>
+        )}
 
         {/* 5-STEP SUB-CATEGORY WIZARD MODAL */}
         {showModal && (
