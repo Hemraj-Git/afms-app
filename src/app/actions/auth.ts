@@ -27,6 +27,11 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     .maybeSingle()
 
   if (!profile) {
+    // signInWithPassword above already set the session cookie. Without this the
+    // app would tell them they had failed while leaving them signed in -- and
+    // a session with no profile row is exactly the case the route guard used to
+    // wave through onto the Admin desktop (see lib/supabase/middleware.ts).
+    await supabase.auth.signOut()
     return { success: false, error: 'No staff profile is registered for this account. Contact your administrator.' }
   }
 

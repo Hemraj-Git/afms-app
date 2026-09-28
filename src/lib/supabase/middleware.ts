@@ -54,13 +54,22 @@ export async function updateSession(request: NextRequest) {
   const isRoleUnrestricted = ROLE_UNRESTRICTED_PREFIXES.some(p => pathname === p || pathname.startsWith(`${p}/`))
 
   if (user && !isPublicPath && !isRoleUnrestricted) {
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .maybeSingle()
 
-    if (profile?.role && profile.role !== 'Admin') {
+    // A failed read is a transient problem, not an answer: send them somewhere
+    // they can retry cleanly rather than guessing at their role.
+    if (error) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+
+    // Only an explicit 'Admin' continues onto a desktop route. This used to
+    // read `profile?.role && profile.role !== 'Admin'`, which let a session
+    // whose profile row was missing fall straight through to the Admin pages.
+    if (profile?.role !== 'Admin') {
       return NextResponse.redirect(new URL('/mobile', request.url))
     }
   }
