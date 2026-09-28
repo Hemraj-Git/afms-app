@@ -31,6 +31,7 @@ import { Reservation, UserProfile, Department } from '@/types/afms'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
+import { Modal } from '@/components/ui/Modal'
 export default function ReservationsPage() {
   const {
     rooms,
@@ -688,8 +689,7 @@ export default function ReservationsPage() {
 
         {/* MODAL: MULTI-DATE RANGE & MULTI-SLOT RESERVATION CREATION */}
         {showBookingModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+            <Modal title="Create Room Reservation" onClose={() => setShowBookingModal(false)} className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
               {/* Modal Header */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
@@ -996,8 +996,7 @@ export default function ReservationsPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

@@ -24,6 +24,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, timeOf } from '@/components/ui/DataTable'
 import type { Asset, Room } from '@/types/afms'
 
+import { Modal } from '@/components/ui/Modal'
 export default function QrDashboardPage() {
   const { assets, rooms, buildings, campuses, updateAsset, updateRoom } = useAFMS()
 
@@ -574,8 +575,7 @@ export default function QrDashboardPage() {
         {/* PRINT MODAL 1: ROOM QR PLACARDS (4 PER LANDSCAPE A4) */}
         {/* ========================================================= */}
         {showRoomPrintModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in print:p-0 print:static print:bg-white">
-            <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl p-6 space-y-6 max-h-[92vh] overflow-y-auto print:max-h-none print:overflow-visible print:shadow-none print:p-0 print-area-active">
+            <Modal title="Room QR Code Placards — Print Layout Preview" onClose={() => setShowRoomPrintModal(false)} overlayClassName="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in print:p-0 print:static print:bg-white" className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl p-6 space-y-6 max-h-[92vh] overflow-y-auto print:max-h-none print:overflow-visible print:shadow-none print:p-0 print-area-active">
               {/* Modal UI Header (Hidden in Print) */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 print:hidden">
                 <div>
@@ -708,16 +708,14 @@ export default function QrDashboardPage() {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* ========================================================= */}
         {/* PRINT MODAL 2: ASSET QR LABELS (5CM X 5CM COMPACT TAGS) */}
         {/* ========================================================= */}
         {showAssetPrintModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in print:p-0 print:static print:bg-white">
-            <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl p-6 space-y-6 max-h-[92vh] overflow-y-auto print:max-h-none print:overflow-visible print:shadow-none print:p-0 print-area-active">
+            <Modal title="Asset QR Labels — 5cm × 5cm Print Grid Preview" onClose={() => setShowAssetPrintModal(false)} overlayClassName="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in print:p-0 print:static print:bg-white" className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl p-6 space-y-6 max-h-[92vh] overflow-y-auto print:max-h-none print:overflow-visible print:shadow-none print:p-0 print-area-active">
               {/* Modal UI Header (Hidden in Print) */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 print:hidden">
                 <div>
@@ -825,8 +823,7 @@ export default function QrDashboardPage() {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

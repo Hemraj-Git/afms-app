@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Campus } from '@/types/afms'
 
+import { Modal } from '@/components/ui/Modal'
 export default function CampusPage() {
   const { campuses, buildings, addCampus, updateCampus, deleteCampus } = useAFMS()
   const [searchQuery, setSearchQuery] = useState('')
@@ -172,8 +173,7 @@ export default function CampusPage() {
 
         {/* Add / Edit Campus Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+            <Modal title={editingCampus ? 'Edit Campus' : 'Add New Campus'} onClose={() => setShowModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">
@@ -229,8 +229,7 @@ export default function CampusPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

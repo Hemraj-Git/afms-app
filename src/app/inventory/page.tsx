@@ -33,6 +33,7 @@ import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/DataTable'
 
+import { Modal } from '@/components/ui/Modal'
 export default function InventoryDashboardPage() {
   const router = useRouter()
   const {
@@ -556,8 +557,7 @@ export default function InventoryDashboardPage() {
 
         {/* Modal 1: Deploy Spare to Active Operational Asset */}
         {deployItem && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title="Deploy Spare as Active Asset" onClose={() => setDeployItem(null)} className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
@@ -687,14 +687,12 @@ export default function InventoryDashboardPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Modal 2: Quick Adjust Stock */}
         {adjustItem && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+            <Modal title="Adjust Stock Quantity" onClose={() => setAdjustItem(null)} className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-base font-bold text-slate-900">Adjust Stock Quantity</h3>
                 <button onClick={() => setAdjustItem(null)} className="text-slate-400 hover:text-slate-600">
@@ -738,8 +736,7 @@ export default function InventoryDashboardPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

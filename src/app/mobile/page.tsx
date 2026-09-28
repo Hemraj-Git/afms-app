@@ -68,6 +68,7 @@ import { CameraCaptureButton } from '@/components/ui/CameraCaptureButton'
 import { OutsideRepairPanel, OutsideRepairTag } from '@/components/outsideRepair/OutsideRepairPanel'
 import { Skeleton, SkeletonRegion, ListSkeleton } from '@/components/ui/Skeleton'
 
+import { Modal, MOBILE_OVERLAY } from '@/components/ui/Modal'
 // Shown in place of CameraCaptureButton when viewing a completed record
 // with no photo attached -- matches the light-theme placeholder already
 // used on the admin Corrective/Preventive pages' evidence cards, adapted
@@ -2253,8 +2254,7 @@ function MobileFieldAppContent() {
       {/* WORK ORDER EXECUTION MODAL (PREVENTIVE VS CORRECTIVE / IN-HOUSE VS VENDOR) */}
       {/* ========================================================================= */}
       {selectedWorkOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg max-h-[92vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
+          <Modal title="Work order" onClose={() => setSelectedWorkOrder(null)} overlayClassName={MOBILE_OVERLAY} className="w-full max-w-lg max-h-[92vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
             
             {/* Modal Header */}
             <div className="bg-slate-950 border-b border-slate-800 p-4 flex items-center justify-between">
@@ -2833,16 +2833,14 @@ function MobileFieldAppContent() {
               )}
             </div>
 
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* ========================================================================= */}
       {/* INSPECTION EXECUTION MODAL (PASS/FAIL CHECKLIST, REMARKS, PROOF)         */}
       {/* ========================================================================= */}
       {selectedInspection && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg max-h-[92vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
+          <Modal title="Perform inspection" onClose={() => setSelectedInspection(null)} overlayClassName={MOBILE_OVERLAY} className="w-full max-w-lg max-h-[92vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
             
             {/* Modal Header */}
             <div className="bg-slate-950 border-b border-slate-800 p-4 flex items-center justify-between">
@@ -3040,16 +3038,14 @@ function MobileFieldAppContent() {
               </button>
             </div>
 
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* ========================================================================= */}
       {/* COMPLETED INSPECTION DETAILS MODAL                                        */}
       {/* ========================================================================= */}
       {viewingInspection && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg max-h-[85vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
+          <Modal title="Inspection report" onClose={() => setViewingInspection(null)} overlayClassName={MOBILE_OVERLAY} className="w-full max-w-lg max-h-[85vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
             
             {/* Modal Header */}
             <div className="bg-slate-950 border-b border-slate-800 p-4 flex items-center justify-between">
@@ -3140,8 +3136,7 @@ function MobileFieldAppContent() {
               </button>
             </div>
 
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* ========================================================================= */}
@@ -3150,8 +3145,7 @@ function MobileFieldAppContent() {
       {/* already stored but never surfaced.                                    */}
       {/* ========================================================================= */}
       {viewingRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg max-h-[85vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
+          <Modal title="Service request details" onClose={() => setViewingRequest(null)} overlayClassName={MOBILE_OVERLAY} className="w-full max-w-lg max-h-[85vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
 
             <div className="bg-slate-950 border-b border-slate-800 p-4 flex items-center justify-between">
               <div>
@@ -3238,16 +3232,14 @@ function MobileFieldAppContent() {
                 Close
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* ========================================================================= */}
       {/* HOUSEKEEPING EXECUTION MODAL (CLEANING, SANITIZATION CHECKLIST & PROOF)    */}
       {/* ========================================================================= */}
       {selectedHkOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg max-h-[92vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
+          <Modal title="Housekeeping task" onClose={() => setSelectedHkOrder(null)} overlayClassName={MOBILE_OVERLAY} className="w-full max-w-lg max-h-[92vh] bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
             {/* Modal Header */}
             <div className="bg-slate-950 border-b border-slate-800 p-4 flex items-center justify-between">
               <div>
@@ -3419,8 +3411,7 @@ function MobileFieldAppContent() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
     </div>

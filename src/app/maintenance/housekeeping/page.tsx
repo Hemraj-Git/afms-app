@@ -22,6 +22,7 @@ import { WorkOrder } from '@/types/afms'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
+import { Modal } from '@/components/ui/Modal'
 export default function HousekeepingPage() {
   const { workOrders, rooms, users, addWorkOrder, updateWorkOrderStatus } = useAFMS()
 
@@ -300,8 +301,7 @@ export default function HousekeepingPage() {
 
         {/* Modal: Assign / Reassign Staff */}
         {selectedWoForAssign && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title={selectedWoForAssign.assignedTechnicianName ? 'Reassign Staff' : 'Assign Staff'} onClose={() => setSelectedWoForAssign(null)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <span className="text-xs font-mono font-bold text-purple-700">{selectedWoForAssign.woNumber}</span>
@@ -368,14 +368,12 @@ export default function HousekeepingPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Modal: Schedule Housekeeping */}
         {showModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+            <Modal title="Schedule Housekeeping" onClose={() => setShowModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-lg font-bold text-slate-900">Schedule Housekeeping</h3>
                 <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -477,8 +475,7 @@ export default function HousekeepingPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

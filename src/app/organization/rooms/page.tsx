@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { Room } from '@/types/afms'
 
+import { Modal } from '@/components/ui/Modal'
 export default function RoomsPage() {
   const {
     rooms,
@@ -418,8 +419,7 @@ export default function RoomsPage() {
 
         {/* Modal 1: Add/Edit Room Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+            <Modal title={editingRoom ? 'Edit Room / Area' : 'Add New Room / Area'} onClose={() => setShowModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">
@@ -568,14 +568,12 @@ export default function RoomsPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Modal 2: Add / Manage Room Types Modal */}
         {showTypeModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title="Add Room Type" onClose={() => setShowTypeModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Add Room Type</h3>
@@ -638,8 +636,7 @@ export default function RoomsPage() {
                   Done
                 </button>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

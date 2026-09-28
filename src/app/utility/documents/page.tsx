@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { Modal } from '@/components/ui/Modal'
 export default function DocumentLibraryPage() {
   const { documents, assets, addDocument, currentUser } = useAFMS()
   const [searchQuery, setSearchQuery] = useState('')
@@ -299,8 +300,7 @@ export default function DocumentLibraryPage() {
 
         {/* Upload Modal */}
         {showUploadModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+            <Modal title="Upload to Document Library" onClose={() => setShowUploadModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-lg font-bold text-slate-900">Upload to Document Library</h3>
                 <button
@@ -385,8 +385,7 @@ export default function DocumentLibraryPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

@@ -26,6 +26,7 @@ import {
 } from '@/utils/assetExcelUtils'
 import { Asset } from '@/types/afms'
 
+import { Modal } from '@/components/ui/Modal'
 interface BulkAssetUploadModalProps {
   isOpen: boolean
   onClose: () => void
@@ -184,8 +185,7 @@ export function BulkAssetUploadModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl overflow-hidden">
+      <Modal title="Bulk asset upload" onClose={onClose} overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in" className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl overflow-hidden">
         
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 px-6 py-4">
@@ -588,7 +588,6 @@ export function BulkAssetUploadModal({
           </div>
         )}
 
-      </div>
-    </div>
+      </Modal>
   )
 }

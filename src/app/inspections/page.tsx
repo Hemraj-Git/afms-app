@@ -28,6 +28,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
 import { useSearchPrefill } from '@/lib/useSearchPrefill'
 
+import { Modal } from '@/components/ui/Modal'
 export default function InspectionsPage() {
   const router = useRouter()
   const { inspections, updateInspection, completeInspection, assets, checklistTemplates, users } = useAFMS()
@@ -361,8 +362,7 @@ export default function InspectionsPage() {
 
         {/* Modal 1: Assign Inspector (Generates / Activates Work Order) */}
         {selectedInspForAssign && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title="Assign Inspector" onClose={() => setSelectedInspForAssign(null)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <span className="text-xs font-mono font-bold text-blue-600">{selectedInspForAssign.inspectionNumber}</span>
@@ -424,14 +424,12 @@ export default function InspectionsPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Modal 2: Perform Inspection */}
         {selectedInspForPerform && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
+            <Modal title="Conduct Inspection" onClose={() => setSelectedInspForPerform(null)} className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <span className="text-xs font-mono font-bold text-blue-600">{selectedInspForPerform.inspectionNumber}</span>
@@ -505,14 +503,12 @@ export default function InspectionsPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Modal 3: View Completed Inspection Details */}
         {selectedInspForView && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl p-6 space-y-6 max-h-[90vh] flex flex-col">
+            <Modal title="Inspection report" onClose={() => setSelectedInspForView(null)} className="w-full max-w-xl bg-white rounded-2xl shadow-2xl p-6 space-y-6 max-h-[90vh] flex flex-col">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
                 <div>
                   <div className="flex items-center gap-2">
@@ -654,8 +650,7 @@ export default function InspectionsPage() {
                   Close
                 </button>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

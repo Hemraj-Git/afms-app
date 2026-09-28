@@ -36,6 +36,7 @@ import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, timeOf } from '@/components/ui/DataTable'
 
+import { Modal } from '@/components/ui/Modal'
 export default function UsersAdminPage() {
   const {
     users,
@@ -760,8 +761,7 @@ export default function UsersAdminPage() {
 
         {/* DRAWER / MODAL: USER DETAILS (ASSIGNED ASSETS & CHECK-IN LOGS) */}
         {viewingUser && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+            <Modal title={`${viewingUser.fullName} — details`} onClose={() => setViewingUser(null)} className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
               {/* Drawer Header */}
               <div className="flex items-start justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-4">
@@ -909,14 +909,12 @@ export default function UsersAdminPage() {
                   Close
                 </button>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* DRAWER / MODAL: GUEST DETAILS (ACCESS LOG & RAISED REQUESTS ONLY -- no assigned assets, guests are never assignable) */}
         {viewingGuestGroup && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+            <Modal title={`${viewingGuestGroup.fullName} — visitor details`} onClose={() => setViewingGuestGroup(null)} className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
               {/* Drawer Header */}
               <div className="flex items-start justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-4">
@@ -1019,14 +1017,12 @@ export default function UsersAdminPage() {
                   Close
                 </button>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* MODAL: ADD / EDIT USER */}
         {showUserModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title={editingUser ? 'Edit User Profile' : 'Add New Personnel'} onClose={() => setShowUserModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
@@ -1171,14 +1167,12 @@ export default function UsersAdminPage() {
                 </div>
               </form>
               )}
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* MODAL: ADD / EDIT DEPARTMENT */}
         {showDeptModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title={editingDept ? 'Edit Department' : 'Add New Department'} onClose={() => setShowDeptModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
@@ -1271,8 +1265,7 @@ export default function UsersAdminPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
       </div>

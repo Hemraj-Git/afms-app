@@ -36,6 +36,7 @@ import { isPendingWorkOrder } from '@/lib/idGenerator'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, WO_STATUS_ORDER, sortByOrder } from '@/components/ui/DataTable'
 
+import { Modal, DRAWER_OVERLAY } from '@/components/ui/Modal'
 // A not-yet-assigned Corrective record has a 'PENDING-<uuid>' placeholder
 // woNumber (see makePendingWoNumber) -- show something readable instead of
 // that raw internal string until it's minted into a real WO-CR-#### number.
@@ -284,8 +285,7 @@ export default function CorrectiveMaintenancePage() {
 
         {/* Modal 1: Assign / Reassign Technician Modal (Generates / Activates Work Order) */}
         {selectedWoForAssign && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title={selectedWoForAssign.assignedTechnicianName ? 'Reassign Technician' : 'Assign Technician'} onClose={() => setSelectedWoForAssign(null)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <span className="text-xs font-mono font-bold text-rose-600">{displayWoNumber(selectedWoForAssign.woNumber)}</span>
@@ -352,14 +352,12 @@ export default function CorrectiveMaintenancePage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Modal 2: Breakdown Resolution Modal */}
         {selectedWoForResolve && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <Modal title="Log Breakdown Resolution" onClose={() => setSelectedWoForResolve(null)} className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <span className="text-xs font-mono font-bold text-rose-600">{displayWoNumber(selectedWoForResolve.woNumber)}</span>
@@ -523,8 +521,7 @@ export default function CorrectiveMaintenancePage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Modal 3: Work Order Details Side Drawer */}
@@ -535,8 +532,7 @@ export default function CorrectiveMaintenancePage() {
           const isCompleted = wo.status === 'Completed'
 
           return (
-            <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in">
-              <div className="w-full max-w-lg bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
+              <Modal title="Work order details" onClose={() => setSelectedWoForDetails(null)} overlayClassName={DRAWER_OVERLAY} className="w-full max-w-lg bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
                 <div className="space-y-6">
                   {/* Drawer Header */}
                   <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -782,8 +778,7 @@ export default function CorrectiveMaintenancePage() {
                     Close Details
                   </button>
                 </div>
-              </div>
-            </div>
+              </Modal>
           )
         })()}
       </div>

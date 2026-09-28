@@ -30,6 +30,7 @@ import { formatId, getNextSequence } from '@/lib/idGenerator'
 import { DocumentItem, SlaPriority } from '@/types/afms'
 import { uploadToStorage, validateUpload } from '@/lib/storageUpload'
 
+import { Modal } from '@/components/ui/Modal'
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
 
 export default function AddAssetPage() {
@@ -1413,8 +1414,7 @@ function AddAssetForm() {
 
         {/* Modal 1: Inline Add Vendor */}
         {showVendorModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title="Add New Vendor" onClose={() => setShowVendorModal(false)} className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
@@ -1508,14 +1508,12 @@ function AddAssetForm() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Modal 2: Inline Add Document */}
         {showDocModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title="Upload New Compliance Document" onClose={() => setShowDocModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Upload New Compliance Document</h3>
@@ -1600,8 +1598,7 @@ function AddAssetForm() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

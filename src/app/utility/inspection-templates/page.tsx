@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { ChecklistTemplate, ChecklistItemDef } from '@/types/afms'
 
+import { Modal } from '@/components/ui/Modal'
 export default function InspectionTemplatesPage() {
   const {
     checklistTemplates,
@@ -301,8 +302,7 @@ export default function InspectionTemplatesPage() {
 
         {/* Create/Edit Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl p-6 space-y-6 max-h-[90vh] flex flex-col">
+            <Modal title={editingTmpl ? 'Edit Inspection Template' : 'Create Inspection Template'} onClose={() => setShowModal(false)} className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl p-6 space-y-6 max-h-[90vh] flex flex-col">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">
@@ -441,8 +441,7 @@ export default function InspectionTemplatesPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>

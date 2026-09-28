@@ -42,6 +42,7 @@ import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, PRIORITY_ORDER, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
+import { Modal, DRAWER_OVERLAY } from '@/components/ui/Modal'
 export default function WorkOrdersHubPage() {
   const {
     workOrders,
@@ -527,8 +528,7 @@ export default function WorkOrdersHubPage() {
 
         {/* Modal: Create Work Order */}
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
+            <Modal title="Create Work Order" onClose={() => setShowCreateModal(false)} className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Create Work Order</h3>
@@ -675,13 +675,11 @@ export default function WorkOrdersHubPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
         {/* Modal 2: Configure SLA Rules Modal */}
         {showSlaModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+            <Modal title="Configure SLA Resolution Hours" onClose={() => setShowSlaModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Configure SLA Resolution Hours</h3>
@@ -777,8 +775,7 @@ export default function WorkOrdersHubPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
         {/* Modal: Work Order Details Side Drawer */}
         {selectedWoForDetails && (() => {
@@ -800,8 +797,7 @@ export default function WorkOrdersHubPage() {
               ])
 
           return (
-            <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in">
-              <div className="w-full max-w-lg bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
+              <Modal title="Work order details" onClose={() => setSelectedWoForDetails(null)} overlayClassName={DRAWER_OVERLAY} className="w-full max-w-lg bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
                 <div className="space-y-6">
                   {/* Drawer Header */}
                   <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -1241,8 +1237,7 @@ export default function WorkOrdersHubPage() {
                     Close Details
                   </button>
                 </div>
-              </div>
-            </div>
+              </Modal>
           )
         })()}
       </div>

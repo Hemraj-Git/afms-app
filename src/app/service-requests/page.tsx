@@ -38,6 +38,7 @@ import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, PRIORITY_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
+import { Modal, DRAWER_OVERLAY } from '@/components/ui/Modal'
 export default function ServiceRequestsPage() {
   const router = useRouter()
   const {
@@ -543,8 +544,7 @@ export default function ServiceRequestsPage() {
 
         {/* TICKET DETAIL & ACTION MODAL / DRAWER */}
         {currentTicket && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in">
-            <div className="w-full max-w-lg bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
+            <Modal title="Service request details" onClose={() => setSelectedTicket(null)} overlayClassName={DRAWER_OVERLAY} className="w-full max-w-lg bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
               <div className="space-y-6">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                   <div>
@@ -814,14 +814,12 @@ export default function ServiceRequestsPage() {
                   Close Drawer
                 </button>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Dismiss Service Request Modal */}
         {showDismissModal && currentTicket && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+            <Modal title="Dismiss Service Request" onClose={() => setShowDismissModal(false)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -875,14 +873,12 @@ export default function ServiceRequestsPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
 
         {/* Create Service Request Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+            <Modal title="Create Service Request" onClose={() => setShowCreateModal(false)} className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-lg font-bold text-slate-900">Create Service Request</h3>
                 <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -1004,8 +1000,7 @@ export default function ServiceRequestsPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+            </Modal>
         )}
       </div>
     </AppLayout>
