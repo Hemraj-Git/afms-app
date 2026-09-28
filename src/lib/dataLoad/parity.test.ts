@@ -106,8 +106,8 @@ describe('asset rows match what the app writes', () => {
   }
   const plan = buildAssets([full, sparse], ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), new Date(2026, 8, 25))
 
-  it('assets (the SLA priority is new, so the app does not know that column yet)', () => {
-    expectParity('assets', plan.assets, r => assetToInsert(mapAssetRow(r)), ['sla_priority'])
+  it('assets, including the per-asset SLA priority', () => {
+    expectParity('assets', plan.assets, r => assetToInsert(mapAssetRow(r)))
     expect(plan.assets.map(a => a.sla_priority)).toEqual(['High', 'Low'])
   })
 

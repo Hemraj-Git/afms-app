@@ -82,7 +82,7 @@ Tests (`src/lib/dataLoad/parity.test.ts`) run every row through the app's own ma
 
 - Photos and documents (the workbook says to send them separately, in a folder named after the asset).
 - Users, assignees, departments, and updating existing records.
-- The app does not yet read asset-level SLA priority: maintenance requests are still locked to the sub-category's priority. **Ship that change before the client goes live**, or every request will be Medium (`PENDING-WORK.md`, section 5, "SLA priority").
+- ~~The app did not read asset-level SLA priority~~ — **fixed 28 Sep**: the asset wizard now sets it, and Maintenance requests lock to the asset's priority (falling back to its sub-category's for an asset with none, e.g. anything loaded before this change). See `PENDING-WORK.md`, section 5.
 
 ## If something goes wrong
 

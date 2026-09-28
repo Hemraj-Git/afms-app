@@ -24,7 +24,7 @@ import {
   FileText,
   AlertCircle,
 } from 'lucide-react'
-import { SubCategory, MetadataFieldDef, ChecklistTemplate, ChecklistItemDef, SlaPriority } from '@/types/afms'
+import { SubCategory, MetadataFieldDef, ChecklistTemplate, ChecklistItemDef } from '@/types/afms'
 import { formatSubCategoryId } from '@/lib/idGenerator'
 
 export default function SubCategoriesPage() {
@@ -51,7 +51,6 @@ export default function SubCategoriesPage() {
   useDefaultSelection(selectedCategoryId, setSelectedCategoryId, categories[0]?.id)
   const [subCategoryName, setSubCategoryName] = useState('')
   const [description, setDescription] = useState('')
-  const [slaPriority, setSlaPriority] = useState<SlaPriority>('Medium')
 
   // Live auto-generated Sub-Category ID preview (e.g. ELEC-LIGH)
   const previewSubCategoryId = formatSubCategoryId(
@@ -110,7 +109,6 @@ export default function SubCategoriesPage() {
     setSelectedCategoryId(categories[0]?.id || 'ELEC')
     setSubCategoryName('')
     setDescription('')
-    setSlaPriority('Medium')
     setMetadataFields([
       { key: 'power_rating', label: 'Power Rating', type: 'Number', unit: 'kW', required: true, order: 1 },
     ])
@@ -125,7 +123,6 @@ export default function SubCategoriesPage() {
     setSelectedCategoryId(sub.categoryId)
     setSubCategoryName(sub.name)
     setDescription(sub.description || '')
-    setSlaPriority(sub.slaPriority || 'Medium')
     setMetadataFields(
       sub.metadataFields?.map(f => ({
         ...f,
@@ -253,7 +250,6 @@ export default function SubCategoriesPage() {
         categoryId: selectedCategoryId,
         name: subCategoryName.trim(),
         description: description.trim(),
-        slaPriority,
         metadataFields: cleanFields,
         pmTemplateIds: uniquePmIds,
         pmTemplateId: uniquePmIds[0] || undefined,
@@ -266,7 +262,6 @@ export default function SubCategoriesPage() {
           categoryId: selectedCategoryId,
           name: subCategoryName.trim(),
           description: description.trim(),
-          slaPriority,
           metadataFields: cleanFields,
           pmTemplateIds: uniquePmIds,
           pmTemplateId: uniquePmIds[0] || undefined,
@@ -538,23 +533,14 @@ export default function SubCategoriesPage() {
                         />
                       </div>
 
-                      <div>
-                        <label className="block font-semibold text-slate-700 mb-1">3. SLA Priority Level *</label>
-                        <select
-                          value={slaPriority}
-                          onChange={e => setSlaPriority(e.target.value as any)}
-                          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-blue-500/20"
-                        >
-                          <option value="Critical">Critical (e.g. 4 Hours)</option>
-                          <option value="High">High (e.g. 12 Hours)</option>
-                          <option value="Medium">Medium (e.g. 24 Hours)</option>
-                          <option value="Low">Low (e.g. 48 Hours)</option>
-                        </select>
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 flex items-start gap-2">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
+                        <span>SLA priority is now set per asset, in the asset wizard -- not here.</span>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">4. Scope / Description</label>
+                      <label className="block font-semibold text-slate-700 mb-1">3. Scope / Description</label>
                       <textarea
                         rows={3}
                         value={description}
@@ -853,7 +839,6 @@ export default function SubCategoriesPage() {
                         <p><span className="text-slate-500">Parent Category:</span> <strong>{selectedCategoryObj?.name} ({selectedCategoryObj?.code || selectedCategoryObj?.id})</strong></p>
                         <p><span className="text-slate-500">Sub-Category Name:</span> <strong>{subCategoryName}</strong></p>
                         <p><span className="text-slate-500">Generated Sub ID:</span> <span className="font-mono font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">{previewSubCategoryId}</span></p>
-                        <p><span className="text-slate-500">SLA Priority:</span> <span className="font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">{slaPriority}</span></p>
                         <p><span className="text-slate-500">Description:</span> {description || 'N/A'}</p>
                       </div>
 

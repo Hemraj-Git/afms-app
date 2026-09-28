@@ -27,7 +27,7 @@ import {
   Pencil,
 } from 'lucide-react'
 import { formatId, getNextSequence } from '@/lib/idGenerator'
-import { DocumentItem } from '@/types/afms'
+import { DocumentItem, SlaPriority } from '@/types/afms'
 import { uploadToStorage, validateUpload } from '@/lib/storageUpload'
 
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
@@ -86,6 +86,11 @@ function AddAssetForm() {
   const [assetName, setAssetName] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState('')
+  // How urgent a fault on this asset is: locks the priority of a Maintenance
+  // request raised against it. Defaults to its sub-category's own priority when
+  // one is picked (see handleSubCategoryChange below), same starting point the
+  // sub-category used to set for every asset of its type -- but editable per asset.
+  const [slaPriority, setSlaPriority] = useState<SlaPriority>('Medium')
   const [assignedToUserId, setAssignedToUserId] = useState('')
   const [userSearchQuery, setUserSearchQuery] = useState('')
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false)
@@ -143,6 +148,7 @@ function AddAssetForm() {
       setSelectedCategoryId(sub.categoryId)
       setSelectedSubCategoryId(sub.id)
     }
+    setSlaPriority(existingAsset.slaPriority || sub?.slaPriority || 'Medium')
 
     setManufacturer(existingAsset.manufacturer || '')
     setModelNumber(existingAsset.modelNumber || '')
@@ -217,6 +223,14 @@ function AddAssetForm() {
     setSelectedCategoryId(catId)
     setSelectedSubCategoryId('')
     setDynamicValues({})
+  }
+
+  // Suggests that sub-category's own priority as the starting point for a
+  // newly-picked sub-category (its old, screen-level default); the picker
+  // right below still lets the person change it for this one asset.
+  const handleSubCategoryChange = (subId: string) => {
+    setSelectedSubCategoryId(subId)
+    setSlaPriority(subCategories.find(s => s.id === subId)?.slaPriority || 'Medium')
   }
 
   const handleCampusChange = (newCampusId: string) => {
@@ -496,6 +510,7 @@ function AddAssetForm() {
         name: assetName,
         subCategoryId: selectedSubCategoryId,
         roomId: selectedRoomId,
+        slaPriority,
         manufacturer,
         modelNumber,
         serialNumber: serialNumber || undefined,
@@ -523,6 +538,7 @@ function AddAssetForm() {
           name: assetName,
           subCategoryId: selectedSubCategoryId,
           roomId: selectedRoomId,
+          slaPriority,
           manufacturer,
           modelNumber,
           serialNumber: serialNumber || undefined,
@@ -659,7 +675,7 @@ function AddAssetForm() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategory *</label>
                   <select
                     value={selectedSubCategoryId}
-                    onChange={e => setSelectedSubCategoryId(e.target.value)}
+                    onChange={e => handleSubCategoryChange(e.target.value)}
                     disabled={!selectedCategoryId}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400"
                   >
@@ -673,6 +689,23 @@ function AddAssetForm() {
                   {selectedCategoryId && availableSubCategories.length === 0 && (
                     <p className="text-[10px] text-amber-600 mt-1">No subcategories under this category yet.</p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">SLA Priority *</label>
+                  <select
+                    value={slaPriority}
+                    onChange={e => setSlaPriority(e.target.value as SlaPriority)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="Critical">Critical (e.g. 4 Hours)</option>
+                    <option value="High">High (e.g. 12 Hours)</option>
+                    <option value="Medium">Medium (e.g. 24 Hours)</option>
+                    <option value="Low">Low (e.g. 48 Hours)</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    How urgent a fault on this asset is. Locks the priority of any Maintenance request raised against it.
+                  </p>
                 </div>
 
                 {/* Row 3: Manufacturer Name & Model Number */}
@@ -1301,6 +1334,7 @@ function AddAssetForm() {
                   <p><span className="text-slate-500">Asset Name:</span> {assetName}</p>
                   <p><span className="text-slate-500">Category:</span> {activeCategory?.name} ({activeCategory?.code || activeCategory?.id})</p>
                   <p><span className="text-slate-500">Sub-Category:</span> {activeSubCategory?.name} ({activeSubCategory?.code || activeSubCategory?.id})</p>
+                  <p><span className="text-slate-500">SLA Priority:</span> <span className="font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">{slaPriority}</span></p>
                   <p><span className="text-slate-500">Manufacturer / Model:</span> {manufacturer} ({modelNumber})</p>
                   {serialNumber && <p><span className="text-slate-500">Serial No:</span> {serialNumber}</p>}
                   {assetPrice && <p><span className="text-slate-500">Price:</span> ₹{assetPrice}</p>}

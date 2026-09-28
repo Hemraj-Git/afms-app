@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { useDefaultSelection } from '@/lib/useDefaultSelection'
+import { lockedSlaPriority } from '@/lib/assetSlaPriority'
 import { PageSkeleton } from '@/components/ui/Skeleton'
 import {
   MessageSquare,
@@ -71,24 +72,23 @@ export default function ServiceRequestsPage() {
     setNewAssetId(assetId)
   }
 
-  // The sub-category tied to the currently-selected asset, and whether it
-  // has a configured SLA priority -- when it does, the user isn't asked to
-  // set one manually at all (see the Priority field below).
-  const selectedAssetSub = subCategories.find(
-    s => s.id === assets.find(a => a.id === newAssetId)?.subCategoryId
-  )
-  const isPriorityAutoSet = newType === 'Maintenance' && Boolean(selectedAssetSub?.slaPriority)
+  // The asset and its sub-category, and the SLA priority they lock a
+  // Maintenance request to -- the asset's own priority, or (for one created
+  // before that field existed) its sub-category's. When neither has one,
+  // the user picks manually (see the Priority field below).
+  const selectedAsset = assets.find(a => a.id === newAssetId)
+  const selectedAssetSub = subCategories.find(s => s.id === selectedAsset?.subCategoryId)
+  const priorityLock = newType === 'Maintenance' ? lockedSlaPriority(selectedAsset, selectedAssetSub) : undefined
+  const isPriorityAutoSet = Boolean(priorityLock)
 
-  // Auto-calculate SLA Priority whenever the target asset (or request type)
-  // changes -- previously this only ran on the asset dropdown's onChange,
-  // so the default-selected asset's priority was never reflected until the
-  // user touched the dropdown (the submit-time recompute masked this, but
-  // the displayed value was wrong until then).
+  // Applies the lock whenever the target asset (or request type) changes --
+  // previously this only ran on the asset dropdown's onChange, so the
+  // default-selected asset's priority was never reflected until the user
+  // touched the dropdown (the submit-time recompute masked this, but the
+  // displayed value was wrong until then).
   useEffect(() => {
-    if (isPriorityAutoSet && selectedAssetSub?.slaPriority) {
-      setNewPriority(selectedAssetSub.slaPriority)
-    }
-  }, [isPriorityAutoSet, selectedAssetSub?.slaPriority])
+    if (priorityLock) setNewPriority(priorityLock.priority)
+  }, [priorityLock?.priority])
 
   // Dynamic SLA Overdue Check (Time-based, doesn't break lifecycle status)
   const isTicketOverdue = (req: ServiceRequest) => {
@@ -130,9 +130,7 @@ export default function ServiceRequestsPage() {
     if (isSubmittingRef.current) return
     isSubmittingRef.current = true
     setIsSubmittingRequest(true)
-    const targetAsset = assets.find(a => a.id === newAssetId)
-    const sub = targetAsset ? subCategories.find(s => s.id === targetAsset.subCategoryId) : undefined
-    const finalPriority: SlaPriority = sub?.slaPriority || newPriority
+    const finalPriority: SlaPriority = priorityLock?.priority || newPriority
 
     // Calculate SLA Due Time using SLA Configuration
     const slaHours = slaConfig[finalPriority] || 24
@@ -885,7 +883,9 @@ export default function ServiceRequestsPage() {
                       <div className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 font-semibold text-slate-700 flex items-center justify-between">
                         <span>{newPriority} ({slaConfig[newPriority]}h SLA)</span>
                         <span className="text-[10px] font-medium text-slate-400 normal-case">
-                          Auto-set from {selectedAssetSub?.name}'s SLA policy
+                          {priorityLock?.source === 'asset'
+                            ? "Auto-set from this asset's SLA priority"
+                            : `Auto-set from ${selectedAssetSub?.name}'s SLA policy`}
                         </span>
                       </div>
                     ) : (

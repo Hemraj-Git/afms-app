@@ -152,6 +152,11 @@ export interface Asset {
   name: string
   subCategoryId: string
   roomId: string
+  // How urgent a fault on this asset is: locks the priority of a Maintenance
+  // request raised against it. Set when the asset is added. An asset with none
+  // (created before this field existed, or via the legacy Excel bulk import)
+  // falls back to its sub-category's slaPriority, then 'Medium'.
+  slaPriority?: SlaPriority
   manufacturer?: string
   modelNumber?: string
   serialNumber?: string

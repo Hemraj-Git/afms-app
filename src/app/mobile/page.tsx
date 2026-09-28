@@ -59,6 +59,7 @@ import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { isOpenWorkOrder, isWithVendor, validateVendorHandover } from '@/lib/workOrderState'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
+import { lockedSlaPriority } from '@/lib/assetSlaPriority'
 import { NotificationBell } from '@/components/mobile/NotificationBell'
 import { QrScanner } from '@/components/mobile/QrScanner'
 import { uploadToStorage, readFileAsDataUrl, validateUpload } from '@/lib/storageUpload'
@@ -478,19 +479,17 @@ function MobileFieldAppContent() {
   const [isReqPhotoUploading, setIsReqPhotoUploading] = useState(false)
   const [reqSuccessMsg, setReqSuccessMsg] = useState(false)
 
-  // When the request is Maintenance and tied to an asset whose sub-category
-  // has a configured SLA priority, that priority is used automatically
-  // instead of asking the user to pick one — mirrors the desktop Service
-  // Requests page's behavior.
-  const reqAssetSub = subCategories.find(
-    s => s.id === assets.find(a => a.id === reqAssetId)?.subCategoryId
-  )
-  const isReqPriorityAutoSet = reqType === 'Maintenance' && Boolean(reqAssetSub?.slaPriority)
+  // When the request is Maintenance and tied to an asset, its own SLA
+  // priority (or, for one created before that field existed, its
+  // sub-category's) is used automatically instead of asking the user to pick
+  // one — mirrors the desktop Service Requests page's behavior.
+  const reqAsset = assets.find(a => a.id === reqAssetId)
+  const reqAssetSub = subCategories.find(s => s.id === reqAsset?.subCategoryId)
+  const reqPriorityLock = reqType === 'Maintenance' ? lockedSlaPriority(reqAsset, reqAssetSub) : undefined
+  const isReqPriorityAutoSet = Boolean(reqPriorityLock)
   React.useEffect(() => {
-    if (isReqPriorityAutoSet && reqAssetSub?.slaPriority) {
-      setReqPriority(reqAssetSub.slaPriority)
-    }
-  }, [isReqPriorityAutoSet, reqAssetSub?.slaPriority])
+    if (reqPriorityLock) setReqPriority(reqPriorityLock.priority)
+  }, [reqPriorityLock?.priority])
 
   const assetsInReqRoom = useMemo(() => assets.filter(a => a.roomId === reqRoomId), [assets, reqRoomId])
 
@@ -828,8 +827,7 @@ function MobileFieldAppContent() {
 
     const roomObj = rooms.find(r => r.id === reqRoomId)
     const targetAsset = assets.find(a => a.id === reqAssetId)
-    const targetSub = targetAsset ? subCategories.find(s => s.id === targetAsset.subCategoryId) : undefined
-    const finalPriority = (reqType === 'Maintenance' && targetSub?.slaPriority) || reqPriority
+    const finalPriority = reqPriorityLock?.priority || reqPriority
     const slaHours = slaConfig[finalPriority] || 24
     const slaDueDate = new Date(Date.now() + slaHours * 60 * 60 * 1000).toISOString()
 

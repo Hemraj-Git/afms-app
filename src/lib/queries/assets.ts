@@ -2,7 +2,7 @@ import { getLocalDateStr } from '@/lib/dateUtils'
 import { formatId, getNextSequence } from '@/lib/idGenerator'
 import { generateUUID } from '@/lib/uuid'
 import type { TableInsert, TableRow, TableUpdate } from '@/lib/supabase/typed'
-import type { Asset } from '@/types/afms'
+import type { Asset, SlaPriority } from '@/types/afms'
 import { defineEntity, fetchExistingCodes, table } from './entity'
 
 type Json = TableInsert<'assets'>['dynamic_specifications']
@@ -14,6 +14,7 @@ export function mapAssetRow(a: TableRow<'assets'>): Asset {
     name: a.name,
     subCategoryId: a.sub_category_id ?? '',
     roomId: a.room_id ?? '',
+    slaPriority: (a.sla_priority as SlaPriority | null) ?? undefined,
     manufacturer: a.manufacturer ?? undefined,
     modelNumber: a.model_number ?? undefined,
     serialNumber: a.serial_number ?? undefined,
@@ -48,6 +49,7 @@ export function assetToInsert(a: Asset): TableInsert<'assets'> {
     name: a.name,
     sub_category_id: a.subCategoryId || null,
     room_id: a.roomId || null,
+    sla_priority: a.slaPriority || null,
     manufacturer: a.manufacturer || null,
     model_number: a.modelNumber || null,
     serial_number: a.serialNumber || null,
@@ -79,6 +81,7 @@ export function assetToUpdate(changes: Partial<Asset>): TableUpdate<'assets'> {
   if (changes.name !== undefined) u.name = changes.name
   if (changes.subCategoryId !== undefined) u.sub_category_id = changes.subCategoryId
   if (changes.roomId !== undefined) u.room_id = changes.roomId
+  if (changes.slaPriority !== undefined) u.sla_priority = changes.slaPriority
   if (changes.manufacturer !== undefined) u.manufacturer = changes.manufacturer
   if (changes.modelNumber !== undefined) u.model_number = changes.modelNumber
   if (changes.serialNumber !== undefined) u.serial_number = changes.serialNumber
