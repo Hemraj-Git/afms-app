@@ -38,15 +38,6 @@ export interface ColumnSpec {
   listRange?: { range: string; dropdown: string }
   // A value outside `choices` is only warned about, not refused.
   allowOther?: boolean
-  // A custom field on a category tab belongs only to some of that category's
-  // sub-categories, so whether it is required -- or allowed at all -- depends on
-  // the sub-category chosen in `onColumn` (a 0-based column index). Each range
-  // lists the sub-category names, on the hidden fields tab.
-  conditional?: {
-    onColumn: number
-    appliesRange: string
-    requiredRange: string
-  }
 }
 
 export interface SheetSpec {

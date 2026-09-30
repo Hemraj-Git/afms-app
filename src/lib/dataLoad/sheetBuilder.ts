@@ -53,6 +53,11 @@ export interface DataSheetOptions {
   tabColor?: string
   // Rows in each list, for the dropdown and MATCH ranges.
   listRows: Record<ListName, number>
+  // Custom-field columns whose rules depend on the sub-category chosen on the
+  // row (0-based columns). `table` is a block on the hidden fields tab: one row
+  // per sub-category (names in `subs`), one column per custom field, "R" where
+  // required, "Y" where allowed, "N" where it does not belong.
+  fieldRules?: { subColumn: number; firstColumn: number; lastColumn: number; subs: string; table: string }
 }
 
 const label = (c: ColumnSpec) => c.header.replace(/ \*$/, '')
@@ -74,7 +79,10 @@ export function rowCheckFormula(opts: DataSheetOptions, r: number): string {
   const filled = (i: number) => `TRIM(${cell(i)}&"")<>""`
   const rowRange = `${L(0)}${r}:${L(columns.length - 1)}${r}`
 
+  // [condition, message text]
   const checks: [string, string][] = []
+  // [condition, a formula that builds the message], checked after the ones above.
+  const builtChecks: [string, string][] = []
   columns.forEach((c, i) => {
     if (c.required) checks.push([blank(i), `${label(c)} is required`])
   })
@@ -97,21 +105,25 @@ export function rowCheckFormula(opts: DataSheetOptions, r: number): string {
       checks.push([`AND(${filled(i)},NOT(OR(${any})))`, `Pick ${label(c)} from the list`])
     }
   })
-  // Only once the sub-category itself is a real one: these say nothing useful
-  // about a row whose sub-category cell is empty or misspelled.
-  // A custom field that this row's sub-category must have, or must not have.
-  columns.forEach((c, i) => {
-    if (!c.conditional) return
-    const chosen = `${L(c.conditional.onColumn)}${r}`
-    checks.push([
-      `AND(COUNTIF(${c.conditional.requiredRange},${chosen})>0,${blank(i)})`,
-      `${label(c)} is required for this sub-category`,
-    ])
-    checks.push([
-      `AND(${filled(i)},COUNTIF(${c.conditional.appliesRange},${chosen})=0)`,
-      `${label(c)} does not apply to this sub-category`,
-    ])
-  })
+  // The custom fields, judged by the sub-category chosen on the row. Excel
+  // deletes a formula nested more than 64 levels deep or longer than 8,192
+  // characters, and one pair of checks per field broke that on a 21-field tab.
+  // So each field gets a hidden helper cell on the row (fieldRuleFormula: 1 = a
+  // required field is empty, 2 = a field that does not belong is filled), and
+  // these two checks only look for the first 1 or 2 and name that field from
+  // the header row -- the same size however many fields the tab has. Placed
+  // after the list checks, so an empty or misspelled sub-category comes first.
+  if (opts.fieldRules) {
+    const fr = opts.fieldRules
+    const n = fr.lastColumn - fr.firstColumn + 1
+    const helpers = `${L(columns.length + 1)}${r}:${L(columns.length + n)}${r}`
+    const heads = `$${L(fr.firstColumn)}$1:$${L(fr.lastColumn)}$1`
+    const at = (code: number) => `MATCH(${code},${helpers},0)`
+    // INDEX(row, 1, n), not INDEX(row, n): the short form means "column n" to
+    // Excel only for a one-row range, and "row n" to other spreadsheet programs.
+    builtChecks.push([`ISNUMBER(${at(1)})`, `INDEX(${heads},1,${at(1)})&" is required for this sub-category"`])
+    builtChecks.push([`ISNUMBER(${at(2)})`, `INDEX(${heads},1,${at(2)})&" does not apply to this sub-category"`])
+  }
 
   if (keyColumns.length > 0) {
     const idx = keyColumns.map(k => columns.findIndex(c => c.key === k))
@@ -120,11 +132,27 @@ export function rowCheckFormula(opts: DataSheetOptions, r: number): string {
     checks.push([`AND(${allFilled},SUMPRODUCT(${same})>1)`, 'This row appears twice'])
   }
 
+  const all: [string, string][] = [
+    ...checks.map(([cond, m]): [string, string] => [cond, `"${m.replace(/"/g, '""')}"`]),
+    ...builtChecks,
+  ]
   let f = '"OK"'
-  for (let i = checks.length - 1; i >= 0; i--) {
-    f = `IF(${checks[i][0]},"${checks[i][1].replace(/"/g, '""')}",${f})`
-  }
+  for (let i = all.length - 1; i >= 0; i--) f = `IF(${all[i][0]},${all[i][1]},${f})`
   return `IF(COUNTA(${rowRange})=0,"",${f})`
+}
+
+// The hidden helper cell for custom field `k` (0-based) on row `r`: 1 when the
+// row's sub-category requires the field and it is empty, 2 when the field does
+// not belong to that sub-category but is filled, blank otherwise (including a
+// row with no sub-category yet). Blank rather than 0, so a saved workbook does
+// not look as if every empty row had something typed beside the table.
+export function fieldRuleFormula(opts: DataSheetOptions, r: number, k: number): string {
+  const fr = opts.fieldRules!
+  const L = (i: number) => colLetter(i + 1)
+  const value = `${L(fr.firstColumn + k)}${r}`
+  const rule = `INDEX(${fr.table},MATCH($${L(fr.subColumn)}${r},${fr.subs},0),${k + 1})`
+  const empty = `TRIM(${value}&"")=""`
+  return `IFERROR(IF(${rule}="R",IF(${empty},1,""),IF(${rule}="N",IF(${empty},"",2),"")),"")`
 }
 
 // Adds one input tab. Returns the sheet and the letter of its Row check column.
@@ -215,6 +243,18 @@ export function addDataSheet(wb: ExcelJS.Workbook, opts: DataSheetOptions): { ws
     const cell = ws.getCell(`${checkLetter}${r}`)
     cell.value = { formula: rowCheckFormula(opts, r) } as ExcelJS.CellFormulaValue
     cell.font = { size: 10 }
+  }
+
+  // The hidden helper cells the Row check reads for the custom fields.
+  if (opts.fieldRules) {
+    const n = opts.fieldRules.lastColumn - opts.fieldRules.firstColumn + 1
+    for (let k = 0; k < n; k++) {
+      const colNo = columns.length + 2 + k
+      ws.getColumn(colNo).hidden = true
+      for (let r = 2; r <= last; r++) {
+        ws.getCell(r, colNo).value = { formula: fieldRuleFormula(opts, r, k) } as ExcelJS.CellFormulaValue
+      }
+    }
   }
   const checkRange = `${checkLetter}2:${checkLetter}${last}`
   ws.addConditionalFormatting({

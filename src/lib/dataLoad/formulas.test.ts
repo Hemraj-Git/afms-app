@@ -266,3 +266,39 @@ describe('Assets: Row check and counters, recalculated', () => {
     expect(readMeTotal(hf, b, 'Rows still needing attention', 4)).toBe(2)
   })
 })
+
+// Excel silently deletes a formula it cannot hold ("Removed Records: Formula"
+// when the file opens): more than 64 nested levels, or over 8,192 characters.
+// The client's IT tab (21 custom fields) once hit 71 levels. A category twice
+// that size must still stay inside both limits.
+describe('Assets: every formula fits in Excel', () => {
+  it('stays under 64 nested levels and 8,192 characters, however many custom fields a category has', async () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      key: `field_${i}`, label: `Detail number ${i} with a long name`, type: (i % 3 === 0 ? 'Number' : 'Text') as 'Number' | 'Text',
+      unit: i % 2 ? 'mm' : undefined, required: i % 4 === 0, order: i,
+    }))
+    const subCategories = Array.from({ length: 30 }, (_, i) => ({
+      id: `s${i}`, code: `IT-${i}`, name: `A fairly long sub-category name ${i}`, categoryName: 'IT',
+      fields: many.filter((_, k) => (k + i) % 3 !== 0),
+    }))
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(await generateAssetsWorkbook({ subCategories, rooms: ['C / B / R'], vendors: [], rowsPerTab: 5 }) as unknown as ExcelJS.Buffer)
+
+    let checked = 0
+    wb.eachSheet(ws => ws.eachRow(row => row.eachCell(cell => {
+      const v = cell.value as { formula?: string } | null
+      if (!v || typeof v !== 'object' || !v.formula) return
+      let depth = 0
+      let deepest = 0
+      for (const ch of v.formula) {
+        if (ch === '(') deepest = Math.max(deepest, ++depth)
+        else if (ch === ')') depth--
+      }
+      // Bracket depth counts every function and grouping bracket, so it is at least Excel's own count.
+      expect(deepest, `${ws.name}!${cell.address} nesting`).toBeLessThanOrEqual(64)
+      expect(v.formula.length, `${ws.name}!${cell.address} length`).toBeLessThanOrEqual(8192)
+      checked++
+    })))
+    expect(checked).toBeGreaterThan(0)
+  })
+})

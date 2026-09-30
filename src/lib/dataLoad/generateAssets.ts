@@ -82,8 +82,6 @@ export function unionFieldHeader(group: CategoryGroup, field: FieldDef): string 
 
 export interface CategoryRefs {
   subCategoryList: { range: string; dropdown: string }
-  // Per custom field key: where its sub-category names are listed.
-  fieldRanges: Map<string, { appliesRange: string; requiredRange: string }>
 }
 
 // The columns of one category tab: the sub-category, the fixed asset columns,
@@ -100,16 +98,12 @@ export function categoryColumns(group: CategoryGroup, refs?: CategoryRefs): Colu
       listRange: refs?.subCategoryList,
     },
     ...ASSET_FIXED_COLUMNS,
-    ...group.fields.map<ColumnSpec>(f => {
-      const ranges = refs?.fieldRanges.get(f.key)
-      return {
-        key: `cf:${f.key}`,
-        header: unionFieldHeader(group, f),
-        kind: f.type === 'Number' ? 'number' : f.type === 'Date' ? 'date' : 'text',
-        width: 22,
-        conditional: ranges ? { onColumn: 0, ...ranges } : undefined,
-      }
-    }),
+    ...group.fields.map<ColumnSpec>(f => ({
+      key: `cf:${f.key}`,
+      header: unionFieldHeader(group, f),
+      kind: f.type === 'Number' ? 'number' : f.type === 'Date' ? 'date' : 'text',
+      width: 22,
+    })),
   ]
 }
 
@@ -135,11 +129,6 @@ export function writeAssetsMeta(
 
 const q = (name: string) => `'${name.replace(/'/g, "''")}'`
 
-const colRange = (sheet: string, column: number, rows: number) => {
-  const c = colLetter(column)
-  return `${q(sheet)}!$${c}$2:$${c}$${Math.max(rows, 1) + 1}`
-}
-
 export async function generateAssetsWorkbook(ctx: AssetsTemplateContext): Promise<Uint8Array> {
   if (ctx.subCategories.length === 0) {
     throw new Error('There are no sub-categories in the app yet. Load the Masters workbook first.')
@@ -162,11 +151,13 @@ export async function generateAssetsWorkbook(ctx: AssetsTemplateContext): Promis
   // and the sheets they read agree.
   // Lists tab: the named lists first, then one column of sub-categories per category.
   const subListColumn = (i: number) => LIST_ORDER.length + 1 + i
-  // _Fields tab: two columns per custom field (applies / required).
-  const fieldColumn = (groupIndex: number, fieldIndex: number) => {
+  // _Fields tab: one block per category, side by side with a blank column
+  // between: the sub-category names, then one column per custom field (in the
+  // tab's order) marked R (required), Y (allowed) or N (not its field).
+  const blockStart = (groupIndex: number) => {
     let n = 1
-    for (let g = 0; g < groupIndex; g++) n += groups[g].fields.length * 2
-    return n + fieldIndex * 2
+    for (let g = 0; g < groupIndex; g++) n += groups[g].fields.length + 2
+    return n
   }
 
   const refsFor = (g: CategoryGroup, i: number): CategoryRefs => {
@@ -177,15 +168,21 @@ export async function generateAssetsWorkbook(ctx: AssetsTemplateContext): Promis
         range: `Lists!$${c}$2:$${c}$${rows + 1}`,
         dropdown: `OFFSET(Lists!$${c}$2,0,0,MAX(1,COUNTIF(Lists!$${c}$2:$${c}$${rows + 1},"?*")),1)`,
       },
-      fieldRanges: new Map(
-        g.fields.map((f, fi) => [
-          f.key,
-          {
-            appliesRange: colRange(FIELDS_SHEET, fieldColumn(i, fi), rows),
-            requiredRange: colRange(FIELDS_SHEET, fieldColumn(i, fi) + 1, rows),
-          },
-        ])
-      ),
+    }
+  }
+
+  // Where the custom-field rules for a category live, for its Row check.
+  const rulesFor = (g: CategoryGroup, i: number, columns: ColumnSpec[]) => {
+    if (g.fields.length === 0) return undefined
+    const start = blockStart(i)
+    const last = g.subCategories.length + 1
+    const firstField = columns.length - g.fields.length
+    return {
+      subColumn: 0,
+      firstColumn: firstField,
+      lastColumn: columns.length - 1,
+      subs: `${q(FIELDS_SHEET)}!$${colLetter(start)}$2:$${colLetter(start)}$${last}`,
+      table: `${q(FIELDS_SHEET)}!$${colLetter(start + 1)}$2:$${colLetter(start + g.fields.length)}$${last}`,
     }
   }
 
@@ -193,6 +190,7 @@ export async function generateAssetsWorkbook(ctx: AssetsTemplateContext): Promis
     const columns = categoryColumns(g, refsFor(g, i))
     const { checkCol } = addDataSheet(wb, {
       name: names[i], columns, keyColumns: [], maxRows: rowsPerTab, listRows,
+      fieldRules: rulesFor(g, i, columns),
       intro: `Equipment in "${g.name}". One row per asset; choose its sub-category in the first column.`,
       tabColor: 'FF2563EB',
     })
@@ -217,18 +215,16 @@ export async function generateAssetsWorkbook(ctx: AssetsTemplateContext): Promis
   // ---- Which fields belong to which sub-category (read by the Row check) ----
   const fieldsWs = wb.addWorksheet(FIELDS_SHEET, { state: 'veryHidden' })
   groups.forEach((g, i) => {
-    g.fields.forEach((f, fi) => {
-      const applies = fieldColumn(i, fi)
-      fieldsWs.getCell(1, applies).value = `${g.name} | ${f.label} | applies to`
-      fieldsWs.getCell(1, applies + 1).value = `${g.name} | ${f.label} | required for`
-      let a = 2
-      let req = 2
-      for (const sub of g.subCategories) {
+    if (g.fields.length === 0) return
+    const start = blockStart(i)
+    fieldsWs.getCell(1, start).value = `${g.name} sub-category`
+    g.fields.forEach((f, fi) => { fieldsWs.getCell(1, start + 1 + fi).value = f.label })
+    g.subCategories.forEach((sub, k) => {
+      fieldsWs.getCell(k + 2, start).value = sub.name
+      g.fields.forEach((f, fi) => {
         const own = sub.fields.find(x => x.key === f.key)
-        if (!own) continue
-        fieldsWs.getCell(a++, applies).value = sub.name
-        if (own.required) fieldsWs.getCell(req++, applies + 1).value = sub.name
-      }
+        fieldsWs.getCell(k + 2, start + 1 + fi).value = own ? (own.required ? 'R' : 'Y') : 'N'
+      })
     })
   })
 
