@@ -94,9 +94,10 @@ async function main(): Promise<void> {
       const out = str(flags.out) ?? path.join(LOADS_DIR, 'AFMS-Assets-Workbook.xlsx')
       const template = assetsContextFromMasters(data)
       writeOut(out, await generateAssetsWorkbook(template))
+      const categories = new Set(template.subCategories.map(s => s.categoryName))
       console.log(
         `\nAssets workbook written to ${out}\n` +
-          `  ${template.subCategories.length} sub-categories (one tab each), ` +
+          `  ${categories.size} categories (one tab each), ${template.subCategories.length} sub-categories to choose from, ` +
           `${template.rooms.length} rooms and ${template.vendors.length} vendor(s) in the dropdowns` +
           `${warnings ? `, ${warnings} warning(s) above` : ''}.\n` +
           `  Built from ${path.basename(fromMasters)}, not from a database: load that same Masters file before loading the returned assets.`

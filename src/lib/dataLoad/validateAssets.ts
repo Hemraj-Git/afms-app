@@ -1,8 +1,8 @@
 import { nameKey, type Issue } from './coerce'
 import { parseSheetRows } from './parseRows'
 import { checkHeaders, type RawSheet } from './readWorkbook'
-import { assetColumns, subCategoryKey } from './generateAssets'
-import { META_SHEET, normalizeHeader, type SLA_PRIORITIES, type ASSET_STATUSES } from './spec'
+import { categoryColumns, groupByCategory } from './generateAssets'
+import { FIELDS_SHEET, META_SHEET, normalizeHeader, type SLA_PRIORITIES, type ASSET_STATUSES } from './spec'
 import type { FieldDef } from './validateMasters'
 
 // What the app already holds, so every reference in the workbook can be checked
@@ -48,10 +48,7 @@ const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : undefined)
 
 interface MetaTab {
   sheet: string
-  subCategoryId: string
-  subCategoryCode: string
-  // "Category / Sub-category". Empty in workbooks issued before this existed.
-  subCategoryKey: string
+  category: string
   columns: { key: string; header: string }[]
 }
 
@@ -68,10 +65,8 @@ export function readMeta(sheets: Map<string, RawSheet>): { kind: string; tabs: M
     try {
       tabs.push({
         sheet: first,
-        subCategoryId: String(r.cells[1] ?? ''),
-        subCategoryCode: String(r.cells[2] ?? ''),
-        columns: JSON.parse(String(r.cells[3] ?? '[]')),
-        subCategoryKey: String(r.cells[4] ?? ''),
+        category: String(r.cells[1] ?? ''),
+        columns: JSON.parse(String(r.cells[2] ?? '[]')),
       })
     } catch {
       /* an unreadable row is reported below as a missing tab */
@@ -95,18 +90,13 @@ export function validateAssets(
     return { assets, issues }
   }
 
-  const subById = new Map(ctx.subCategories.map(s => [s.id, s]))
-  // A workbook built from the Masters file carries no database ids (nothing was
-  // loaded when it was made), so fall back to "Category / Sub-category".
-  const subByKey = new Map(ctx.subCategories.map(s => [nameKey(subCategoryKey(s)), s]))
-  const findSub = (tab: MetaTab) =>
-    (tab.subCategoryId ? subById.get(tab.subCategoryId) : undefined) ??
-    (tab.subCategoryKey ? subByKey.get(nameKey(tab.subCategoryKey)) : undefined)
+  // A tab is a category; each row names its own sub-category.
+  const groupByName = new Map(groupByCategory(ctx.subCategories).map(g => [nameKey(g.name), g]))
   const roomByKey = new Map(ctx.rooms.map(r => [nameKey(r.label), r]))
   const vendorByKey = new Map(ctx.vendors.map(v => [nameKey(v.name), v]))
 
   // Tabs that are not part of the template would be silently ignored otherwise.
-  const known = new Set([...meta.tabs.map(t => t.sheet), 'Read Me', 'Lists', META_SHEET])
+  const known = new Set([...meta.tabs.map(t => t.sheet), 'Read Me', 'Lists', META_SHEET, FIELDS_SHEET])
   for (const name of sheets.keys()) {
     if (!known.has(name)) err(name, 0, `The tab "${name}" is not part of the template. Rows on it were not read; move them to the right tab.`)
   }
@@ -120,18 +110,19 @@ export function validateAssets(
       err(tab.sheet, 0, `The tab "${tab.sheet}" is missing (deleted or renamed). Use the file as we sent it.`)
       continue
     }
-    const sub = findSub(tab)
-    if (!sub) {
-      err(tab.sheet, 0, `The sub-category for the tab "${tab.sheet}" no longer exists in the app. Ask us for a fresh workbook.`)
+    const group = groupByName.get(nameKey(tab.category))
+    if (!group) {
+      err(tab.sheet, 0, `The category "${tab.category}" no longer exists in the app. Ask us for a fresh workbook.`)
       continue
     }
-    const columns = assetColumns(sub.fields)
-    // The template must still match the app's custom fields for this sub-category.
+    const subByName = new Map(group.subCategories.map(s => [nameKey(s.name), s]))
+    const columns = categoryColumns(group)
+    // The template must still match the app's custom fields for this category.
     const same =
       columns.length === tab.columns.length &&
       columns.every((c, i) => c.key === tab.columns[i].key && normalizeHeader(c.header) === normalizeHeader(tab.columns[i].header))
     if (!same) {
-      err(tab.sheet, 1, `The custom fields for "${sub.name}" changed after this workbook was made. Ask us for a fresh workbook.`)
+      err(tab.sheet, 1, `The sub-categories or custom fields of "${group.name}" changed after this workbook was made. Ask us for a fresh workbook.`)
       continue
     }
     const headerIssues = checkHeaders(sheet, { columns }, tab.sheet)
@@ -141,6 +132,13 @@ export function validateAssets(
     for (const rec of parseSheetRows(sheet, { columns }, tab.sheet, issues)) {
       const v = rec.v
       const at = (message: string) => err(tab.sheet, rec.row, message)
+
+      // Which sub-category this row is for decides which custom fields it may use.
+      const sub = subByName.get(nameKey(v.subCategory))
+      if (!sub) {
+        if (str(v.subCategory)) at(`Sub-category "${str(v.subCategory)}" is not one of the "${group.name}" sub-categories (pick it from the list).`)
+        continue
+      }
 
       const room = roomByKey.get(nameKey(v.room))
       if (str(v.room) && !room) at(`Room "${str(v.room)}" is not in the app (pick it from the list).`)
@@ -178,10 +176,22 @@ export function validateAssets(
         if (existingSerials.has(k)) at(`An asset with serial number "${serial}" already exists in this sub-category in the app.`)
       }
 
+      // Only the fields this sub-category defines. Anything filled in one of the
+      // category's other columns is said out loud rather than quietly dropped.
+      const own = new Map(sub.fields.map(f => [f.key, f]))
       const specs: Record<string, string> = {}
-      for (const f of sub.fields) {
+      for (const f of group.fields) {
         const raw = v[`cf:${f.key}`]
-        if (raw === undefined || raw === '') continue
+        const filled = raw !== undefined && raw !== ''
+        const mine = own.get(f.key)
+        if (!mine) {
+          if (filled) at(`"${f.label}" is not a detail of "${sub.name}"; leave it empty or choose another sub-category.`)
+          continue
+        }
+        if (!filled) {
+          if (mine.required) at(`"${mine.label}" is required for "${sub.name}".`)
+          continue
+        }
         specs[f.key] = String(raw)
       }
 

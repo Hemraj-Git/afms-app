@@ -180,15 +180,18 @@ describe('Masters: Row check and counters, recalculated', () => {
 
 describe('Assets: Row check and counters, recalculated', () => {
   let base: Book
+  // Wattage belongs to Light only; Finish to both. So on the one Electrical tab,
+  // which columns a row must fill depends on the sub-category it names.
   const fields = [
     { key: 'field_wattage', label: 'Wattage', type: 'Number' as const, unit: 'W', required: true, order: 1 },
     { key: 'field_installed_on', label: 'Installed on', type: 'Date' as const, required: false, order: 2 },
   ]
+  const fanFields = [{ key: 'field_installed_on', label: 'Installed on', type: 'Date' as const, required: true, order: 1 }]
   beforeAll(async () => {
     base = await toBook(await generateAssetsWorkbook({
       subCategories: [
         { id: 's1', code: 'ELEC-LIGH', name: 'Light', categoryName: 'Electrical', fields },
-        { id: 's2', code: 'ELEC-FAN', name: 'Ceiling Fan', categoryName: 'Electrical', fields: [] },
+        { id: 's2', code: 'ELEC-FAN', name: 'Ceiling Fan', categoryName: 'Electrical', fields: fanFields },
       ],
       rooms: ['Main Campus / Block A / Lab 1'],
       vendors: ['Cool Air Services'],
@@ -196,10 +199,11 @@ describe('Assets: Row check and counters, recalculated', () => {
     }))
   }, 60_000)
   const fresh = (): Book => structuredClone(base)
-  const checkCol = colLetter(ASSET_FIXED_COLUMNS.length + fields.length + 1)
+  const WATTAGE = 1 + ASSET_FIXED_COLUMNS.length
+  const checkCol = colLetter(WATTAGE + fields.length + 1)
   const row = (over: Record<number, unknown> = {}) => {
     const r: unknown[] = [
-      'Tube light 1', 'Main Campus / Block A / Lab 1', 'High', 'Philips', 'TL-1', 'SN-1', 1200,
+      'Light', 'Tube light 1', 'Main Campus / Block A / Lab 1', 'High', 'Philips', 'TL-1', 'SN-1', 1200,
       utcDate(2024, 1, 10), utcDate(2024, 1, 20), utcDate(2027, 1, 20), utcDate(2026, 6, 15),
       'Operational', 'Vendor', 'Cool Air Services', '', '', '', 'note', 36,
     ]
@@ -209,37 +213,55 @@ describe('Assets: Row check and counters, recalculated', () => {
 
   it('is OK for a complete asset and empty for an empty row', () => {
     const b = fresh()
-    put(b, 'Light', 2, row())
+    put(b, 'Electrical', 2, row())
     const hf = engine(b)
-    expect(read(hf, 'Light', `${checkCol}2`)).toBe('OK')
-    expect(read(hf, 'Light', `${checkCol}3`)).toBe('')
+    expect(read(hf, 'Electrical', `${checkCol}2`)).toBe('OK')
+    expect(read(hf, 'Electrical', `${checkCol}3`)).toBe('')
   })
 
   it('says what is wrong with an asset row', () => {
     const b = fresh()
-    put(b, 'Light', 2, row({ 2: '' })) // no SLA priority
-    put(b, 'Light', 3, row({ 1: 'Lab 1' })) // room not in the list
-    put(b, 'Light', 4, row({ 6: 'lots' })) // cost is text
-    put(b, 'Light', 5, row({ 10: 'June' })) // last serviced is text, not a date
-    put(b, 'Light', 6, row({ 11: 'Broken' })) // not a status
-    put(b, 'Light', 7, row({ 13: 'Cool Air' })) // vendor not in the list
-    put(b, 'Light', 8, row({ 18: '' })) // required custom field empty
+    put(b, 'Electrical', 2, row({ 3: '' })) // no SLA priority
+    put(b, 'Electrical', 3, row({ 2: 'Lab 1' })) // room not in the list
+    put(b, 'Electrical', 4, row({ 7: 'lots' })) // cost is text
+    put(b, 'Electrical', 5, row({ 11: 'June' })) // last serviced is text, not a date
+    put(b, 'Electrical', 6, row({ 12: 'Broken' })) // not a status
+    put(b, 'Electrical', 7, row({ 14: 'Cool Air' })) // vendor not in the list
+    put(b, 'Electrical', 8, row({ 0: '' })) // no sub-category
+    put(b, 'Electrical', 9, row({ 0: 'Split AC' })) // a sub-category of another category
     const hf = engine(b)
-    const msg = (r: number) => read(hf, 'Light', `${checkCol}${r}`)
+    const msg = (r: number) => read(hf, 'Electrical', `${checkCol}${r}`)
     expect(msg(2)).toBe('SLA priority is required')
     expect(msg(3)).toBe('Pick Room / area from the list')
     expect(msg(4)).toBe('Cost (INR) must be a number')
     expect(msg(5)).toBe('Last serviced date must be a date')
     expect(msg(6)).toBe('Pick Status from the list')
     expect(msg(7)).toBe('Pick Maintenance vendor from the list')
-    expect(msg(8)).toBe('Wattage (W) is required')
+    expect(msg(8)).toBe('Sub-category is required')
+    expect(msg(9)).toBe('Pick Sub-category from the list')
+  })
+
+  // The heart of the by-category format: the same column is required on one
+  // row, and not allowed on the next, depending on the sub-category chosen.
+  it('judges the extra detail columns by the sub-category on the row', () => {
+    const b = fresh()
+    put(b, 'Electrical', 2, row({ [WATTAGE]: '' })) // Light needs Wattage
+    put(b, 'Electrical', 3, row({ 0: 'Ceiling Fan', [WATTAGE + 1]: utcDate(2024, 2, 1) })) // fan: no Wattage, needs Installed on
+    put(b, 'Electrical', 4, row({ 0: 'Ceiling Fan', [WATTAGE + 1]: utcDate(2024, 2, 1) })) // same, but Wattage filled below
+    put(b, 'Electrical', 5, row({ 0: 'Ceiling Fan', [WATTAGE]: '', [WATTAGE + 1]: '' })) // fan missing Installed on
+    const hf = engine(b)
+    const msg = (r: number) => read(hf, 'Electrical', `${checkCol}${r}`)
+    expect(msg(2)).toBe('Wattage (W) is required for this sub-category')
+    expect(msg(3)).toBe('Wattage (W) does not apply to this sub-category')
+    expect(msg(4)).toBe('Wattage (W) does not apply to this sub-category')
+    expect(msg(5)).toBe('Installed on is required for this sub-category')
   })
 
   it('totals the problems across every tab on the Read Me', () => {
     const b = fresh()
-    put(b, 'Light', 2, row())
-    put(b, 'Light', 3, row({ 2: '' }))
-    put(b, 'Ceiling Fan', 2, ['Fan 1', 'Nowhere', 'Low'])
+    put(b, 'Electrical', 2, row())
+    put(b, 'Electrical', 3, row({ 3: '' }))
+    put(b, 'Electrical', 4, row({ 2: 'Nowhere' }))
     const hf = engine(b)
     expect(readMeTotal(hf, b, 'Rows still needing attention', 4)).toBe(2)
   })

@@ -57,6 +57,13 @@ export interface DataSheetOptions {
 
 const label = (c: ColumnSpec) => c.header.replace(/ \*$/, '')
 
+// Where a column's dropdown reads from: its own explicit range, or one of the
+// named lists.
+export function listFor(c: ColumnSpec, listRows: Record<ListName, number>) {
+  if (c.listRange) return c.listRange
+  return c.listRef ? listRefs(c.listRef, listRows[c.listRef]) : undefined
+}
+
 // The text of the Row check formula for one row.
 export function rowCheckFormula(opts: DataSheetOptions, r: number): string {
   const { columns, keyColumns, maxRows } = opts
@@ -72,8 +79,9 @@ export function rowCheckFormula(opts: DataSheetOptions, r: number): string {
     if (c.required) checks.push([blank(i), `${label(c)} is required`])
   })
   columns.forEach((c, i) => {
-    if (c.listRef) {
-      checks.push([`AND(${filled(i)},ISNA(MATCH(${cell(i)},${listRefs(c.listRef, opts.listRows[c.listRef]).range},0)))`, `Pick ${label(c)} from the list`])
+    const list = listFor(c, opts.listRows)
+    if (list) {
+      checks.push([`AND(${filled(i)},ISNA(MATCH(${cell(i)},${list.range},0)))`, `Pick ${label(c)} from the list`])
     }
     if (c.kind === 'integer' || c.kind === 'number') {
       checks.push([`AND(${filled(i)},NOT(ISNUMBER(${cell(i)})))`, `${label(c)} must be a number`])
@@ -89,6 +97,22 @@ export function rowCheckFormula(opts: DataSheetOptions, r: number): string {
       checks.push([`AND(${filled(i)},NOT(OR(${any})))`, `Pick ${label(c)} from the list`])
     }
   })
+  // Only once the sub-category itself is a real one: these say nothing useful
+  // about a row whose sub-category cell is empty or misspelled.
+  // A custom field that this row's sub-category must have, or must not have.
+  columns.forEach((c, i) => {
+    if (!c.conditional) return
+    const chosen = `${L(c.conditional.onColumn)}${r}`
+    checks.push([
+      `AND(COUNTIF(${c.conditional.requiredRange},${chosen})>0,${blank(i)})`,
+      `${label(c)} is required for this sub-category`,
+    ])
+    checks.push([
+      `AND(${filled(i)},COUNTIF(${c.conditional.appliesRange},${chosen})=0)`,
+      `${label(c)} does not apply to this sub-category`,
+    ])
+  })
+
   if (keyColumns.length > 0) {
     const idx = keyColumns.map(k => columns.findIndex(c => c.key === k))
     const allFilled = idx.map(filled).join(',')
@@ -148,9 +172,10 @@ export function addDataSheet(wb: ExcelJS.Workbook, opts: DataSheetOptions): { ws
     // ExcelJS keeps validations in a map of range -> rule at runtime, but leaves it
     // out of its typings.
     const dv = (ws as unknown as { dataValidations: { add(range: string, rule: ExcelJS.DataValidation): void } }).dataValidations
-    if (c.listRef) {
+    const list = listFor(c, opts.listRows)
+    if (list) {
       dv.add(range, {
-        type: 'list', allowBlank: true, formulae: [listRefs(c.listRef, opts.listRows[c.listRef]).dropdown],
+        type: 'list', allowBlank: true, formulae: [list.dropdown],
         showErrorMessage: true, errorStyle: 'stop', errorTitle: `Unknown ${label(c)}`,
         error: `Pick ${label(c)} from the list. If it is not there, add it on its own tab first.`,
       })

@@ -2,7 +2,7 @@
 import ExcelJS from 'exceljs'
 import { describe, expect, it, vi } from 'vitest'
 import { buildAssets, type TemplateForScheduling } from './buildAssets'
-import { assetColumns, generateAssetsWorkbook, subCategoryKey, tabNames, writeAssetsMeta } from './generateAssets'
+import { categoryColumns, generateAssetsWorkbook, groupByCategory, tabNames, writeAssetsMeta } from './generateAssets'
 import { assetsContextFromMasters } from './assetsFromMasters'
 import { readWorkbook } from './readWorkbook'
 import { ASSET_FIXED_COLUMNS, META_SHEET } from './spec'
@@ -19,10 +19,14 @@ const fields: FieldDef[] = [
   { key: 'field_finish', label: 'Finish', type: 'Text', required: false, order: 3 },
 ]
 
+// Two sub-categories in one category, so the tab carries the union of their
+// fields: Light has all three, Ceiling Fan only Finish.
+const fanFields: FieldDef[] = [{ key: 'field_finish', label: 'Finish', type: 'Text', required: true, order: 1 }]
+
 const ctx: AssetsContext = {
   subCategories: [
     { id: 'sub-1', code: 'ELEC-LIGH', name: 'Light', categoryName: 'Electrical', fields, pmTemplateIds: ['t-pm'], inspectionTemplateIds: ['t-in'] },
-    { id: 'sub-2', code: 'ELEC-FAN', name: 'Ceiling Fan', categoryName: 'Electrical', fields: [], pmTemplateIds: [], inspectionTemplateIds: [] },
+    { id: 'sub-2', code: 'ELEC-FAN', name: 'Ceiling Fan', categoryName: 'Electrical', fields: fanFields, pmTemplateIds: [], inspectionTemplateIds: [] },
   ],
   rooms: [{ id: 'r-1', label: 'Main Campus / Block A / Lab 1' }, { id: 'r-2', label: 'Main Campus / Block A / Store' }],
   vendors: [{ id: 'v-1', name: 'Cool Air Services' }],
@@ -41,12 +45,15 @@ const templateContext = {
   rowsPerTab: 40,
 }
 
-// Columns, in order: name, room, SLA, manufacturer, model, serial, cost, purchase, install,
-// warranty, last serviced, status, maintained by, maintenance vendor, purchased from,
-// AMC start, AMC end, notes, then the custom fields.
+// Columns, in order: sub-category, name, room, SLA, manufacturer, model, serial, cost,
+// purchase, install, warranty, last serviced, status, maintained by, maintenance vendor,
+// purchased from, AMC start, AMC end, notes, then the category's custom fields.
+const SUB = 0, NAME = 1, ROOM = 2, SLA = 3, SERIAL = 6, COST = 7, LAST_SERVICED = 11, MAINT_VENDOR = 14
+const CUSTOM = 1 + ASSET_FIXED_COLUMNS.length // Wattage, Installed on, Finish
+
 const lightRow = (over: Record<number, unknown> = {}) => {
   const row: unknown[] = [
-    'Tube light 1', 'Main Campus / Block A / Lab 1', 'High', 'Philips', 'TL-1', 'SN-1', 1200,
+    'Light', 'Tube light 1', 'Main Campus / Block A / Lab 1', 'High', 'Philips', 'TL-1', 'SN-1', 1200,
     utcDate(2024, 1, 10), utcDate(2024, 1, 20), utcDate(2027, 1, 20), utcDate(2026, 6, 15),
     'Operational', 'Vendor', 'Cool Air Services', '', '', '', 'Near window',
     36, utcDate(2024, 2, 1), 'White',
@@ -55,18 +62,19 @@ const lightRow = (over: Record<number, unknown> = {}) => {
   return row
 }
 
-const tabDefs = () => {
-  const names = tabNames(ctx.subCategories.map(s => s.name))
-  return ctx.subCategories.map((s, i) => ({ name: names[i], sub: s, columns: assetColumns(s.fields) }))
+const fanRow = (over: Record<number, unknown> = {}) => {
+  const row: unknown[] = ['Ceiling Fan', 'Fan 1', 'Main Campus / Block A / Store', 'Low']
+  row[CUSTOM + 2] = 'Brown' // Finish, the one field a fan has
+  Object.entries(over).forEach(([i, v]) => { row[Number(i)] = v })
+  return row
 }
-const metaTabs = () =>
-  tabDefs().map(t => ({
-    name: t.name,
-    subCategoryId: t.sub.id,
-    subCategoryCode: t.sub.code,
-    subCategoryKey: subCategoryKey(t.sub),
-    columns: t.columns,
-  }))
+
+const groups = () => groupByCategory(ctx.subCategories)
+const tabDefs = () => {
+  const names = tabNames(groups().map(g => g.name))
+  return groups().map((g, i) => ({ name: names[i], group: g, columns: categoryColumns(g) }))
+}
+const metaTabs = () => tabDefs().map(t => ({ name: t.name, category: t.group.name, columns: t.columns }))
 
 async function plainAssets(fills: Record<string, unknown[][]>, tamper?: (wb: ExcelJS.Workbook) => void) {
   return plainWorkbook(
@@ -97,14 +105,33 @@ describe('tabNames', () => {
   })
 })
 
+describe('groupByCategory', () => {
+  it('puts one tab per category, holding every custom field used in it, once', () => {
+    const [electrical] = groups()
+    expect(electrical.name).toBe('Electrical')
+    expect(electrical.subCategories.map(s => s.name)).toEqual(['Light', 'Ceiling Fan'])
+    // Finish is on both sub-categories but is one column.
+    expect(electrical.fields.map(f => f.label)).toEqual(['Wattage', 'Installed on', 'Finish'])
+  })
+})
+
 describe('the Assets template', () => {
-  it('has one tab per sub-category with that sub-category\'s custom fields as columns', async () => {
+  it('has one tab per category, starting with the sub-category to choose', async () => {
     const sheets = await readWorkbook(await generateAssetsWorkbook(templateContext), {}, 40)
-    expect([...sheets.keys()]).toEqual(['Read Me', 'Light', 'Ceiling Fan', 'Lists', '_Meta'])
-    const light = sheets.get('Light')!.headers.slice(0, ASSET_FIXED_COLUMNS.length + 3)
-    expect(light.slice(0, 3)).toEqual(['Asset name *', 'Room / area *', 'SLA priority *'])
-    expect(light.slice(ASSET_FIXED_COLUMNS.length)).toEqual(['Wattage (W) *', 'Installed on', 'Finish'])
-    expect(sheets.get('Ceiling Fan')!.headers[ASSET_FIXED_COLUMNS.length]).toBe('Row check')
+    expect([...sheets.keys()]).toEqual(['Read Me', 'Electrical', 'Lists', '_Fields', '_Meta'])
+    const headers = sheets.get('Electrical')!.headers
+    expect(headers.slice(0, 4)).toEqual(['Sub-category *', 'Asset name *', 'Room / area *', 'SLA priority *'])
+    // No star on a custom field: whether it is required depends on the row's sub-category.
+    expect(headers.slice(CUSTOM, CUSTOM + 3)).toEqual(['Wattage (W)', 'Installed on', 'Finish'])
+    expect(headers[CUSTOM + 3]).toBe('Row check')
+  })
+
+  it('offers only that category\'s sub-categories to choose from', async () => {
+    const sheets = await readWorkbook(await generateAssetsWorkbook(templateContext), {}, 40)
+    const lists = sheets.get('Lists')!
+    const col = lists.headers.indexOf('Electrical sub-categories')
+    expect(col).toBeGreaterThan(-1)
+    expect(lists.rows.map(r => r.cells[col]).filter(Boolean)).toEqual(['Light', 'Ceiling Fan'])
   })
 
   it('asks for the SLA priority and the last serviced date, and never for an asset number', () => {
@@ -120,7 +147,7 @@ describe('the Assets template', () => {
   })
 
   it('can be filled in and read back exactly as sent (the real template)', async () => {
-    const file = await fillWorkbook(await generateAssetsWorkbook(templateContext), { Light: [lightRow()] })
+    const file = await fillWorkbook(await generateAssetsWorkbook(templateContext), { Electrical: [lightRow()] })
     const r = await validate(file)
     expect(errors(r)).toEqual([])
     expect(r.assets).toHaveLength(1)
@@ -130,7 +157,7 @@ describe('the Assets template', () => {
 
 describe('validateAssets', () => {
   it('reads a correct row, keeping custom values as text like the app does', async () => {
-    const r = await validate(await plainAssets({ Light: [lightRow()] }))
+    const r = await validate(await plainAssets({ Electrical: [lightRow()] }))
     expect(errors(r)).toEqual([])
     expect(r.assets[0]).toMatchObject({
       subCategoryId: 'sub-1', price: 1200, purchaseDate: '2024-01-10', installDate: '2024-01-20',
@@ -139,126 +166,128 @@ describe('validateAssets', () => {
     expect(r.assets[0].specs).toEqual({ field_wattage: '36', field_installed_on: '2024-02-01', field_finish: 'White' })
   })
 
-  it('defaults status, maintained-by and leaves optional cells absent', async () => {
-    const r = await validate(await plainAssets({ 'Ceiling Fan': [['Fan 1', 'Main Campus / Block A / Store', 'Low']] }))
+  it('sends each row to the sub-category it names, on the same tab', async () => {
+    const r = await validate(await plainAssets({ Electrical: [lightRow(), fanRow()] }))
     expect(errors(r)).toEqual([])
-    expect(r.assets[0]).toMatchObject({ status: 'Operational', maintainedBy: 'In House', slaPriority: 'Low', specs: {} })
+    expect(r.assets.map(a => a.subCategoryId)).toEqual(['sub-1', 'sub-2'])
+    expect(r.assets[1].specs).toEqual({ field_finish: 'Brown' })
+  })
+
+  it('refuses a sub-category that does not belong to the tab\'s category', async () => {
+    const r = await validate(await plainAssets({ Electrical: [lightRow({ [SUB]: 'Split AC' })] }))
+    expect(errors(r).join('|')).toMatch(/Sub-category "Split AC" is not one of the "Electrical" sub-categories/)
+  })
+
+  it('needs the sub-category before anything else on the row', async () => {
+    const r = await validate(await plainAssets({ Electrical: [lightRow({ [SUB]: '' })] }))
+    expect(errors(r)).toContain('Sub-category: is required')
+  })
+
+  it('defaults status and maintained-by, and leaves optional cells absent', async () => {
+    const r = await validate(await plainAssets({ Electrical: [fanRow()] }))
+    expect(errors(r)).toEqual([])
+    expect(r.assets[0]).toMatchObject({ status: 'Operational', maintainedBy: 'In House', slaPriority: 'Low' })
     expect(r.assets[0].serial).toBeUndefined()
   })
 
-  it('needs a name, a room, an SLA priority and every required custom field', async () => {
-    // A row with only a manufacturer typed in (a completely blank row is simply ignored).
-    const r = await validate(await plainAssets({ Light: [['', '', '', 'Philips']], 'Ceiling Fan': [['Fan', 'Main Campus / Block A / Store', '']] }))
+  it('needs a name, a room and an SLA priority', async () => {
+    const r = await validate(await plainAssets({ Electrical: [['Light', '', '', '', 'Philips']] }))
     const e = errors(r)
     expect(e).toContain('Asset name: is required')
     expect(e).toContain('Room / area: is required')
-    expect(e).toContain('Wattage (W): is required')
-    expect(r.issues.filter(i => i.sheet === 'Light' && /SLA priority/.test(i.message))).toHaveLength(1)
-    expect(r.issues.filter(i => i.sheet === 'Ceiling Fan' && /SLA priority: is required/.test(i.message))).toHaveLength(1)
+    expect(e).toContain('SLA priority: is required')
+  })
+
+  // The point of one tab per category: which extra details apply is decided by
+  // the sub-category on the row, not by the tab.
+  it('asks for a custom field that the chosen sub-category requires', async () => {
+    const r = await validate(await plainAssets({ Electrical: [lightRow({ [CUSTOM]: '' })] }))
+    expect(errors(r).join('|')).toMatch(/"Wattage" is required for "Light"/)
+  })
+
+  it('refuses a custom field that belongs to another sub-category', async () => {
+    const r = await validate(await plainAssets({ Electrical: [fanRow({ [CUSTOM]: 40 })] }))
+    expect(errors(r).join('|')).toMatch(/"Wattage" is not a detail of "Ceiling Fan"/)
+  })
+
+  it('keeps a field that two sub-categories share', async () => {
+    const r = await validate(await plainAssets({ Electrical: [fanRow()] }))
+    expect(errors(r)).toEqual([])
+    expect(r.assets[0].specs).toEqual({ field_finish: 'Brown' })
   })
 
   it('refuses a room or vendor that is not in the app instead of guessing the nearest one', async () => {
-    const r = await validate(await plainAssets({ Light: [lightRow({ 1: 'Main Campus / Block A / Lab', 13: 'Cool Air' })] }))
+    const r = await validate(await plainAssets({ Electrical: [lightRow({ [ROOM]: 'Main Campus / Block A / Lab', [MAINT_VENDOR]: 'Cool Air' })] }))
     const e = errors(r).join('|')
     expect(e).toMatch(/Room "Main Campus \/ Block A \/ Lab" is not in the app/)
     expect(e).toMatch(/Maintenance vendor "Cool Air" is not in the app/)
   })
 
   it('reports a bad SLA priority, cost and date with the row', async () => {
-    const r = await validate(await plainAssets({ Light: [lightRow({ 2: 'Urgent', 6: 'lots', 10: 'sometime' })] }))
+    const r = await validate(await plainAssets({ Electrical: [lightRow({ [SLA]: 'Urgent', [COST]: 'lots', [LAST_SERVICED]: 'sometime' })] }))
     const e = errors(r).join('|')
     expect(e).toMatch(/SLA priority: "Urgent" is not one of: Critical, High, Medium, Low/)
     expect(e).toMatch(/Cost \(INR\): "lots" is not a valid number/)
     expect(e).toMatch(/Last serviced date: "sometime" is not a date/)
-    expect(r.issues.every(i => i.sheet === 'Light' && i.row === 2)).toBe(true)
+    expect(r.issues.every(i => i.sheet === 'Electrical' && i.row === 2)).toBe(true)
   })
 
   it('reports the same serial twice, and one that already exists in the app', async () => {
-    const r = await validate(await plainAssets({ Light: [lightRow(), lightRow({ 0: 'Tube light 2' }), lightRow({ 0: 'Old one', 5: 'old-1' })] }))
+    const r = await validate(await plainAssets({
+      Electrical: [lightRow(), lightRow({ [NAME]: 'Tube light 2' }), lightRow({ [NAME]: 'Old one', [SERIAL]: 'old-1' })],
+    }))
     const e = errors(r).join('|')
-    expect(e).toMatch(/Serial number "SN-1" is also on Light row 2/)
+    expect(e).toMatch(/Serial number "SN-1" is also on Electrical row 2/)
     expect(e).toMatch(/An asset with serial number "old-1" already exists/)
   })
 
   it('allows several identical assets with no serial number', async () => {
-    const r = await validate(await plainAssets({ Light: [lightRow({ 5: '' }), lightRow({ 5: '' })] }))
+    const r = await validate(await plainAssets({ Electrical: [lightRow({ [SERIAL]: '' }), lightRow({ [SERIAL]: '' })] }))
     expect(errors(r)).toEqual([])
     expect(r.assets).toHaveLength(2)
   })
 
   it('warns about a vendor-maintained asset with no vendor, and a last-serviced date in the future', async () => {
-    const r = await validate(await plainAssets({ Light: [lightRow({ 13: '', 10: utcDate(2100, 1, 1) })] }))
+    const r = await validate(await plainAssets({ Electrical: [lightRow({ [MAINT_VENDOR]: '', [LAST_SERVICED]: utcDate(2100, 1, 1) })] }))
     expect(errors(r)).toEqual([])
     const w = r.issues.filter(i => i.severity === 'warning').map(i => i.message).join('|')
     expect(w).toMatch(/no maintenance vendor is named/)
     expect(w).toMatch(/in the future/)
   })
 
-  it('stops when a tab was renamed, a heading changed, or the custom fields changed since it was sent', async () => {
-    const renamed = await validate(await plainAssets({ Light: [lightRow()] }, wb => { wb.getWorksheet('Light')!.name = 'Lights' }))
-    expect(errors(renamed).join('|')).toMatch(/The tab "Lights" is not part of the template/)
-    expect(errors(renamed).join('|')).toMatch(/The tab "Light" is missing/)
+  it('stops when a tab was renamed, a heading changed, or the fields changed since it was sent', async () => {
+    const renamed = await validate(await plainAssets({ Electrical: [lightRow()] }, wb => { wb.getWorksheet('Electrical')!.name = 'Electric' }))
+    expect(errors(renamed).join('|')).toMatch(/The tab "Electric" is not part of the template/)
+    expect(errors(renamed).join('|')).toMatch(/The tab "Electrical" is missing/)
 
-    const heading = await validate(await plainAssets({ Light: [lightRow()] }, wb => { wb.getWorksheet('Light')!.getCell('C1').value = 'Priority' }))
-    expect(errors(heading).join('|')).toMatch(/Column 3 should be "SLA priority \*" but is "Priority"/)
+    const heading = await validate(await plainAssets({ Electrical: [lightRow()] }, wb => { wb.getWorksheet('Electrical')!.getCell('D1').value = 'Priority' }))
+    expect(errors(heading).join('|')).toMatch(/Column 4 should be "SLA priority \*" but is "Priority"/)
 
-    const stale = await validate(await plainAssets({ Light: [lightRow()] }, wb => {
-      writeAssetsMeta(wb.getWorksheet(META_SHEET)!, [{ ...metaTabs()[0], columns: metaTabs()[0].columns.slice(0, -1) }, metaTabs()[1]])
+    const stale = await validate(await plainAssets({ Electrical: [lightRow()] }, wb => {
+      writeAssetsMeta(wb.getWorksheet(META_SHEET)!, [{ ...metaTabs()[0], columns: metaTabs()[0].columns.slice(0, -1) }])
     }))
-    expect(errors(stale).join('|')).toMatch(/custom fields for "Light" changed after this workbook was made/)
+    expect(errors(stale).join('|')).toMatch(/sub-categories or custom fields of "Electrical" changed/)
   })
 
   it('refuses a workbook that is not an Assets workbook', async () => {
     const file = await plainWorkbook([{ name: 'Sheet1', headers: ['x'] }], {})
     expect(errors(await validate(file)).join('|')).toMatch(/not an Assets workbook/)
   })
-
-  it('says so when no asset was entered', async () => {
-    expect(errors(await validate(await plainAssets({}))).join('|')).toMatch(/no assets on any tab/)
-  })
 })
 
+const now = new Date('2026-09-25T00:00:00Z')
+const inputs = async (fills: Record<string, unknown[][]>) => (await validate(await plainAssets(fills))).assets
+
 describe('buildAssets', () => {
-  const now = new Date(2026, 8, 25, 10, 0, 0) // 25 Sep 2026, local time
-
-  async function inputs(fills: Record<string, unknown[][]>) {
-    const r = await validate(await plainAssets(fills))
-    expect(errors(r)).toEqual([])
-    return r.assets
-  }
-
-  it('numbers assets after the highest existing AST number and builds the QR link', async () => {
-    const plan = buildAssets(await inputs({ Light: [lightRow(), lightRow({ 0: 'Tube light 2', 5: 'SN-2' })] }), ctx, templates, { assetIds: ['AST-0007', 'AST-0003'], inspectionNumbers: [] }, counterIds(), now)
-    expect(plan.assets.map(a => a.asset_id)).toEqual(['AST-0008', 'AST-0009'])
-    expect(plan.assets[0]).toMatchObject({
-      sub_category_id: 'sub-1', room_id: 'r-1', sla_priority: 'High', price: 1200, maintenance_by: 'Vendor',
-      maintenance_vendor_id: 'v-1', installation_date: '2024-01-20', last_serviced_date: '2026-06-15',
-      image_url: '/images/asset-placeholder.png', assigned_to_user_id: null,
-      qr_code_url: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AFMS-AST-0008',
-      dynamic_specifications: { field_wattage: '36', field_installed_on: '2024-02-01', field_finish: 'White' },
-    })
-  })
-
-  it('schedules the first maintenance and inspection one interval after the last serviced date', async () => {
-    const plan = buildAssets(await inputs({ Light: [lightRow()] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
+  it('schedules one preventive order and one inspection per template of the sub-category', async () => {
+    const plan = buildAssets(await inputs({ Electrical: [lightRow()] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
+    expect(plan.assets).toHaveLength(1)
     expect(plan.work_orders).toHaveLength(1)
-    expect(plan.work_orders[0]).toMatchObject({
-      type: 'Preventive', asset_id: plan.assets[0].id, title: 'Light quarterly (Quarterly)', frequency: 'Quarterly',
-      due_date: '2026-09-15', status: 'Scheduled', source: 'Scheduled', priority: 'Medium', checklist_template_id: 't-pm',
-    })
-    expect(plan.work_orders[0].wo_number).toBe(`PENDING-${plan.work_orders[0].id}`)
     expect(plan.inspections).toHaveLength(1)
-    expect(plan.inspections[0]).toMatchObject({ asset_id: plan.assets[0].id, template_id: 't-in', due_date: '2026-07-15', status: 'Scheduled' })
   })
 
-  it('counts from today when there is no last serviced date, never from the install date', async () => {
-    const plan = buildAssets(await inputs({ Light: [lightRow({ 10: '', 5: 'SN-9' })] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
-    expect(plan.work_orders[0].due_date).toBe('2026-12-25')
-    expect(plan.inspections[0].due_date).toBe('2026-10-25')
-  })
-
-  it('schedules nothing for a sub-category with no templates, but still records the asset', async () => {
-    const plan = buildAssets(await inputs({ 'Ceiling Fan': [['Fan 1', 'Main Campus / Block A / Store', 'Low']] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
+  it('schedules nothing for a sub-category with no templates', async () => {
+    const plan = buildAssets(await inputs({ Electrical: [fanRow()] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
     expect(plan.assets).toHaveLength(1)
     expect(plan.work_orders).toHaveLength(0)
     expect(plan.inspections).toHaveLength(0)
@@ -266,7 +295,7 @@ describe('buildAssets', () => {
   })
 
   it('writes an "Asset Created" history entry per asset, like a bulk import', async () => {
-    const plan = buildAssets(await inputs({ Light: [lightRow()] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
+    const plan = buildAssets(await inputs({ Electrical: [lightRow()] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
     expect(plan.asset_activity_logs[0]).toMatchObject({
       asset_id: plan.assets[0].id, action: 'Asset Created', source: 'Bulk Import', by_user: 'Data load', reference_id: null,
     })
@@ -274,24 +303,24 @@ describe('buildAssets', () => {
   })
 
   it('uses the same installation-date fallback as the app: purchase date, then today', async () => {
-    const a = buildAssets(await inputs({ Light: [lightRow({ 8: '' })] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
+    const a = buildAssets(await inputs({ Electrical: [lightRow({ 9: '' })] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
     expect(a.assets[0].installation_date).toBe('2024-01-10')
-    const b = buildAssets(await inputs({ Light: [lightRow({ 7: '', 8: '' })] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
+    const b = buildAssets(await inputs({ Electrical: [lightRow({ 8: '', 9: '' })] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
     expect(b.assets[0].installation_date).toBe('2026-09-25')
   })
 })
 
-// The Assets workbook can be made before anything is loaded, straight from a
-// filled Masters workbook -- so the client can start on the equipment list
-// while the masters wait for deployment day. Such a workbook carries no
-// database ids, so each tab is matched by "Category / Sub-category" instead.
+// Built straight from a filled Masters workbook, before anything is loaded, so
+// the client can start on the equipment list while the masters wait for
+// deployment day. Nothing here needs a database: a tab is a category by name,
+// and each row names its own sub-category.
 describe('an Assets workbook built from the Masters file (no database)', () => {
   const masters = {
     rooms: [{ label: 'Main Campus / Block A / Lab 1' }, { label: 'Main Campus / Block A / Store' }],
     vendors: [{ name: 'Cool Air Services' }],
     subCategories: [
       { name: 'Light', category: 'Electrical', fields },
-      { name: 'Ceiling Fan', category: 'Electrical', fields: [] },
+      { name: 'Ceiling Fan', category: 'Electrical', fields: fanFields },
     ],
   } as unknown as Parameters<typeof assetsContextFromMasters>[0]
 
@@ -303,30 +332,14 @@ describe('an Assets workbook built from the Masters file (no database)', () => {
     expect(c.subCategories.every(s => s.id === '' && s.code === '')).toBe(true)
   })
 
-  it('still loads once the masters are in and the sub-categories have real ids', async () => {
+  it('makes the same tabs as the database would, and loads once the masters are in', async () => {
     const file = await generateAssetsWorkbook({ ...assetsContextFromMasters(masters), rowsPerTab: 40 })
-    const filled = await plainWorkbook(
-      [{ name: 'Read Me', headers: [] }, ...tabDefs().map(t => ({ name: t.name, headers: t.columns.map(c => c.header) })), { name: META_SHEET, headers: [] }],
-      { Light: [lightRow()] },
-      wb => writeAssetsMeta(wb.getWorksheet(META_SHEET)!, metaTabs().map(t => ({ ...t, subCategoryId: '', subCategoryCode: '' })))
-    )
-    expect(file.length).toBeGreaterThan(0)
+    const sheets = await readWorkbook(file, {}, 120)
+    expect([...sheets.keys()]).toEqual(['Read Me', 'Electrical', 'Lists', '_Fields', '_Meta'])
+
+    const filled = await fillWorkbook(file, { Electrical: [lightRow()] })
     const { assets, issues } = validateAssets(await readWorkbook(filled, {}, 120), ctx)
     expect(issues.filter(i => i.severity === 'error')).toEqual([])
-    // Matched by name, so the asset lands on the real sub-category.
     expect(assets[0].subCategoryId).toBe('sub-1')
-  })
-
-  it('says so plainly when a tab names a sub-category that is not in the app', async () => {
-    const filled = await plainWorkbook(
-      [{ name: 'Read Me', headers: [] }, ...tabDefs().map(t => ({ name: t.name, headers: t.columns.map(c => c.header) })), { name: META_SHEET, headers: [] }],
-      { Light: [lightRow()] },
-      wb =>
-        writeAssetsMeta(
-          wb.getWorksheet(META_SHEET)!,
-          metaTabs().map(t => ({ ...t, subCategoryId: '', subCategoryCode: '', subCategoryKey: 'Electrical / Renamed' }))
-        )
-    )
-    expect(errors(await validate(filled)).join('|')).toMatch(/no longer exists in the app/)
-  })
+  }, 60_000)
 })

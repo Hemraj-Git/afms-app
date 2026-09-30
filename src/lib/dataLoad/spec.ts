@@ -33,8 +33,20 @@ export interface ColumnSpec {
   choices?: readonly string[]
   // Dropdown filled from another tab's data (a value that must already exist).
   listRef?: ListName
+  // A dropdown built somewhere other than the named lists above: the Assets
+  // workbook needs one list of sub-categories per category tab.
+  listRange?: { range: string; dropdown: string }
   // A value outside `choices` is only warned about, not refused.
   allowOther?: boolean
+  // A custom field on a category tab belongs only to some of that category's
+  // sub-categories, so whether it is required -- or allowed at all -- depends on
+  // the sub-category chosen in `onColumn` (a 0-based column index). Each range
+  // lists the sub-category names, on the hidden fields tab.
+  conditional?: {
+    onColumn: number
+    appliesRange: string
+    requiredRange: string
+  }
 }
 
 export interface SheetSpec {
@@ -252,6 +264,9 @@ export const ASSET_FIXED_COLUMNS: ColumnSpec[] = [
 ]
 
 export const META_SHEET = '_Meta'
+// Sub-category names per custom field, read only by the Assets workbook's Row
+// check formulas. Hidden, like _Meta, and not a tab anyone fills in.
+export const FIELDS_SHEET = '_Fields'
 export const ROW_CHECK_HEADER = 'Row check'
 
 // "*" and surrounding space never matter when matching a header.
@@ -264,5 +279,8 @@ export function customFieldKey(label: string): string {
 }
 
 export function customFieldHeader(f: { label: string; unit?: string; required: boolean }): string {
-  return `${f.label}${f.unit ? ` (${f.unit})` : ''}${f.required ? ' *' : ''}`
+  // Clients often write the unit into the field name already ("Capacity (VA/W)"),
+  // and "Capacity (VA/W) (VA/W)" helps nobody.
+  const said = f.unit ? f.label.toLowerCase().includes(`(${f.unit.toLowerCase()})`) : true
+  return `${f.label}${f.unit && !said ? ` (${f.unit})` : ''}${f.required ? ' *' : ''}`
 }
