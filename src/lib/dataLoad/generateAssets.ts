@@ -18,6 +18,11 @@ export interface AssetsTemplateContext {
 
 export const DEFAULT_ROWS_PER_TAB = 1000
 
+// How the Assets workbook names a sub-category when there is no database id to
+// point at: the same "Category / Sub-category" label the Masters workbook uses.
+export const subCategoryKey = (sub: { categoryName: string; name: string }): string =>
+  `${sub.categoryName} / ${sub.name}`
+
 // One tab per sub-category: Excel allows 31 characters and none of  [ ] : * ? / \
 export function tabNames(names: string[]): string[] {
   const used = new Set<string>()
@@ -52,7 +57,7 @@ export function assetColumns(fields: FieldDef[]): ColumnSpec[] {
 // the tab's name, so a renamed tab is noticed rather than loaded into the wrong place.
 export function writeAssetsMeta(
   meta: ExcelJS.Worksheet,
-  tabs: { name: string; subCategoryId: string; subCategoryCode: string; columns: ColumnSpec[] }[]
+  tabs: { name: string; subCategoryId: string; subCategoryCode: string; subCategoryKey: string; columns: ColumnSpec[] }[]
 ): void {
   meta.getCell('A1').value = 'kind'
   meta.getCell('B1').value = 'assets'
@@ -62,11 +67,15 @@ export function writeAssetsMeta(
   meta.getCell('B4').value = 'subCategoryId'
   meta.getCell('C4').value = 'subCategoryCode'
   meta.getCell('D4').value = 'columns'
+  // "Category / Sub-category": how a tab is matched when it carries no database
+  // id -- a workbook built from the Masters file, before anything is loaded.
+  meta.getCell('E4').value = 'subCategoryKey'
   tabs.forEach((t, i) => {
     meta.getCell(5 + i, 1).value = t.name
     meta.getCell(5 + i, 2).value = t.subCategoryId
     meta.getCell(5 + i, 3).value = t.subCategoryCode
     meta.getCell(5 + i, 4).value = JSON.stringify(t.columns.map(c => ({ key: c.key, header: c.header })))
+    meta.getCell(5 + i, 5).value = t.subCategoryKey
   })
 }
 
@@ -106,7 +115,13 @@ export async function generateAssetsWorkbook(ctx: AssetsTemplateContext): Promis
 
   writeAssetsMeta(
     wb.addWorksheet(META_SHEET, { state: 'veryHidden' }),
-    tabs.map(t => ({ name: t.name, subCategoryId: t.sub.id, subCategoryCode: t.sub.code, columns: t.columns }))
+    tabs.map(t => ({
+      name: t.name,
+      subCategoryId: t.sub.id,
+      subCategoryCode: t.sub.code,
+      subCategoryKey: subCategoryKey(t.sub),
+      columns: t.columns,
+    }))
   )
 
   // ---- Read Me ----

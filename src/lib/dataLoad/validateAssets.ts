@@ -1,7 +1,7 @@
 import { nameKey, type Issue } from './coerce'
 import { parseSheetRows } from './parseRows'
 import { checkHeaders, type RawSheet } from './readWorkbook'
-import { assetColumns } from './generateAssets'
+import { assetColumns, subCategoryKey } from './generateAssets'
 import { META_SHEET, normalizeHeader, type SLA_PRIORITIES, type ASSET_STATUSES } from './spec'
 import type { FieldDef } from './validateMasters'
 
@@ -50,6 +50,8 @@ interface MetaTab {
   sheet: string
   subCategoryId: string
   subCategoryCode: string
+  // "Category / Sub-category". Empty in workbooks issued before this existed.
+  subCategoryKey: string
   columns: { key: string; header: string }[]
 }
 
@@ -69,6 +71,7 @@ export function readMeta(sheets: Map<string, RawSheet>): { kind: string; tabs: M
         subCategoryId: String(r.cells[1] ?? ''),
         subCategoryCode: String(r.cells[2] ?? ''),
         columns: JSON.parse(String(r.cells[3] ?? '[]')),
+        subCategoryKey: String(r.cells[4] ?? ''),
       })
     } catch {
       /* an unreadable row is reported below as a missing tab */
@@ -93,6 +96,12 @@ export function validateAssets(
   }
 
   const subById = new Map(ctx.subCategories.map(s => [s.id, s]))
+  // A workbook built from the Masters file carries no database ids (nothing was
+  // loaded when it was made), so fall back to "Category / Sub-category".
+  const subByKey = new Map(ctx.subCategories.map(s => [nameKey(subCategoryKey(s)), s]))
+  const findSub = (tab: MetaTab) =>
+    (tab.subCategoryId ? subById.get(tab.subCategoryId) : undefined) ??
+    (tab.subCategoryKey ? subByKey.get(nameKey(tab.subCategoryKey)) : undefined)
   const roomByKey = new Map(ctx.rooms.map(r => [nameKey(r.label), r]))
   const vendorByKey = new Map(ctx.vendors.map(v => [nameKey(v.name), v]))
 
@@ -111,7 +120,7 @@ export function validateAssets(
       err(tab.sheet, 0, `The tab "${tab.sheet}" is missing (deleted or renamed). Use the file as we sent it.`)
       continue
     }
-    const sub = subById.get(tab.subCategoryId)
+    const sub = findSub(tab)
     if (!sub) {
       err(tab.sheet, 0, `The sub-category for the tab "${tab.sheet}" no longer exists in the app. Ask us for a fresh workbook.`)
       continue

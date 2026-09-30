@@ -23,6 +23,18 @@ export function parseSheetRows(
   const warn = (row: number, message: string) => issues.push({ severity: 'warning', sheet: sheetName, row, message })
 
   for (const r of sheet.rows) {
+    // A row counts as filled in only by the table's own columns. People paste
+    // notes and working copies into the empty space to the right; that must not
+    // turn into a row with "every required cell is missing". It is still said
+    // out loud, so a row typed one column too far over is never silently lost.
+    // (The Row check column, just after the last one, is ours and is skipped.)
+    if (spec.columns.every((_, i) => isBlank(r.cells[i]))) {
+      if (r.cells.slice(spec.columns.length + 1).some(c => !isBlank(c))) {
+        warn(r.row, 'There is text outside the table, to the right of the last column. This row was ignored.')
+      }
+      continue
+    }
+
     const v: Record<string, unknown> = {}
     spec.columns.forEach((c, i) => {
       const raw = r.cells[i]

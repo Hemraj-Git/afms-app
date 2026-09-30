@@ -1,4 +1,5 @@
 // @vitest-environment node
+import type ExcelJS from 'exceljs'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildMasters, emptyMastersSnapshot, planCounts } from './buildMasters'
 import { generateMastersWorkbook } from './generateMasters'
@@ -218,5 +219,37 @@ describe('buildMasters', () => {
     expect(rows.vendors).toHaveLength(0)
     // The other category still gets a code that does not clash with the existing ELEC.
     expect(rows.categories.map(c => c.code)).toEqual(['ELEC-2'])
+  })
+})
+
+// A real returned workbook had a working copy of the Custom Fields list pasted
+// into the empty columns beside the table, which turned 70 blank rows into 210
+// "this required cell is missing" errors. Content outside the table is not
+// data, but it is not silently dropped either.
+describe('text pasted outside the table', () => {
+  const strayAt = (sheet: string, firstCol: number) => (wb: ExcelJS.Workbook) => {
+    const ws = wb.getWorksheet(sheet)!
+    ws.getCell(40, firstCol).value = 'Field name *'
+    ws.getCell(41, firstCol).value = 'Dimensions'
+    ws.getCell(41, firstCol + 1).value = 'Text'
+  }
+
+  it('is ignored with a warning, not read as rows with missing cells', async () => {
+    const columns = MASTER_SPECS.customFields.columns.length
+    const file = await fillWorkbook(template, good(), strayAt('Custom Fields', columns + 3))
+    const { data, issues } = validateMasters(await readWorkbook(file))
+
+    expect(issues.filter(i => i.severity === 'error')).toEqual([])
+    const ignored = issues.filter(i => i.message.includes('outside the table'))
+    expect(ignored.map(i => i.row).sort((a, b) => a - b)).toEqual([40, 41])
+    expect(ignored[0].sheet).toBe('Custom Fields')
+    // The properly filled rows are untouched.
+    expect(data.subCategories.reduce((n, s) => n + s.fields.length, 0)).toBeGreaterThan(0)
+  })
+
+  it('does not excuse a row that really is missing a required cell', async () => {
+    const file = await fillWorkbook(template, { ...good(), Categories: [['Electrical', 'Wiring'], ['', 'no name']] })
+    const { issues } = validateMasters(await readWorkbook(file))
+    expect(issues.filter(i => i.severity === 'error').map(i => i.message).join('|')).toMatch(/is required/)
   })
 })

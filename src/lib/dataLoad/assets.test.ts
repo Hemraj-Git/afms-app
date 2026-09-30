@@ -2,7 +2,8 @@
 import ExcelJS from 'exceljs'
 import { describe, expect, it, vi } from 'vitest'
 import { buildAssets, type TemplateForScheduling } from './buildAssets'
-import { assetColumns, generateAssetsWorkbook, tabNames, writeAssetsMeta } from './generateAssets'
+import { assetColumns, generateAssetsWorkbook, subCategoryKey, tabNames, writeAssetsMeta } from './generateAssets'
+import { assetsContextFromMasters } from './assetsFromMasters'
 import { readWorkbook } from './readWorkbook'
 import { ASSET_FIXED_COLUMNS, META_SHEET } from './spec'
 import { counterIds, fillWorkbook, plainWorkbook, utcDate } from './testHelpers'
@@ -58,7 +59,14 @@ const tabDefs = () => {
   const names = tabNames(ctx.subCategories.map(s => s.name))
   return ctx.subCategories.map((s, i) => ({ name: names[i], sub: s, columns: assetColumns(s.fields) }))
 }
-const metaTabs = () => tabDefs().map(t => ({ name: t.name, subCategoryId: t.sub.id, subCategoryCode: t.sub.code, columns: t.columns }))
+const metaTabs = () =>
+  tabDefs().map(t => ({
+    name: t.name,
+    subCategoryId: t.sub.id,
+    subCategoryCode: t.sub.code,
+    subCategoryKey: subCategoryKey(t.sub),
+    columns: t.columns,
+  }))
 
 async function plainAssets(fills: Record<string, unknown[][]>, tamper?: (wb: ExcelJS.Workbook) => void) {
   return plainWorkbook(
@@ -270,5 +278,55 @@ describe('buildAssets', () => {
     expect(a.assets[0].installation_date).toBe('2024-01-10')
     const b = buildAssets(await inputs({ Light: [lightRow({ 7: '', 8: '' })] }), ctx, templates, { assetIds: [], inspectionNumbers: [] }, counterIds(), now)
     expect(b.assets[0].installation_date).toBe('2026-09-25')
+  })
+})
+
+// The Assets workbook can be made before anything is loaded, straight from a
+// filled Masters workbook -- so the client can start on the equipment list
+// while the masters wait for deployment day. Such a workbook carries no
+// database ids, so each tab is matched by "Category / Sub-category" instead.
+describe('an Assets workbook built from the Masters file (no database)', () => {
+  const masters = {
+    rooms: [{ label: 'Main Campus / Block A / Lab 1' }, { label: 'Main Campus / Block A / Store' }],
+    vendors: [{ name: 'Cool Air Services' }],
+    subCategories: [
+      { name: 'Light', category: 'Electrical', fields },
+      { name: 'Ceiling Fan', category: 'Electrical', fields: [] },
+    ],
+  } as unknown as Parameters<typeof assetsContextFromMasters>[0]
+
+  it('offers the rooms, vendors and sub-categories from the workbook, with no ids yet', () => {
+    const c = assetsContextFromMasters(masters)
+    expect(c.rooms).toEqual(['Main Campus / Block A / Lab 1', 'Main Campus / Block A / Store'])
+    expect(c.vendors).toEqual(['Cool Air Services'])
+    expect(c.subCategories.map(s => `${s.categoryName} / ${s.name}`)).toEqual(['Electrical / Light', 'Electrical / Ceiling Fan'])
+    expect(c.subCategories.every(s => s.id === '' && s.code === '')).toBe(true)
+  })
+
+  it('still loads once the masters are in and the sub-categories have real ids', async () => {
+    const file = await generateAssetsWorkbook({ ...assetsContextFromMasters(masters), rowsPerTab: 40 })
+    const filled = await plainWorkbook(
+      [{ name: 'Read Me', headers: [] }, ...tabDefs().map(t => ({ name: t.name, headers: t.columns.map(c => c.header) })), { name: META_SHEET, headers: [] }],
+      { Light: [lightRow()] },
+      wb => writeAssetsMeta(wb.getWorksheet(META_SHEET)!, metaTabs().map(t => ({ ...t, subCategoryId: '', subCategoryCode: '' })))
+    )
+    expect(file.length).toBeGreaterThan(0)
+    const { assets, issues } = validateAssets(await readWorkbook(filled, {}, 120), ctx)
+    expect(issues.filter(i => i.severity === 'error')).toEqual([])
+    // Matched by name, so the asset lands on the real sub-category.
+    expect(assets[0].subCategoryId).toBe('sub-1')
+  })
+
+  it('says so plainly when a tab names a sub-category that is not in the app', async () => {
+    const filled = await plainWorkbook(
+      [{ name: 'Read Me', headers: [] }, ...tabDefs().map(t => ({ name: t.name, headers: t.columns.map(c => c.header) })), { name: META_SHEET, headers: [] }],
+      { Light: [lightRow()] },
+      wb =>
+        writeAssetsMeta(
+          wb.getWorksheet(META_SHEET)!,
+          metaTabs().map(t => ({ ...t, subCategoryId: '', subCategoryCode: '', subCategoryKey: 'Electrical / Renamed' }))
+        )
+    )
+    expect(errors(await validate(filled)).join('|')).toMatch(/no longer exists in the app/)
   })
 })

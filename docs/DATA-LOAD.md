@@ -10,6 +10,7 @@ How to collect a client's master data and equipment list in Excel and load it on
 | 2 | Client | Fills it in until the Read Me says **"Rows still needing attention: 0"**, sends it back |
 | 3 | We | Dry-run, send the client the report if there are errors, repeat until clean, then **commit** |
 | 4 | We | `npm run data:assets-template` → **Assets workbook**, built from what was just loaded: one tab per sub-category, its custom fields as columns, dropdowns holding the real rooms and vendors |
+| 4b | We | *Or, before anything is loaded:* `npm run data:assets-template -- --from-masters <filled-masters.xlsx>` builds the same workbook straight from the returned Masters file, with no database. Use it when the masters are only going to be loaded on deployment day but the client can already start on the equipment list. |
 | 5 | Client | Fills in the equipment (one row per asset, on the tab for its type), sends it back |
 | 6 | We | Dry-run, fix, **pilot batch of ~10 assets** reviewed together, then the full commit |
 | 7 | We | Send the client the import report for sign-off |
@@ -41,6 +42,9 @@ npm run data:load -- --stage masters --file returned-masters.xlsx --commit --tar
 # 4. the Assets workbook, made from what is now in the database
 npm run data:assets-template -- --env .env.client      # -> data-loads/AFMS-Assets-Workbook.xlsx
 
+# 4b. the same workbook from the returned Masters file, with no database at all
+npm run data:assets-template -- --from-masters data-loads/AFMS-Masters-Workbook.xlsx
+
 # 5. check and load the returned assets
 npm run data:load -- --stage assets --file returned-assets.xlsx
 npm run data:load -- --stage assets --file returned-assets.xlsx --commit --target abcdefgh
@@ -54,6 +58,8 @@ A dry run prints what it would create, then every error and warning (also saved 
 ## What the loader checks
 
 - The workbook is the one we sent: tabs present, column headings exactly as issued (a renamed, moved or deleted column would shift every value). For the Assets workbook, a hidden tab records which tab is which sub-category, so a renamed tab or a sub-category whose custom fields changed since the workbook was made is refused ("ask for a fresh workbook").
+- **Text outside the table is ignored, with a warning naming the row.** People paste working copies and notes into the empty columns beside the table; those rows are not data and must not read as "every required cell is missing" (one returned workbook turned 70 such rows into 210 errors). A row typed one column too far over is therefore never silently lost -- it is reported.
+- A tab in an Assets workbook is matched to its sub-category by database id, or, for one built with `--from-masters` (no ids existed yet), by its **Category / Sub-category** name. So renaming a sub-category between making the workbook and loading it is refused rather than guessed at: load the same Masters file the workbook was built from.
 - **Exact matching only** (ignoring case and spacing): a room, vendor, category, template or sub-category that is not spelled exactly as it exists is an error, never "the nearest one".
 - Required cells, numbers (no text, no negatives; `₹` and thousands separators are accepted), dates (real Excel dates, or `DD-MM-YYYY`; impossible dates are refused), Yes/No, and every dropdown choice.
 - The same name twice; a template with no steps; the same step number twice; a custom field added twice; a serial number repeated on the workbook or already in the app.

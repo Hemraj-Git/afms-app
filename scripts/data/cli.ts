@@ -4,6 +4,7 @@ import path from 'node:path'
 import { buildAssets, ASSET_TABLE_ORDER } from '@/lib/dataLoad/buildAssets'
 import { buildMasters, MASTER_TABLE_ORDER, planCounts } from '@/lib/dataLoad/buildMasters'
 import type { Issue } from '@/lib/dataLoad/coerce'
+import { assetsContextFromMasters } from '@/lib/dataLoad/assetsFromMasters'
 import { generateAssetsWorkbook } from '@/lib/dataLoad/generateAssets'
 import { generateMastersWorkbook } from '@/lib/dataLoad/generateMasters'
 import { readWorkbook } from '@/lib/dataLoad/readWorkbook'
@@ -18,6 +19,7 @@ import {
 // Usage (see docs/DATA-LOAD.md):
 //   npm run data:masters-template -- [--out file.xlsx]
 //   npm run data:assets-template  -- [--out file.xlsx] [--env .env.client]
+//   npm run data:assets-template  -- --from-masters filled-masters.xlsx        (no database)
 //   npm run data:load -- --stage masters|assets --file filled.xlsx [--env .env.client]              (dry run)
 //   npm run data:load -- --stage masters|assets --file filled.xlsx --commit --target <host-part>   (writes)
 //   npm run data:undo -- --manifest data-loads/<file>.json --target <host-part> [--env .env.client]
@@ -78,6 +80,30 @@ async function main(): Promise<void> {
   }
 
   if (command === 'assets-template') {
+    // From a filled Masters workbook, before anything is loaded: the client can
+    // start on the equipment list while the masters wait for deployment day.
+    // Tabs carry no database id; they are matched by "Category / Sub-category".
+    const fromMasters = str(flags['from-masters'])
+    if (fromMasters) {
+      if (!existsSync(fromMasters)) fail(`File not found: ${fromMasters}`)
+      const sheets = await readWorkbook(new Uint8Array(readFileSync(fromMasters)), {}, 60)
+      const { data, issues } = validateMasters(sheets)
+      const { errors, warnings } = summarizeIssues(issues)
+      if (issues.length) printIssues(issues)
+      if (errors > 0) fail(`The Masters workbook has ${errors} error(s). Fix them (or ask the client to) before making the Assets workbook.`)
+      const out = str(flags.out) ?? path.join(LOADS_DIR, 'AFMS-Assets-Workbook.xlsx')
+      const template = assetsContextFromMasters(data)
+      writeOut(out, await generateAssetsWorkbook(template))
+      console.log(
+        `\nAssets workbook written to ${out}\n` +
+          `  ${template.subCategories.length} sub-categories (one tab each), ` +
+          `${template.rooms.length} rooms and ${template.vendors.length} vendor(s) in the dropdowns` +
+          `${warnings ? `, ${warnings} warning(s) above` : ''}.\n` +
+          `  Built from ${path.basename(fromMasters)}, not from a database: load that same Masters file before loading the returned assets.`
+      )
+      return
+    }
+
     loadEnvFile(envFile)
     const { client, host } = connect()
     const { template } = await assetsContext(client)
