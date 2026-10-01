@@ -9,7 +9,14 @@ const updateUser = vi.fn(async (v: { password: string }) => {
   void v
   return { error: null as null | { message: string } }
 })
-vi.mock('@/lib/supabase', () => ({ supabase: { auth: { updateUser: (v: { password: string }) => updateUser(v) } } }))
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    auth: {
+      updateUser: (v: { password: string }) => updateUser(v),
+      getUser: async () => ({ data: { user: { email: 'ravi@example.com' } } }),
+    },
+  },
+}))
 
 afterEach(() => {
   cleanup()
@@ -18,10 +25,10 @@ afterEach(() => {
 })
 
 const type = (password: string, confirm = password) => {
-  fireEvent.change(screen.getByLabelText('New Password'), { target: { value: password } })
-  fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: confirm } })
+  fireEvent.change(screen.getByLabelText('New password'), { target: { value: password } })
+  fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: confirm } })
 }
-const submit = () => screen.getByRole('button', { name: /Set Password/ }) as HTMLButtonElement
+const submit = () => screen.getByRole('button', { name: /Set password/i }) as HTMLButtonElement
 const met = () =>
   screen.getAllByRole('listitem').filter(li => li.getAttribute('data-met') === 'true').map(li => li.textContent?.replace(/\(done\)|\(not yet\)/, '').trim())
 
@@ -43,9 +50,9 @@ describe('Set password page', () => {
     expect(submit().disabled).toBe(true)
     type('Harbour#2026', 'Harbour#2025')
     expect(submit().disabled).toBe(true)
-    expect(screen.getByText('Passwords do not match yet.')).toBeTruthy()
+    expect(screen.getByText('Passwords do not match yet')).toBeTruthy()
     type('Harbour#2026')
-    expect(screen.getByText('Passwords match.')).toBeTruthy()
+    expect(screen.getByText('Passwords match')).toBeTruthy()
     expect(submit().disabled).toBe(false)
   })
 
@@ -64,5 +71,10 @@ describe('Set password page', () => {
     fireEvent.click(submit())
     expect((await screen.findByRole('alert')).textContent).toMatch(/data breach|at least 8 characters/)
     expect(push).not.toHaveBeenCalled()
+  })
+
+  it('says whose password is being set', async () => {
+    render(<SetPasswordPage />)
+    expect(await screen.findByText('ravi@example.com')).toBeTruthy()
   })
 })

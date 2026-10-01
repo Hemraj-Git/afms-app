@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isPublicPath, isRoleUnrestrictedPath } from '@/lib/routeAccess'
+import { desktopPathForFieldApp, FIELD_APP_PATH, isPublicPath, isRoleUnrestrictedPath } from '@/lib/routeAccess'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key'
@@ -62,6 +62,18 @@ export async function updateSession(request: NextRequest) {
     // whose profile row was missing fall straight through to the Admin pages.
     if (profile?.role !== 'Admin') {
       return NextResponse.redirect(new URL('/mobile', request.url))
+    }
+  }
+
+  // Admins do not use the field app: one who opens it (usually by scanning a
+  // room or asset QR code) goes to the same thing on the desktop. Only the live
+  // app at exactly /mobile -- the redesign being built at /mobile/v2 stays open
+  // to Admins so they can preview it. A failed read lets them through: this is
+  // a convenience, not a permission (the field app is open to every role).
+  if (user && pathname === FIELD_APP_PATH) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (profile?.role === 'Admin') {
+      return NextResponse.redirect(new URL(desktopPathForFieldApp(request.nextUrl.search), request.url))
     }
   }
 

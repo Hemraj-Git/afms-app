@@ -29,3 +29,18 @@ function matches(pathname: string, prefixes: readonly string[]): boolean {
 export const isPublicPath = (pathname: string): boolean => matches(pathname, PUBLIC_PATHS)
 
 export const isRoleUnrestrictedPath = (pathname: string): boolean => matches(pathname, ROLE_UNRESTRICTED_PREFIXES)
+
+// Admins do not use the field app. An Admin who lands on it -- typically by
+// scanning a room's or an asset's QR code, which opens /mobile?type=room&id=...
+// -- goes to the same thing on the desktop instead. The id goes into a path, so
+// only an id-shaped value is used; anything else lands on the dashboard.
+export const FIELD_APP_PATH = '/mobile'
+
+export function desktopPathForFieldApp(search: string): string {
+  const params = new URLSearchParams(search)
+  const id = params.get('id') ?? ''
+  const usable = /^[A-Za-z0-9-]{1,64}$/.test(id)
+  if (usable && params.get('type') === 'room') return `/organization/rooms/${id}`
+  if (usable && params.get('type') === 'asset') return `/assets/${id}`
+  return '/dashboard'
+}

@@ -8,8 +8,8 @@ export async function signIn(page: Page, who: keyof typeof ACCOUNTS) {
   const { password } = readState()
   await page.goto('/login')
   await page.getByPlaceholder('Enter your email').fill(ACCOUNTS[who].email)
-  await page.getByPlaceholder('Password').fill(password)
-  await page.getByRole('button', { name: 'Sign In & Continue' }).click()
+  await page.getByPlaceholder('Enter your password').fill(password)
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await page.waitForURL(who === 'admin' ? /\/dashboard/ : /\/mobile/, { timeout: 60_000 })
 }
 
@@ -58,11 +58,11 @@ export async function guestAtTestRoom(browser: Browser): Promise<{ context: Brow
   const page = collectErrors(await context.newPage())
   await page.goto(`/qr?type=room&id=${encodeURIComponent(roomId)}`)
   await page.waitForURL(/\/login/)
-  await page.getByRole('button', { name: 'Guest Access' }).click()
-  await page.getByPlaceholder('e.g. Alex Morgan / Visitor').fill(GUEST.name)
-  await page.getByPlaceholder('e.g. guest@maritime.com').fill(GUEST.email)
-  await page.getByPlaceholder('e.g. +91 98765 43210').fill(GUEST.phone)
-  await page.getByRole('button', { name: 'Continue to Scanned Entity' }).click()
+  await page.getByRole('radio', { name: 'Guest access' }).click()
+  await page.getByPlaceholder('e.g. Anita Desai').fill(GUEST.name)
+  await page.getByPlaceholder('name@example.com').fill(GUEST.email)
+  await page.getByPlaceholder('10-digit mobile number').fill(GUEST.phone)
+  await page.getByRole('button', { name: 'Continue as guest' }).click()
   await page.waitForURL(/\/mobile/, { timeout: 60_000 })
   await expect(page.getByText(roomName).first()).toBeVisible()
   return { context, page }

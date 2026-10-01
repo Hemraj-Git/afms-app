@@ -1,24 +1,14 @@
 'use client'
 
-import React, { useState, Suspense } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAFMS } from '@/context/AFMSContext'
-import {
-  CheckCircle2,
-  Eye,
-  EyeOff,
-  Anchor,
-  ShieldCheck,
-  User,
-  Mail,
-  Phone,
-  QrCode,
-  ArrowRight,
-  AlertCircle,
-  Loader2,
-} from 'lucide-react'
+import { Anchor, CheckCircle2, ChevronRight, CircleAlert, Eye, EyeOff, Lock, LogIn, Mail, Phone, ScanLine, ShieldCheck, UserRound } from 'lucide-react'
 import { signIn, guestSignIn } from '@/app/actions/auth'
 import { safeRedirectPath } from '@/lib/safeRedirect'
+import { supabase } from '@/lib/supabase'
+import { BrandMark, Button, IconButton, SegmentedControl, TextField } from '@/components/field'
 
 function LoginFormContent() {
   const router = useRouter()
@@ -107,283 +97,260 @@ function LoginFormContent() {
     }
   }
 
-  return (
-    <div className="w-full max-w-md space-y-6">
-      {/* QR Access Notice */}
-      {isQrRedirect && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-xs text-amber-900 animate-in fade-in">
-          <QrCode className="w-4 h-4 text-amber-600 shrink-0" />
-          <p className="font-medium">
-            Scanned QR Tag Detected: Sign in or continue as Guest to access the scanned facility entity.
-          </p>
-        </div>
-      )}
+  // Which room or asset was scanned, to name it in the notice. Signed-out
+  // visitors may read rooms and assets for exactly this ("Public read ... for
+  // QR scan"); if the lookup fails the notice simply leaves the name out.
+  const [scannedName, setScannedName] = useState('')
+  useEffect(() => {
+    if (!isQrRedirect) return
+    const params = new URLSearchParams(redirectTarget.split('?')[1] ?? '')
+    const type = params.get('type')
+    const id = params.get('id')
+    if (!id || (type !== 'room' && type !== 'asset')) return
+    let alive = true
+    const lookup =
+      type === 'room'
+        ? supabase.from('rooms').select('name, room_number').eq('id', id).maybeSingle()
+        : supabase.from('assets').select('name, asset_id').eq('id', id).maybeSingle()
+    lookup.then(({ data }) => {
+      if (!alive || !data) return
+      const row = data as { name?: string; room_number?: string; asset_id?: string }
+      const code = row.room_number || row.asset_id
+      setScannedName(code ? `${row.name} (${code})` : row.name || '')
+    })
+    return () => {
+      alive = false
+    }
+  }, [isQrRedirect, redirectTarget])
 
-      {/* Header */}
-      <div className="space-y-1.5">
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          {activeTab === 'staff' ? 'Sign In' : 'Guest Access'}
-        </h2>
-        <p className="text-xs sm:text-sm text-slate-500">
-          {activeTab === 'staff'
-            ? 'Sign in with your institute staff credentials to continue.'
-            : 'Enter your email & mobile number for instant room or asset access.'}
+  const [emailError, setEmailError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [guestNameError, setGuestNameError] = useState('')
+  const [guestEmailError, setGuestEmailError] = useState('')
+  const [guestPhoneError, setGuestPhoneError] = useState('')
+
+  const onStaffSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const eErr = !email.trim() ? 'Enter your work email' : !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Enter a full email address, like name@campus.example' : ''
+    const pErr = !password ? 'Enter your password' : ''
+    setEmailError(eErr)
+    setPasswordError(pErr)
+    if (eErr || pErr) return
+    void handleStaffSignIn(e)
+  }
+
+  const onGuestSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const nErr = !guestName.trim() ? 'Enter your full name' : ''
+    const eErr = !guestEmail.trim() ? 'Enter your email' : !/^\S+@\S+\.\S+$/.test(guestEmail.trim()) ? 'Enter a full email address, like name@example.com' : ''
+    const pErr = guestPhone.replace(/\D/g, '').length < 10 ? 'Enter your 10-digit mobile number' : ''
+    setGuestNameError(nErr)
+    setGuestEmailError(eErr)
+    setGuestPhoneError(pErr)
+    if (nErr || eErr || pErr) return
+    void handleGuestSignIn(e)
+  }
+
+  return (
+    <div className="flex w-full max-w-[440px] flex-col gap-5">
+      {/* On a phone the brand sits on top of the form (the photo panel is
+          desktop only). */}
+      <div className="md:hidden">
+        <BrandMark size="lg" />
+      </div>
+
+      {isQrRedirect ? (
+        <div role="status" className="flex items-center gap-2.5 rounded-xl border-[1.5px] border-[#BFD0FB] bg-fa-primary-weak px-3 py-2.5 text-[15px] leading-snug text-fa-primary-strong">
+          <ScanLine className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          <span>
+            <strong className="font-semibold">Scanned QR detected</strong>
+            {scannedName ? ` — ${scannedName}` : ''}. Sign in or continue as guest.
+          </span>
+        </div>
+      ) : null}
+
+      <div className="hidden flex-col gap-1.5 md:flex">
+        <h2 className="m-0 text-[28px] font-bold leading-tight">{activeTab === 'staff' ? 'Sign in' : 'Guest access'}</h2>
+        <p className="m-0 text-base text-fa-text-2">
+          {activeTab === 'staff' ? 'Use your work email and password.' : 'Enter your details to check in or report a problem.'}
         </p>
       </div>
 
-      {/* Login Mode Switcher Tabs */}
-      <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
-        <button
-          type="button"
-          onClick={() => setActiveTab('staff')}
-          className={`flex-1 py-2 rounded-lg transition text-center ${
-            activeTab === 'staff'
-              ? 'bg-white text-slate-900 shadow-xs font-bold'
-              : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          Staff Sign In
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('guest')}
-          className={`flex-1 py-2 rounded-lg transition text-center flex items-center justify-center gap-1.5 ${
-            activeTab === 'guest'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
-              : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>Guest Access</span>
-          <span className="text-[10px] px-1.5 py-0.2 bg-blue-500 text-white rounded-full">QR</span>
-        </button>
-      </div>
+      <SegmentedControl
+        label="How are you signing in?"
+        value={activeTab}
+        onChange={setActiveTab}
+        options={[
+          { value: 'staff', label: 'Staff sign in', icon: LogIn },
+          { value: 'guest', label: 'Guest access', icon: UserRound },
+        ]}
+      />
 
-      {/* STAFF SIGN IN FORM */}
       {activeTab === 'staff' ? (
-        <form onSubmit={handleStaffSignIn} className="space-y-4">
-          {/* Email Field */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-700">
-              Email<span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="w-full px-4 py-2.5 bg-white border border-blue-200/80 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs"
-              />
-            </div>
-          </div>
-
-          {loginError && (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+        <form onSubmit={onStaffSubmit} noValidate className="flex flex-col gap-4">
+          {loginError ? (
+            <div role="alert" className="flex items-center gap-2 rounded-xl border border-fa-danger/30 bg-fa-danger-weak px-3.5 py-3 text-[15px] font-medium text-fa-danger">
+              <CircleAlert className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
               <span>{loginError}</span>
             </div>
-          )}
-
-          {/* Password Field */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-700">
-                Password<span className="text-rose-500">*</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => router.push('/auth/forgot-password')}
-                className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
-              >
-                Forgot password?
-              </button>
-            </div>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Password"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs pr-10"
+          ) : null}
+          <TextField
+            label="Work email"
+            type="email"
+            icon={Mail}
+            autoComplete="username"
+            inputMode="email"
+            placeholder="Enter your email"
+            value={email}
+            onChange={e => {
+              setEmail(e.target.value)
+              if (emailError) setEmailError('')
+            }}
+            error={emailError || undefined}
+          />
+          <TextField
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            icon={Lock}
+            autoComplete="current-password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={e => {
+              setPassword(e.target.value)
+              if (passwordError) setPasswordError('')
+            }}
+            error={passwordError || undefined}
+            trailing={
+              <IconButton
+                icon={showPassword ? EyeOff : Eye}
+                label={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowPassword(s => !s)}
+                className="text-fa-text-2"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
+            }
+          />
+          <div className="-mt-1.5 flex justify-end">
+            <Link
+              href="/auth/forgot-password"
+              className="inline-flex min-h-12 items-center px-1 text-base font-semibold text-fa-primary underline underline-offset-[3px] hover:text-fa-primary-strong"
+            >
+              Forgot password?
+            </Link>
           </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isAuthenticating}
-            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed active:scale-[0.99] text-white font-semibold rounded-xl shadow-md shadow-blue-500/25 transition text-xs sm:text-sm flex items-center justify-center gap-2"
-          >
-            {isAuthenticating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>Authenticating with Supabase...</span>
-              </>
-            ) : (
-              <span>Sign In & Continue</span>
-            )}
-          </button>
+          <Button type="submit" icon={LogIn} loading={isAuthenticating}>
+            {isAuthenticating ? 'Signing in…' : 'Sign in'}
+          </Button>
         </form>
       ) : (
-        /* GUEST ACCESS FORM */
-        <form onSubmit={handleGuestSignIn} className="space-y-4 animate-in fade-in">
-          {guestError && (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium">
-              {guestError}
+        <form onSubmit={onGuestSubmit} noValidate className="flex flex-col gap-4">
+          {guestError ? (
+            <div role="alert" className="flex items-center gap-2 rounded-xl border border-fa-danger/30 bg-fa-danger-weak px-3.5 py-3 text-[15px] font-medium text-fa-danger">
+              <CircleAlert className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+              <span>{guestError}</span>
             </div>
-          )}
-
-          {/* Full Name */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-700">
-              Full Name <span className="text-slate-400 font-normal">(Optional)</span>
-            </label>
-            <div className="relative">
-              <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={guestName}
-                onChange={e => setGuestName(e.target.value)}
-                placeholder="e.g. Alex Morgan / Visitor"
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs"
-              />
-            </div>
-          </div>
-
-          {/* Email Field */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-700">
-              Email Address<span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="email"
-                required
-                value={guestEmail}
-                onChange={e => setGuestEmail(e.target.value)}
-                placeholder="e.g. guest@maritime.com"
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-blue-200/80 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs"
-              />
-            </div>
-          </div>
-
-          {/* Mobile Number Field */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-700">
-              Mobile Number<span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="tel"
-                required
-                value={guestPhone}
-                onChange={e => setGuestPhone(e.target.value)}
-                placeholder="e.g. +91 98765 43210"
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs"
-              />
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-500 space-y-1">
-            <p className="font-semibold text-slate-700">Guest Access Privileges:</p>
-            <p>• Check in / out of verified maritime training rooms.</p>
-            <p>• Directly report maintenance or housekeeping issues.</p>
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isGuestSubmitting}
-            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed active:scale-[0.99] text-white font-semibold rounded-xl shadow-md shadow-blue-500/25 transition text-xs sm:text-sm flex items-center justify-center gap-2"
-          >
-            {isGuestSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin text-white" />
-            ) : (
-              <>
-                <span>Continue to Scanned Entity</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
+          ) : null}
+          <TextField
+            label="Full name"
+            required
+            icon={UserRound}
+            autoComplete="name"
+            placeholder="e.g. Anita Desai"
+            value={guestName}
+            onChange={e => {
+              setGuestName(e.target.value)
+              if (guestNameError) setGuestNameError('')
+            }}
+            error={guestNameError || undefined}
+          />
+          <TextField
+            label="Email"
+            required
+            type="email"
+            icon={Mail}
+            autoComplete="email"
+            inputMode="email"
+            placeholder="name@example.com"
+            value={guestEmail}
+            onChange={e => {
+              setGuestEmail(e.target.value)
+              if (guestEmailError) setGuestEmailError('')
+            }}
+            error={guestEmailError || undefined}
+          />
+          <TextField
+            label="Mobile number"
+            required
+            type="tel"
+            icon={Phone}
+            autoComplete="tel"
+            inputMode="tel"
+            placeholder="10-digit mobile number"
+            value={guestPhone}
+            onChange={e => {
+              setGuestPhone(e.target.value)
+              if (guestPhoneError) setGuestPhoneError('')
+            }}
+            error={guestPhoneError || undefined}
+            hint="So the facilities team can reach you about your visit."
+          />
+          <Button type="submit" icon={ChevronRight} loading={isGuestSubmitting}>
+            {isGuestSubmitting ? 'Starting your visit…' : 'Continue as guest'}
+          </Button>
         </form>
       )}
+
+      <p className="m-0 pt-2 text-center text-sm leading-normal text-fa-text-2">Trouble signing in? Contact the facilities help desk.</p>
     </div>
   )
 }
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-white">
-      {/* Left Maritime Brand Banner */}
-      <div className="w-full md:w-1/2 relative text-white p-8 md:p-16 flex flex-col justify-between overflow-hidden bg-[#031d4d] min-h-[520px] md:min-h-screen">
+    <div className="flex min-h-dvh flex-col bg-fa-surface md:flex-row">
+      {/* Desktop only: the brand panel. On a phone the form comes first. */}
+      <div className="relative hidden min-h-screen w-1/2 flex-col justify-between overflow-hidden bg-[#031d4d] p-16 text-white md:flex">
         {/* Photographic Cruise Ship Bow Background Image */}
         <div
-          className="absolute inset-0 bg-cover bg-bottom md:bg-[right_bottom] pointer-events-none z-0 opacity-80"
+          className="pointer-events-none absolute inset-0 z-0 bg-cover bg-[right_bottom] opacity-80"
           style={{ backgroundImage: "url('/images/login-ship.jpg')" }}
         />
-
         {/* Deep Maritime Gradient Overlay for Text Readability */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#031b48] via-[#052668]/90 to-[#07388e]/60 pointer-events-none z-0" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#021333]/90 via-transparent to-[#031b48]/70 pointer-events-none z-0" />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-r from-[#031b48] via-[#052668]/90 to-[#07388e]/60" />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-[#021333]/90 via-transparent to-[#031b48]/70" />
 
-        {/* Brand Header */}
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white">
-              <Anchor className="w-6 h-6" />
-            </div>
-            <span className="font-extrabold text-2xl tracking-tight">AFMS</span>
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md">
+            <Anchor className="h-6 w-6" />
           </div>
+          <span className="text-2xl font-extrabold tracking-tight">AFMS</span>
         </div>
 
-        {/* Hero Copy */}
-        <div className="my-12 relative z-10 max-w-lg space-y-6">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-none text-white">
+        <div className="relative z-10 my-12 max-w-lg space-y-6">
+          <h1 className="text-5xl font-extrabold leading-none tracking-tight text-white lg:text-6xl">
             Streamline.<br />
             Track. Maintain.
           </h1>
-          <p className="text-blue-100 text-sm md:text-base leading-relaxed opacity-90">
+          <p className="text-base leading-relaxed text-blue-100 opacity-90">
             One operational command center for every asset, facility and service decision that keeps maritime training moving.
           </p>
-
           <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-3 text-sm text-blue-50 font-medium">
-              <CheckCircle2 className="w-5 h-5 text-blue-300 shrink-0" />
-              <span>Mission-critical asset visibility</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-blue-50 font-medium">
-              <CheckCircle2 className="w-5 h-5 text-blue-300 shrink-0" />
-              <span>Maintenance before downtime</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-blue-50 font-medium">
-              <CheckCircle2 className="w-5 h-5 text-blue-300 shrink-0" />
-              <span>Compliance-ready by default</span>
-            </div>
+            {['Mission-critical asset visibility', 'Maintenance before downtime', 'Compliance-ready by default'].map(t => (
+              <div key={t} className="flex items-center gap-3 text-sm font-medium text-blue-50">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-blue-300" />
+                <span>{t}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Bottom Tagline */}
-        <div className="relative z-10 text-xs text-blue-200/80 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4" />
+        <div className="relative z-10 flex items-center gap-2 text-xs text-blue-200/80">
+          <ShieldCheck className="h-4 w-4" />
           <span>Maritime Training Institute • Hemraj Marines Services</span>
         </div>
       </div>
 
-      {/* Right Login Form */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-8 md:p-16 bg-white">
-        <Suspense fallback={<div className="text-xs text-slate-400">Loading session authentication...</div>}>
+      <div className="flex w-full flex-1 justify-center px-5 pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,env(safe-area-inset-top))] md:w-1/2 md:items-center md:p-16">
+        <Suspense fallback={<div className="text-sm text-fa-text-2">Loading…</div>}>
           <LoginFormContent />
         </Suspense>
       </div>

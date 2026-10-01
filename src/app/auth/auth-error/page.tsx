@@ -1,42 +1,39 @@
 import Link from 'next/link'
-import { AlertTriangle } from 'lucide-react'
+import { KeyRound, LinkIcon } from 'lucide-react'
 import { EMAIL_LINK_VALID_HOURS } from '@/lib/authPolicy'
+import { AccountFrame, AccountIcon, HelpLine } from '@/components/field'
 
+const primary =
+  'flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-fa-primary bg-fa-primary px-[18px] text-[17px] font-semibold text-white hover:bg-fa-primary-strong'
+const secondary =
+  'flex min-h-[52px] w-full items-center justify-center rounded-xl border-[1.5px] border-fa-border-strong bg-fa-surface px-[18px] text-[17px] font-semibold text-fa-text hover:bg-fa-sunken'
+
+// Where an invite or reset link lands when it is used up or too old.
 export default function AuthErrorPage() {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-8 text-center space-y-4">
-        <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
-          <AlertTriangle className="w-6 h-6" />
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-lg font-bold text-slate-900">Link Expired or Invalid</h1>
-          <p className="text-xs text-slate-500">
-            This link is no longer valid. Each link works once, for {EMAIL_LINK_VALID_HOURS} hours.
-          </p>
-          <ul className="text-xs text-slate-600 text-left list-disc pl-5 space-y-1">
-            <li>
-              <strong>New account?</strong> Ask your administrator to resend the invite, or use{' '}
-              <strong>Forgot password?</strong> with the same email.
-            </li>
-            <li>
-              <strong>Resetting a password?</strong> Ask for a new link from <strong>Forgot password?</strong>
-            </li>
-            <li>Already set a password? Just sign in.</li>
-          </ul>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Link
-            href="/auth/forgot-password"
-            className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition"
-          >
-            Get a new link
-          </Link>
-          <Link href="/login" className="inline-block px-4 py-2 text-blue-600 hover:text-blue-700 text-xs font-semibold">
-            Go to Sign In
-          </Link>
-        </div>
+    <AccountFrame>
+      <AccountIcon tone="danger">
+        <LinkIcon className="h-[34px] w-[34px]" strokeWidth={2} aria-hidden />
+      </AccountIcon>
+      <div className="flex flex-col gap-2">
+        <h1 className="m-0 text-[28px] font-bold leading-tight">This link has expired</h1>
+        <p className="m-0 text-[17px] leading-relaxed text-fa-text-2">
+          For your security, each link works once and only for {EMAIL_LINK_VALID_HOURS} hours. Ask for a new one below.
+        </p>
+        <p className="m-0 text-base leading-relaxed text-fa-text-2">
+          New to AFMS? Your administrator can resend your invite. Already set a password? Just sign in.
+        </p>
       </div>
-    </div>
+      <div className="flex flex-col gap-2.5">
+        <Link href="/auth/forgot-password" className={primary}>
+          <KeyRound className="h-5 w-5" strokeWidth={2.25} aria-hidden />
+          Get a new link
+        </Link>
+        <Link href="/login" className={secondary}>
+          Go to sign in
+        </Link>
+      </div>
+      <HelpLine />
+    </AccountFrame>
   )
 }

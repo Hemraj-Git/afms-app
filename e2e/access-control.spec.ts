@@ -22,8 +22,8 @@ test('an account with no staff profile is refused and left signed out', async ({
 
   await page.goto('/login')
   await page.getByPlaceholder('Enter your email').fill(email)
-  await page.getByPlaceholder('Password').fill(password)
-  await page.getByRole('button', { name: 'Sign In & Continue' }).click()
+  await page.getByPlaceholder('Enter your password').fill(password)
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByText('No staff profile is registered for this account.')).toBeVisible()
 
   // The session must be gone: an Admin page sends them to sign in, not in.
@@ -35,8 +35,8 @@ test('?redirect= cannot send someone to another site after signing in', async ({
   const { password } = readState()
   await page.goto('/login?redirect=' + encodeURIComponent('//evil.example.com/steal'))
   await page.getByPlaceholder('Enter your email').fill(ACCOUNTS.admin.email)
-  await page.getByPlaceholder('Password').fill(password)
-  await page.getByRole('button', { name: 'Sign In & Continue' }).click()
+  await page.getByPlaceholder('Enter your password').fill(password)
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await page.waitForURL(/localhost:3000\/dashboard/, { timeout: 60_000 })
   expect(new URL(page.url()).host).toBe('localhost:3000')
 })
