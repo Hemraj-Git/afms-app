@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   ArrowRight,
   LogOut,
+  KeyRound,
   Sparkles,
   ClipboardList,
   Upload,
@@ -69,6 +70,7 @@ import { OutsideRepairPanel, OutsideRepairTag } from '@/components/outsideRepair
 import { Skeleton, SkeletonRegion, ListSkeleton } from '@/components/ui/Skeleton'
 
 import { Modal, MOBILE_OVERLAY } from '@/components/ui/Modal'
+import { ChangePasswordForm } from '@/components/auth/ChangePasswordForm'
 // Shown in place of CameraCaptureButton when viewing a completed record
 // with no photo attached -- matches the light-theme placeholder already
 // used on the admin Corrective/Preventive pages' evidence cards, adapted
@@ -136,6 +138,9 @@ function MobileFieldAppContent() {
   // elsewhere in the app used styled banners -- now everything does).
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const toastTimeoutRef = React.useRef<number | null>(null)
+  // Profile -> Change Password (staff only; a Guest has no password).
+  const [showChangePassword, setShowChangePassword] = useState(false)
+
   const showToast = (type: 'success' | 'error', text: string) => {
     setToast({ type, text })
     if (toastTimeoutRef.current) window.clearTimeout(toastTimeoutRef.current)
@@ -2076,6 +2081,44 @@ function MobileFieldAppContent() {
                   </span>
                 </div>
               </div>
+
+              {currentUser.role !== 'Guest' && (
+                <button
+                  type="button"
+                  onClick={() => setShowChangePassword(true)}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Change Password</span>
+                </button>
+              )}
+
+              {showChangePassword && (
+                <Modal
+                  title="Change password"
+                  onClose={() => setShowChangePassword(false)}
+                  overlayClassName={MOBILE_OVERLAY}
+                  className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-5 space-y-4 text-slate-100"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+                      <KeyRound className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-white">Change password</h2>
+                      <p className="text-[11px] text-slate-400">Enter your current password, then choose a new one.</p>
+                    </div>
+                  </div>
+                  <ChangePasswordForm
+                    tone="dark"
+                    onCancel={() => setShowChangePassword(false)}
+                    onDone={() => {
+                      setShowChangePassword(false)
+                      showToast('success', 'Password changed. Use the new one next time you sign in.')
+                    }}
+                  />
+                </Modal>
+              )}
 
               {currentUser.role === 'Admin' && (
                 <Link

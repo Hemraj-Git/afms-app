@@ -3,8 +3,9 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Lock, Eye, EyeOff, AlertCircle, Loader2, ShieldCheck, Check, Circle } from 'lucide-react'
-import { friendlyPasswordError, PASSWORD_MIN_LENGTH, PASSWORD_RULES, passwordMeetsPolicy } from '@/lib/authPolicy'
+import { Lock, Eye, EyeOff, AlertCircle, Loader2, ShieldCheck } from 'lucide-react'
+import { friendlyPasswordError, PASSWORD_MIN_LENGTH, passwordMeetsPolicy } from '@/lib/authPolicy'
+import { PasswordChecklist } from '@/components/auth/PasswordChecklist'
 
 // Landed on after /auth/confirm establishes a real session for an invited
 // (or password-reset) user. This is the step the invite flow was missing
@@ -95,22 +96,7 @@ export default function SetPasswordPage() {
               </button>
             </div>
 
-            <ul id="password-rules" aria-label="Password rules" className="pt-1 space-y-1">
-              {PASSWORD_RULES.map(rule => {
-                const ok = rule.met(password)
-                return (
-                  <li
-                    key={rule.id}
-                    data-met={ok}
-                    className={`flex items-center gap-2 text-[11px] font-medium transition ${ok ? 'text-emerald-700' : 'text-slate-500'}`}
-                  >
-                    {ok ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Circle className="w-3 h-3 text-slate-300" />}
-                    <span>{rule.label}</span>
-                    <span className="sr-only">{ok ? '(done)' : '(not yet)'}</span>
-                  </li>
-                )
-              })}
-            </ul>
+            <PasswordChecklist password={password} id="password-rules" />
           </div>
 
           <div className="space-y-1.5">

@@ -39,6 +39,8 @@ export function friendlyPasswordError(message: string): string {
   if (m.includes('at least one character of each') || m.includes('weak') || m.includes('should be at least')) {
     return `The password needs at least ${PASSWORD_MIN_LENGTH} characters, with a lowercase letter, an uppercase letter, a number and a symbol.`
   }
+  // Supabase's "Secure password change": an older sign-in must be renewed first.
+  if (m.includes('reauthenticat')) return 'For your security, sign out and sign in again, then change the password.'
   if (m.includes('session') || m.includes('jwt') || m.includes('not authenticated') || m.includes('auth session missing')) {
     return 'This link has expired. Ask for a new one from the sign-in page ("Forgot password?").'
   }

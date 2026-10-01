@@ -2,7 +2,12 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { friendlyPasswordError, PASSWORD_MIN_LENGTH, passwordMeetsPolicy } from '@/lib/authPolicy'
 import type { UserRole } from '@/types/afms'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co'
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key'
 
 export type AuthResult =
   | { success: true; profile: { id: string; fullName: string; role: UserRole; department: string; phone: string; email: string } }
@@ -142,4 +147,52 @@ export async function guestSignIn(input: { fullName?: string; email: string; pho
   }
 
   return { success: true, profile: { id: data.user.id, fullName, email, phone } }
+}
+
+export type ChangePasswordResult =
+  | { success: true }
+  | { success: false; error: string; field?: 'current' | 'new' }
+
+// A signed-in staff member choosing a new password. Supabase itself would let
+// any signed-in session set a new password without knowing the old one, so a
+// phone left unlocked could be used to take the account over. The current
+// password is therefore checked first -- by signing in with it on a separate,
+// throwaway client, so the person's own sign-in is not touched -- and that
+// extra sign-in is ended straight away. Then the password is changed on the
+// person's own session, so Supabase applies its own rules to it as well.
+export async function changePassword(currentPassword: string, newPassword: string): Promise<ChangePasswordResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !user.email || user.is_anonymous) {
+    return { success: false, error: 'Sign in with your staff account to change your password.' }
+  }
+
+  if (!passwordMeetsPolicy(newPassword)) {
+    return {
+      success: false,
+      field: 'new',
+      error: `The new password needs at least ${PASSWORD_MIN_LENGTH} characters, with a lowercase letter, an uppercase letter, a number and a symbol.`,
+    }
+  }
+  if (newPassword === currentPassword) {
+    return { success: false, field: 'new', error: 'The new password must be different from the current one.' }
+  }
+
+  const verifier = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  })
+  const { error: checkError } = await verifier.auth.signInWithPassword({ email: user.email, password: currentPassword })
+  if (checkError) {
+    if (checkError.status === 429) {
+      return { success: false, field: 'current', error: 'Too many attempts. Wait a few minutes, then try again.' }
+    }
+    return { success: false, field: 'current', error: 'That is not your current password.' }
+  }
+  // 'local' ends only the session just made for the check; the default would
+  // sign the person out everywhere.
+  await verifier.auth.signOut({ scope: 'local' })
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) return { success: false, field: 'new', error: friendlyPasswordError(error.message) }
+  return { success: true }
 }
