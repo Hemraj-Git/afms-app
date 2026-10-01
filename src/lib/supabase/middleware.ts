@@ -66,10 +66,9 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Admins do not use the field app: one who opens it (usually by scanning a
-  // room or asset QR code) goes to the same thing on the desktop. Only the live
-  // app at exactly /mobile -- the redesign being built at /mobile/v2 stays open
-  // to Admins so they can preview it. A failed read lets them through: this is
-  // a convenience, not a permission (the field app is open to every role).
+  // room or asset QR code) goes to the same thing on the desktop. A failed read
+  // lets them through (the app then shows them the way to the desktop): this
+  // is a convenience, not a permission (the field app is open to every role).
   if (user && pathname === FIELD_APP_PATH) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
     if (profile?.role === 'Admin') {

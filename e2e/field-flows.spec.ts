@@ -25,15 +25,18 @@ test('guest checks in and out; the Admin sees the room occupied, then free', asy
   const guest = await guestAtTestRoom(browser)
   const admin = await adminPage(browser)
 
-  await guest.page.getByPlaceholder('e.g. Class session, Inspection, Equipment check...').fill(`${E2E} lab session`)
-  await guest.page.getByRole('button', { name: 'Confirm Check-In to Room' }).click()
-  await expect(guest.page.getByText(`Active in: ${roomName}`)).toBeVisible()
+  // The QR link opened the room: check in with a purpose.
+  await guest.page.getByRole('button', { name: 'Lab session' }).click()
+  await guest.page.getByLabel('Details (optional)').fill(`${E2E} lab session`)
+  await guest.page.getByRole('button', { name: 'Confirm check-in' }).click()
+  await expect(guest.page.getByText('You’re checked in', { exact: true })).toBeVisible()
 
   await findRoomCard(admin.page, roomName)
   await expect(admin.page.getByText(`In use by: ${GUEST.name}`)).toBeVisible()
 
-  await guest.page.getByRole('button', { name: 'Check Out' }).first().click()
-  await expect(guest.page.getByText(`Active in: ${roomName}`)).toHaveCount(0)
+  await guest.page.getByRole('button', { name: 'Check out' }).first().click()
+  await guest.page.getByRole('dialog').getByRole('button', { name: 'Check out' }).click()
+  await expect(guest.page.getByText('You’re checked in', { exact: true })).toHaveCount(0)
 
   await findRoomCard(admin.page, roomName)
   await expect(admin.page.getByText(`In use by: ${GUEST.name}`)).toHaveCount(0)
@@ -46,13 +49,13 @@ test('guest raises a housekeeping request; the Admin finds it on the Service Req
   const title = `${E2E} Spill near door ${stamp()}`
   const guest = await guestAtTestRoom(browser)
 
-  await guest.page.getByRole('button', { name: 'Housekeeping' }).click()
-  await guest.page.getByPlaceholder('e.g. Broken knob, Spilled water...').fill(title)
-  await guest.page
-    .getByPlaceholder('Describe what is malfunctioning, leaking, unhygienic, or needs immediate attention...')
-    .fill('Water on the floor by the entrance (automated test).')
-  await guest.page.getByRole('button', { name: 'Submit Service Request' }).click()
-  await expect(guest.page.getByText('Service Request Logged Successfully!')).toBeVisible()
+  await guest.page.getByRole('button', { name: 'Report a problem here' }).click()
+  await expect(guest.page.getByText('Filled in from your scan.')).toBeVisible()
+  await guest.page.getByRole('radio', { name: 'Housekeeping' }).click()
+  await guest.page.getByLabel('Title').fill(title)
+  await guest.page.getByLabel(/^Description/).fill('Water on the floor by the entrance (automated test).')
+  await guest.page.getByRole('button', { name: 'Submit request' }).click()
+  await expect(guest.page.getByRole('heading', { name: 'Request submitted' })).toBeVisible()
   await guest.context.close()
 
   const admin = await adminPage(browser)
@@ -80,45 +83,47 @@ test('Admin creates and assigns a corrective work order; the technician sends a 
   await form.getByRole('button', { name: 'Create Work Order' }).click()
   await expect(form).toHaveCount(0)
   await admin.page.getByPlaceholder('Search WO#, asset, room, tech...').fill(title)
-  await expect(admin.page.getByRole('row').filter({ hasText: title })).toContainText('Scheduled')
+  const adminRow = admin.page.getByRole('row').filter({ hasText: title })
+  await expect(adminRow).toContainText('Scheduled')
+  const woNumber = (await adminRow.textContent())?.match(/WO-CR-\d{4}-\d{4}/)?.[0]
+  if (!woNumber) throw new Error('no work order number in the Admin list')
 
-  // Technician: field app → Tasks → Execute Task
+  // Technician: field app → Tasks (their home) → the job's card → Start
   const tech = await techPhone(browser)
   await tech.page.goto('/mobile')
-  await tech.page.getByRole('button', { name: 'Tasks' }).click()
-  await expect(tech.page.getByText(title)).toBeVisible()
-  await tech.page.getByRole('button', { name: 'Execute Task' }).first().click()
-  const job = tech.page.getByRole('dialog', { name: 'Work order' })
-  await expect(job.getByText(title)).toBeVisible()
+  await tech.page.locator('article', { hasText: woNumber }).getByRole('button', { name: 'Start' }).click()
+  await expect(tech.page.getByRole('heading', { name: title })).toBeVisible()
 
   // Completing without photos is refused (proof of presence).
-  await job.getByRole('button', { name: 'Complete & Close' }).click()
-  await expect(tech.page.getByText(/capture a photo at job start/i)).toBeVisible()
+  await tech.page.getByRole('button', { name: /Complete & close/ }).click()
+  await expect(tech.page.getByText('Take the photo with the asset on site.').first()).toBeVisible()
 
   // A part goes to an outside workshop: completing is refused until it is back.
-  await job.getByRole('button', { name: '+ Send outside for repair' }).click()
-  await job.getByRole('button', { name: 'A part / component' }).click()
-  await job.getByLabel(/Part name/).fill(`${E2E} Control board`)
-  await job.getByLabel(/Repair vendor/).selectOption({ index: 1 })
+  await tech.page.getByRole('button', { name: 'Send a part or the asset out' }).click()
+  const send = tech.page.getByRole('dialog')
+  await send.getByLabel(/Part name/).fill(`${E2E} Control board`)
+  await send.getByLabel(/Repair vendor/).selectOption({ index: 1 })
   const inAWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
-  await job.getByLabel(/Expected return/).fill(inAWeek)
-  await job.getByRole('button', { name: 'Send out' }).click()
-  await expect(job.getByText(/OSR-\d{4}-\d{4}/).first()).toBeVisible()
+  await send.getByLabel(/Expected back/).fill(inAWeek)
+  await send.getByRole('button', { name: 'Record as sent' }).click()
+  await expect(tech.page.getByText(/OSR-\d{4}-\d{4}/).first()).toBeVisible()
 
-  // Start photo, then the completion photo, then complete.
-  await attachPhoto(tech.page, job.getByRole('button', { name: 'Snap' }).first())
-  await expect(job.getByRole('button', { name: 'Retake Photo' }).first()).toBeVisible()
-  await attachPhoto(tech.page, job.getByRole('button', { name: 'Snap' }).first())
-  await expect(job.getByRole('button', { name: 'Retake Photo' })).toHaveCount(2)
-  await job.getByRole('button', { name: 'Complete & Close' }).click()
+  // The on-site photo, then the after-repair photo, then complete.
+  await attachPhoto(tech.page, tech.page.getByRole('button', { name: /Photo with the asset on site/ }))
+  await expect(tech.page.getByText(/Uploaded · /)).toHaveCount(1)
+  await attachPhoto(tech.page, tech.page.getByRole('button', { name: /After repair/ }))
+  await expect(tech.page.getByText(/Uploaded · /)).toHaveCount(2)
+  await tech.page.getByRole('button', { name: /Complete & close/ }).click()
   await expect(tech.page.getByText(/still out for repair/i).first()).toBeVisible()
 
-  await job.getByRole('button', { name: 'Record return' }).first().click()
-  await job.getByLabel(/Outcome/).selectOption('Repaired')
-  await job.getByRole('button', { name: 'Save return' }).click()
-  await expect(job.getByRole('button', { name: 'Record return' })).toHaveCount(0)
-  await job.getByRole('button', { name: 'Complete & Close' }).click()
-  await expect(tech.page.getByText(/marked as Completed/)).toBeVisible()
+  await tech.page.getByRole('button', { name: 'Mark received back' }).click()
+  const back = tech.page.getByRole('dialog')
+  await back.getByLabel(/Outcome/).selectOption('Repaired')
+  await back.getByRole('button', { name: 'Save' }).click()
+  await expect(tech.page.getByRole('button', { name: 'Mark received back' })).toHaveCount(0)
+  await tech.page.getByRole('button', { name: /Complete & close/ }).click()
+  await tech.page.getByRole('dialog').getByRole('button', { name: /Complete & close/ }).click()
+  await expect(tech.page.getByText(`${woNumber} completed`)).toBeVisible()
   await tech.context.close()
 
   // Admin: the order is completed.
@@ -132,21 +137,21 @@ test('technician passes the scheduled inspection; the Admin sees PASS', async ({
   const { assetName } = readState()
   const tech = await techPhone(browser)
   await tech.page.goto('/mobile')
-  await tech.page.getByRole('button', { name: 'Inspections' }).click()
+  await tech.page.getByRole('button', { name: /Inspections/ }).click()
   await expect(tech.page.getByText(assetName).first()).toBeVisible()
   const inspectionNumber = await currentInspectionNumber(tech.page)
-  await tech.page.getByRole('button', { name: 'Conduct Inspection' }).first().click()
-  const form = tech.page.getByRole('dialog', { name: 'Perform inspection' })
+  await tech.page.locator('article', { hasText: inspectionNumber }).getByRole('button', { name: 'Start inspection' }).click()
 
-  for (const pass of await form.getByRole('button', { name: 'PASS', exact: true }).all()) await pass.click()
+  for (const pass of await tech.page.getByRole('button', { name: 'PASS', exact: true }).all()) await pass.click()
   // Checkpoints that require a photo.
-  while ((await form.getByRole('button', { name: 'Attach Photo for this Checkpoint' }).count()) > 0) {
-    await attachPhoto(tech.page, form.getByRole('button', { name: 'Attach Photo for this Checkpoint' }).first())
-    await tech.page.waitForTimeout(300)
+  for (let left = await photoSlots(tech.page); left > 0; left--) {
+    await attachPhoto(tech.page, tech.page.getByRole('button', { name: /Photo of this checkpoint/ }).first())
+    await expect.poll(() => photoSlots(tech.page)).toBe(left - 1)
   }
-  await form.getByPlaceholder('Record what you observed during the inspection...').fill(`${E2E} all good`)
-  await form.getByRole('button', { name: 'Submit & Complete Inspection' }).click()
-  await expect(tech.page.getByText('Inspection recorded successfully!')).toBeVisible()
+  await tech.page.getByLabel('Observations').fill(`${E2E} all good`)
+  await tech.page.getByRole('button', { name: /Submit & complete/ }).click()
+  await tech.page.getByRole('dialog').getByRole('button', { name: /Submit & complete/ }).click()
+  await expect(tech.page.getByRole('heading', { name: 'PASSED' })).toBeVisible()
   await tech.context.close()
 
   const admin = await adminPage(browser)
@@ -169,3 +174,6 @@ async function currentInspectionNumber(page: Page) {
   if (!m) throw new Error('no inspection number on screen')
   return m[0]
 }
+
+// How many checkpoint photos are still to take.
+const photoSlots = (page: Page) => page.getByRole('button', { name: /Photo of this checkpoint/ }).count()

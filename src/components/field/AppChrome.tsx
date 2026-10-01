@@ -1,6 +1,6 @@
 import React from 'react'
 import {
-  Bell, ClipboardCheck, DoorOpen, Inbox, RefreshCw, ScanLine, Sparkles, UserRound, WifiOff, Wrench, CircleCheck, type LucideIcon,
+  Bell, CircleAlert, ClipboardCheck, Info, X, DoorOpen, Inbox, RefreshCw, ScanLine, Sparkles, UserRound, WifiOff, Wrench, CircleCheck, type LucideIcon,
 } from 'lucide-react'
 import { cn } from './cn'
 import { IconButton } from './Button'
@@ -87,14 +87,37 @@ export function OfflineBanner({ onRetry }: { onRetry?: () => void }) {
 }
 
 // A short confirmation that floats above the bottom bar, with an optional action.
-export function Toast({ children, action, onAction }: { children: React.ReactNode; action?: string; onAction?: () => void }) {
+// `tone`: what happened. An error is read out at once (role="alert").
+export function Toast({
+  children,
+  action,
+  onAction,
+  tone = 'success',
+  onDismiss,
+}: {
+  children: React.ReactNode
+  action?: string
+  onAction?: () => void
+  tone?: 'success' | 'error' | 'info'
+  onDismiss?: () => void
+}) {
+  const Icon = tone === 'error' ? CircleAlert : tone === 'info' ? Info : CircleCheck
   return (
-    <div role="status" className="flex items-center gap-3 rounded-[14px] bg-fa-text py-3 pl-3.5 pr-2.5 text-white shadow-fa-toast">
-      <CircleCheck className="h-[22px] w-[22px] shrink-0 text-[#4ADE80]" strokeWidth={2.25} aria-hidden />
+    <div role={tone === 'error' ? 'alert' : 'status'} className="flex items-center gap-3 rounded-[14px] bg-fa-text py-3 pl-3.5 pr-2.5 text-white shadow-fa-toast">
+      <Icon
+        className={cn('h-[22px] w-[22px] shrink-0', tone === 'error' ? 'text-[#F87171]' : tone === 'info' ? 'text-[#93C5FD]' : 'text-[#4ADE80]')}
+        strokeWidth={2.25}
+        aria-hidden
+      />
       <div className="flex-1 text-base font-medium leading-snug">{children}</div>
       {action && onAction ? (
         <button type="button" onClick={onAction} className="min-h-11 px-2 text-base font-semibold text-[#93C5FD]">
           {action}
+        </button>
+      ) : null}
+      {onDismiss ? (
+        <button type="button" onClick={onDismiss} aria-label="Close" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white/80 hover:bg-white/10">
+          <X className="h-5 w-5" strokeWidth={2} aria-hidden />
         </button>
       ) : null}
     </div>

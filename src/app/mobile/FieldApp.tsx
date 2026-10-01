@@ -2,14 +2,16 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { DoorOpen, Eye, LogOut, Undo2 } from 'lucide-react'
+import { CloudOff, DoorOpen, LogOut, Monitor, RefreshCw, Undo2 } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
 import type { AppNotification, UserRole } from '@/types/afms'
 import { openWorkCounts } from '@/lib/fieldWork'
 import { parseScan } from '@/lib/fieldRequests'
 import { useOnline } from '@/lib/useFieldDevice'
+import { dismissToast, subscribeToasts, type ToastItem } from '@/lib/toast'
 import {
-  ActiveRoomBanner, AppBar, BottomNav, ConfirmSheet, ListSkeleton, OfflineBanner, Toast, cn, homeTab, navForRole, type FieldRole, type FieldTab,
+  ActiveRoomBanner, AppBar, BottomNav, Button, Card, ConfirmSheet, EmptyState, ListSkeleton, OfflineBanner, Toast, cn, homeTab, navForRole,
+  type FieldRole, type FieldTab,
 } from '@/components/field'
 import { ProfileScreen } from './_screens/ProfileScreen'
 import { NotificationsScreen } from './_screens/NotificationsScreen'
@@ -28,8 +30,8 @@ import { RequestScreen } from './_screens/requests/RequestScreen'
 import { NewRequestScreen } from './_screens/requests/NewRequestScreen'
 import { RequestSuccessScreen } from './_screens/requests/RequestSuccessScreen'
 
-// The redesigned field app (light theme), built at /mobile/v2 beside the live
-// app at /mobile until every screen is done, then switched over.
+// The field app at /mobile: Technician, Housekeeping, Faculty and Guest on a
+// phone (light theme, redesign canvas "AFMS Field Operations - Mobile").
 
 const FIELD_ROLES: FieldRole[] = ['Technician', 'Housekeeping', 'Faculty', 'Guest']
 const asFieldRole = (r: UserRole): FieldRole => (FIELD_ROLES as string[]).includes(r) ? (r as FieldRole) : 'Guest'
@@ -64,14 +66,13 @@ export function FieldApp() {
   const router = useRouter()
   const {
     currentUser, logout, workOrders, inspections, serviceRequests, notifications, unreadNotificationCount, markNotificationRead, activeCheckIn, checkOutRoom,
-    isDataLoading, reloadData,
+    isDataLoading, dataLoadError, reloadData,
   } = useAFMS()
 
-  // Admins do not use the field app. While it is being built, an Admin can
-  // preview it as any role (the live /mobile sends Admins to the desktop).
+  // Admins use the desktop (the proxy sends them there; see the notice below
+  // for the rare case it could not tell).
   const isAdmin = currentUser.role === 'Admin'
-  const [previewRole, setPreviewRole] = useState<FieldRole>('Technician')
-  const role: FieldRole = isAdmin ? previewRole : asFieldRole(currentUser.role)
+  const role: FieldRole = asFieldRole(currentUser.role)
 
   const [tab, setTab] = useState<FieldTab>(() => homeTab(role))
   const [stack, setStack] = useState<Screen[]>([])
@@ -134,17 +135,6 @@ export function FieldApp() {
     openScreen(target.type === 'room' ? { kind: 'room', id: target.id } : { kind: 'asset', id: target.id })
   }, [isDataLoading, openScreen])
 
-  // A role change (Admin preview) starts on that role's home.
-  const lastRole = useRef(role)
-  useEffect(() => {
-    if (lastRole.current !== role) {
-      lastRole.current = role
-      setTab(homeTab(role))
-      dirtyRef.current = false
-      closeAll()
-    }
-  }, [role, closeAll])
-
   const online = useOnline()
   const [toast, setToast] = useState<string | null>(null)
   const toastTimer = useRef<number | null>(null)
@@ -156,6 +146,10 @@ export function FieldApp() {
   useEffect(() => () => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current)
   }, [])
+  // Messages from the shared data layer ("could not save …"), shown in this
+  // app's style rather than the desktop's corner pop-ups.
+  const [shared, setShared] = useState<ToastItem[]>([])
+  useEffect(() => subscribeToasts(setShared), [])
 
   const [confirmCheckout, setConfirmCheckout] = useState(false)
   const [checkingOut, setCheckingOut] = useState(false)
@@ -213,8 +207,30 @@ export function FieldApp() {
   const openRoom = (id: string, replace = false) => openScreen({ kind: 'room', id }, { replace })
   const openAsset = (id: string, replace = false) => openScreen({ kind: 'asset', id }, { replace })
 
+  const tabContent = renderTab()
   const content = (() => {
     if (isDataLoading) return <div className="p-4"><ListSkeleton count={3} label="Loading your work" /></div>
+    if (!dataLoadError) return tabContent
+    return (
+      <>
+        <div className="px-4 pt-4">
+          <Card className="flex-row items-start gap-3 border-fa-warning-weak bg-fa-warning-weak">
+            <CloudOff className="mt-0.5 h-6 w-6 shrink-0 text-fa-warning-ink" strokeWidth={2} aria-hidden />
+            <div className="flex flex-1 flex-col gap-2">
+              <p className="m-0 text-base font-semibold text-fa-warning-ink">Some of your work didn’t load</p>
+              <p className="m-0 text-[15px] text-fa-warning-ink">Lists may look empty even though there is work. Check your signal and try again.</p>
+              <Button size="md" variant="secondary" block={false} icon={RefreshCw} onClick={() => void reloadData()}>
+                Try again
+              </Button>
+            </div>
+          </Card>
+        </div>
+        {tabContent}
+      </>
+    )
+  })()
+
+  function renderTab() {
     if (tab === 'Tasks') return <TasksScreen onOpen={wo => openWork(wo.id)} />
     if (tab === 'Cleaning') return <CleaningScreen onOpen={wo => openWork(wo.id)} />
     if (tab === 'Inspections') return <InspectionsScreen onOpen={insp => openScreen({ kind: 'inspection', id: insp.id })} />
@@ -229,7 +245,7 @@ export function FieldApp() {
     }
     if (tab === 'Requests') return <RequestsScreen onOpen={id => openScreen({ kind: 'request', id })} onNew={() => openScreen({ kind: 'newRequest' })} />
     return <ProfileScreen user={currentUser} role={role} onChangePassword={() => setChangingPassword(true)} onSignOut={() => setConfirmSignOut(true)} />
-  })()
+  }
 
   const screenView = (() => {
     switch (screen?.kind) {
@@ -317,25 +333,20 @@ export function FieldApp() {
     <div className="flex h-dvh justify-center bg-fa-bg">
       <div className="relative flex h-dvh w-full max-w-[480px] flex-col overflow-hidden bg-fa-bg sm:border-x sm:border-fa-border">
         {isAdmin ? (
-          <div className="flex shrink-0 items-center gap-2 bg-fa-text px-4 py-1.5 text-sm text-white">
-            <Eye className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
-            <label htmlFor="preview-role" className="flex-1">Admin preview — view as</label>
-            <select
-              id="preview-role"
-              value={previewRole}
-              onChange={e => setPreviewRole(e.target.value as FieldRole)}
-              className="min-h-9 rounded-md bg-white/15 px-2 text-sm font-semibold text-white"
+          <main className="flex flex-1 items-center p-4">
+            <EmptyState
+              icon={Monitor}
+              title="The field app is for field staff"
+              action={
+                <Button block={false} icon={Monitor} onClick={() => router.push('/dashboard')}>
+                  Go to the desktop
+                </Button>
+              }
             >
-              {FIELD_ROLES.map(r => (
-                <option key={r} value={r} className="text-fa-text">
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-
-        {screenView ?? (
+              Admins manage everything from the desktop. A scanned room or asset opens there too.
+            </EmptyState>
+          </main>
+        ) : screenView ?? (
           <>
             <AppBar role={role} unread={unreadNotificationCount} onBell={() => openScreen({ kind: 'notifications' })} />
             {!online ? <OfflineBanner onRetry={() => void reloadData()} /> : null}
@@ -345,17 +356,26 @@ export function FieldApp() {
           </>
         )}
 
-        {toast ? (
+        {toast || shared.length ? (
           <div
             className={cn(
-              'pointer-events-none absolute inset-x-3 z-40',
+              'pointer-events-none absolute inset-x-3 z-40 flex flex-col gap-2',
               // Above the bottom nav, or above a screen's save buttons.
               screen && WITH_ACTION_BAR.has(screen.kind) ? 'bottom-[calc(150px+env(safe-area-inset-bottom))]' : 'bottom-[calc(104px+env(safe-area-inset-bottom))]',
             )}
           >
-            <div className="pointer-events-auto">
-              <Toast>{toast}</Toast>
-            </div>
+            {shared.slice(-2).map(t => (
+              <div key={t.id} className="pointer-events-auto">
+                <Toast tone={t.type === 'error' ? 'error' : t.type === 'info' ? 'info' : 'success'} onDismiss={() => dismissToast(t.id)}>
+                  {t.text}
+                </Toast>
+              </div>
+            ))}
+            {toast ? (
+              <div className="pointer-events-auto">
+                <Toast>{toast}</Toast>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

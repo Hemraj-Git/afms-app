@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react'
 import { dismissToast, subscribeToasts, type ToastItem } from '@/lib/toast'
 
@@ -8,6 +9,9 @@ export function Toaster() {
   const [items, setItems] = useState<ToastItem[]>([])
 
   useEffect(() => subscribeToasts(setItems), [])
+  // The field app shows these itself, in its own style.
+  const pathname = usePathname()
+  if (pathname?.startsWith('/mobile')) return null
 
   return (
     <div
