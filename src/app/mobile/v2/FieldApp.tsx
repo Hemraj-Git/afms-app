@@ -16,6 +16,9 @@ import { ChangePasswordSheet } from './_screens/ChangePasswordSheet'
 import { ComingSoon } from './_screens/ComingSoon'
 import { TasksScreen } from './_screens/TasksScreen'
 import { WorkOrderScreen } from './_screens/workOrder/WorkOrderScreen'
+import { CleaningScreen } from './_screens/CleaningScreen'
+import { InspectionsScreen } from './_screens/InspectionsScreen'
+import { InspectionScreen } from './_screens/inspection/InspectionScreen'
 
 // The redesigned field app (light theme), built at /mobile/v2 beside the live
 // app at /mobile until every screen is done, then switched over.
@@ -25,7 +28,7 @@ const asFieldRole = (r: UserRole): FieldRole => (FIELD_ROLES as string[]).includ
 
 // A screen opened over the tabs. Opening one adds a browser history entry, so
 // the phone's back button closes it the same way the screen's Back does.
-type Screen = { kind: 'notifications' } | { kind: 'workOrder'; id: string }
+type Screen = { kind: 'notifications' } | { kind: 'workOrder'; id: string } | { kind: 'inspection'; id: string }
 
 const TAB_LABEL: Record<FieldTab, string> = {
   Tasks: 'tasks',
@@ -134,11 +137,15 @@ export function FieldApp() {
   }
 
   // Opening a notification marks it read and goes to the work it is about:
-  // straight to the job when it is one of the technician's work orders.
+  // straight to the job or inspection when it is one of this person's.
   const openNotification = (n: AppNotification) => {
     if (!n.isRead) markNotificationRead(n.id)
-    if (role === 'Technician' && n.refTable === 'work_orders' && n.refId && workOrders.some(w => w.id === n.refId && w.type !== 'Housekeeping')) {
+    if (n.refTable === 'work_orders' && n.refId && workOrders.some(w => w.id === n.refId)) {
       openScreen({ kind: 'workOrder', id: n.refId })
+      return
+    }
+    if (n.refTable === 'inspections' && n.refId && inspections.some(i => i.id === n.refId)) {
+      openScreen({ kind: 'inspection', id: n.refId })
       return
     }
     const target: FieldTab =
@@ -157,6 +164,8 @@ export function FieldApp() {
   const content = (() => {
     if (isDataLoading) return <div className="p-4"><ListSkeleton count={3} label="Loading your work" /></div>
     if (tab === 'Tasks') return <TasksScreen onOpen={wo => openScreen({ kind: 'workOrder', id: wo.id })} />
+    if (tab === 'Cleaning') return <CleaningScreen onOpen={wo => openScreen({ kind: 'workOrder', id: wo.id })} />
+    if (tab === 'Inspections') return <InspectionsScreen onOpen={insp => openScreen({ kind: 'inspection', id: insp.id })} />
     if (tab === 'Profile') {
       return <ProfileScreen user={currentUser} role={role} onChangePassword={() => setChangingPassword(true)} onSignOut={() => setConfirmSignOut(true)} />
     }
@@ -197,6 +206,8 @@ export function FieldApp() {
               goBack()
             }}
           />
+        ) : screen?.kind === 'inspection' ? (
+          <InspectionScreen inspectionId={screen.id} onBack={goBack} onDirtyChange={setDirty} onToast={showToast} />
         ) : screen?.kind === 'notifications' ? (
           <NotificationsScreen
             notifications={notifications}
@@ -222,7 +233,7 @@ export function FieldApp() {
             className={cn(
               'pointer-events-none absolute inset-x-3 z-40',
               // Above the bottom nav, or above a job's save buttons.
-              screen?.kind === 'workOrder' ? 'bottom-[calc(150px+env(safe-area-inset-bottom))]' : 'bottom-[calc(104px+env(safe-area-inset-bottom))]',
+              screen?.kind === 'workOrder' || screen?.kind === 'inspection' ? 'bottom-[calc(150px+env(safe-area-inset-bottom))]' : 'bottom-[calc(104px+env(safe-area-inset-bottom))]',
             )}
           >
             <div className="pointer-events-auto">
@@ -263,7 +274,7 @@ export function FieldApp() {
       {askLeave ? (
         <ConfirmSheet
           title="Leave without saving?"
-          body="Your changes to this work order will be lost."
+          body="What you have entered on this screen will be lost."
           icon={Undo2}
           tone="destructive"
           confirmLabel="Leave without saving"

@@ -149,6 +149,8 @@ export interface DraftProblem {
 // - a vendor job needs the vendor; closing it also needs the vendor's job no.
 // - closing your own job needs the on-site photo; a breakdown also the
 //   after-repair photo (a vendor's job sheet is the proof for a vendor job).
+// - closing a cleaning task needs the after-cleaning photo (the before photo
+//   is optional, as it always was).
 // - nothing closes while a part is still at an outside workshop.
 export function draftProblems(d: WorkOrderDraft, intent: SaveIntent): DraftProblem[] {
   const problems: DraftProblem[] = []
@@ -161,8 +163,12 @@ export function draftProblems(d: WorkOrderDraft, intent: SaveIntent): DraftProbl
     if (handover) problems.push({ field: d.vendorId ? 'vendorTicketNo' : 'vendorId', message: d.vendorId ? "Enter the vendor's ticket or job number." : 'Choose the vendor.' })
   }
   if (intent === 'Completed') {
-    if (!vendorJob && !d.startPhoto) problems.push({ field: 'startPhoto', message: 'Take the photo with the asset on site.' })
-    if (d.type === 'Corrective' && !vendorJob && !d.completionPhoto) problems.push({ field: 'completionPhoto', message: 'Take the after-repair photo.' })
+    if (d.type === 'Housekeeping') {
+      if (!d.completionPhoto) problems.push({ field: 'completionPhoto', message: 'Take the after-cleaning photo.' })
+    } else {
+      if (!vendorJob && !d.startPhoto) problems.push({ field: 'startPhoto', message: 'Take the photo with the asset on site.' })
+      if (d.type === 'Corrective' && !vendorJob && !d.completionPhoto) problems.push({ field: 'completionPhoto', message: 'Take the after-repair photo.' })
+    }
     if (d.completionBlocked) problems.push({ field: 'outsideRepair', message: d.completionBlocked })
   }
   return problems
@@ -213,4 +219,24 @@ export function whenText(value: string | undefined | null, now: Date = new Date(
   const days = daysBetween(t, now)
   const day = days === 0 ? 'today' : days === 1 ? 'yesterday' : days === -1 ? 'tomorrow' : shortDate(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`, now)
   return `${day}, ${time}`
+}
+
+// ---- The Cleaning list (housekeeping) ----------------------------------------
+
+export type CleaningFilter = 'Open' | 'Scheduled' | 'In Progress' | 'Completed'
+
+export function cleaningCounts(list: Pick<WorkOrder, 'status'>[]) {
+  return {
+    open: list.filter(isOpenWorkOrder).length,
+    scheduled: list.filter(w => w.status === 'Scheduled').length,
+    inProgress: list.filter(w => w.status === 'In Progress').length,
+    completed: list.filter(w => w.status === 'Completed').length,
+  }
+}
+
+// Same order as Tasks: open work latest-due first, finished work newest first.
+export function cleaningFor<T extends Pick<WorkOrder, 'type' | 'status' | 'dueDate' | 'priority' | 'completedAt'>>(list: T[], filter: CleaningFilter): T[] {
+  if (filter === 'Completed') return tasksFor(list, 'Completed')
+  const open = tasksFor(list, 'All')
+  return filter === 'Open' ? open : open.filter(w => w.status === filter)
 }

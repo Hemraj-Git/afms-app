@@ -13,7 +13,7 @@ import { EmptyState, FilterChips, SummaryTile, Tag, WithVendorTag, WorkCard, Wor
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-const todayLong = (d: Date) => `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`
+export const todayLong = (d: Date) => `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`
 
 // Tasks, the technician's home (redesign canvas, "Tasks · Technician home"):
 // the numbers, a filter, and a card per preventive or breakdown job assigned

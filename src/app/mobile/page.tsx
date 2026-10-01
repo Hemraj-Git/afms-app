@@ -42,20 +42,9 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { WorkOrder, Asset, Room, Vendor, UserRole, WorkOrderPartItem, Inspection, ServiceRequest, ChecklistItemDef } from '@/types/afms'
+import { WorkOrder, Asset, Room, Vendor, UserRole, WorkOrderPartItem, Inspection, ServiceRequest } from '@/types/afms'
 
-// Housekeeping's 5 sanitation items are fixed (not template-driven like
-// Preventive), so this is the one-time snapshot saved alongside each
-// order's checklistResponses -- the same WorkOrder fields Preventive
-// already uses to persist/restore its checklist, just with a constant
-// item list instead of one pulled from a maintenance template.
-const HK_CHECKLIST_ITEMS: ChecklistItemDef[] = [
-  { id: 'dusting', order: 1, itemText: 'Dust desks, simulator cockpits & fixtures', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
-  { id: 'mopping', order: 2, itemText: 'Sweep and wet mop entire floor with disinfectant', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
-  { id: 'trashDisposal', order: 3, itemText: 'Empty waste bins & replace liner bags', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
-  { id: 'sanitization', order: 4, itemText: 'Wipe door handles, switches & touchpoints', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
-  { id: 'restroomClean', order: 5, itemText: 'Restroom deep-clean and supply replenishment', mandatory: false, photoRequired: false, responseType: 'Checkbox' },
-]
+import { HK_CHECKLIST_ITEMS } from '@/lib/housekeeping'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { isOpenWorkOrder, isWithVendor, validateVendorHandover } from '@/lib/workOrderState'

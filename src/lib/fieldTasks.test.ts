@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkOrder } from '@/types/afms'
 import {
-  assetFor, checklistProgress, draftProblems, dueFact, dueText, whenText, expectedBackText, jobDateText, jobKindOf, longDate, preventiveLock, placeText, shortDate, taskCounts, tasksFor,
+  assetFor, checklistProgress, cleaningCounts, cleaningFor, draftProblems, dueFact, dueText, whenText, expectedBackText, jobDateText, jobKindOf, longDate, preventiveLock, placeText, shortDate, taskCounts, tasksFor,
   type WorkOrderDraft,
 } from './fieldTasks'
 
@@ -168,5 +168,29 @@ describe('the job screen’s facts', () => {
     expect(whenText(new Date(2026, 9, 1, 0, 30).toISOString(), NOW)).toBe('tomorrow, 12:30 AM')
     expect(whenText(new Date(2026, 8, 20, 12, 0).toISOString(), NOW)).toBe('20 Sep, 12:00 PM')
     expect(whenText('', NOW)).toBe('')
+  })
+})
+
+describe('cleaning', () => {
+  const base: WorkOrderDraft = {
+    type: 'Housekeeping', mode: 'In House', startPhoto: '', completionPhoto: '', vendorId: '', vendorTicketNo: '', uploading: 0, failed: 0,
+  }
+
+  it('needs only the after-cleaning photo to finish', () => {
+    expect(draftProblems(base, 'In Progress')).toEqual([])
+    expect(draftProblems(base, 'Completed').map(p => p.field)).toEqual(['completionPhoto'])
+    expect(draftProblems({ ...base, completionPhoto: 'u' }, 'Completed')).toEqual([])
+  })
+
+  it('counts and filters rooms', () => {
+    const list = [
+      wo({ id: 'a', type: 'Housekeeping', status: 'Scheduled', dueDate: '2026-10-01' }),
+      wo({ id: 'b', type: 'Housekeeping', status: 'In Progress', dueDate: '2026-09-30' }),
+      wo({ id: 'c', type: 'Housekeeping', status: 'Completed', completedAt: '2026-09-29' }),
+    ]
+    expect(cleaningCounts(list)).toEqual({ open: 2, scheduled: 1, inProgress: 1, completed: 1 })
+    expect(cleaningFor(list, 'Open').map(w => w.id)).toEqual(['b', 'a'])
+    expect(cleaningFor(list, 'In Progress').map(w => w.id)).toEqual(['b'])
+    expect(cleaningFor(list, 'Completed').map(w => w.id)).toEqual(['c'])
   })
 })

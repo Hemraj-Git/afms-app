@@ -18,6 +18,7 @@ import {
 import { usePhotoSlots } from '../usePhotoSlots'
 import { AssetSummary, NoteSheet, PartsList, PhotoView, ReportedIssue, Step, StepError } from './Sections'
 import { OutsideRepairCard } from './OutsideRepairCard'
+import { CleaningTaskScreen } from './CleaningTaskScreen'
 
 // One preventive or breakdown job, worked through on the phone (redesign
 // canvas, WO-Preventive, WO-Corrective and "PM · Photo required to begin").
@@ -44,14 +45,15 @@ export function WorkOrderScreen(props: WorkOrderScreenProps) {
       <>
         <ScreenHeader title="Work order" onBack={props.onBack} />
         <main className="flex-1 overflow-y-auto p-4">
-          <EmptyState icon={SearchX} title="Work order not found" action={<Button block={false} onClick={props.onBack}>Back to tasks</Button>}>
+          <EmptyState icon={SearchX} title="Work order not found" action={<Button block={false} onClick={props.onBack}>Go back</Button>}>
             It may have been reassigned or removed.
           </EmptyState>
         </main>
       </>
     )
   }
-  // A fresh form per job.
+  // A fresh form per job; a cleaning task has its own screen.
+  if (wo.type === 'Housekeeping') return <CleaningTaskScreen key={wo.id} wo={wo} {...props} />
   return <WorkOrderForm key={wo.id} wo={wo} {...props} />
 }
 

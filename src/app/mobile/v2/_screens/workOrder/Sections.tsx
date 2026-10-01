@@ -1,14 +1,15 @@
 'use client'
 
 import React, { useState } from 'react'
-import { CalendarClock, CircleAlert, ImageIcon, MapPin, Minus, Package, Plus, StickyNote, Trash2, User, Wrench, type LucideIcon } from 'lucide-react'
+import { CalendarClock, CircleAlert, ClipboardCheck, ImageIcon, MapPin, Minus, Package, Plus, Sparkles, StickyNote, Trash2, User, Wrench, type LucideIcon } from 'lucide-react'
 import type { WorkOrderPartItem } from '@/types/afms'
 import { BottomSheet, Button, Card, CardTitle, IconButton, IdText, TextAreaField, TextField } from '@/components/field'
 
 // The pieces of the work-order screen (redesign canvas, WO-Preventive and
 // WO-Corrective), kept apart from the screen's state and saving.
 
-// The asset the job is on: what it is, where, how urgent, and a few facts.
+// What the job is on (an asset, or a room for cleaning): what it is, where,
+// how urgent, and a few facts.
 export function AssetSummary({
   kind,
   name,
@@ -17,14 +18,14 @@ export function AssetSummary({
   pills,
   facts,
 }: {
-  kind: 'Preventive' | 'Breakdown'
+  kind: 'Preventive' | 'Breakdown' | 'Cleaning' | 'Inspection'
   name: string
   code?: string
   place?: string
   pills: React.ReactNode
   facts: { label: string; value?: string; tone?: 'danger' }[]
 }) {
-  const Icon = kind === 'Preventive' ? CalendarClock : Wrench
+  const Icon = { Preventive: CalendarClock, Breakdown: Wrench, Cleaning: Sparkles, Inspection: ClipboardCheck }[kind]
   return (
     <Card>
       <div className="flex items-start gap-3">
