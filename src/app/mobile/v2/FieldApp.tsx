@@ -63,7 +63,7 @@ const TAB_LABEL: Record<FieldTab, string> = {
 export function FieldApp() {
   const router = useRouter()
   const {
-    currentUser, logout, workOrders, inspections, notifications, unreadNotificationCount, markNotificationRead, activeCheckIn, checkOutRoom,
+    currentUser, logout, workOrders, inspections, serviceRequests, notifications, unreadNotificationCount, markNotificationRead, activeCheckIn, checkOutRoom,
     isDataLoading, reloadData,
   } = useAFMS()
 
@@ -196,7 +196,8 @@ export function FieldApp() {
       return
     }
     const target: FieldTab =
-      n.type === 'inspection_assigned' ? 'Inspections' : n.type === 'auto_checkout' ? 'Scan' : role === 'Housekeeping' ? 'Cleaning' : 'Tasks'
+      n.type === 'due_today' ? (role === 'Technician' ? 'Tasks' : 'Inspections')
+      : n.type === 'inspection_assigned' ? 'Inspections' : n.type === 'auto_checkout' ? 'Scan' : role === 'Housekeeping' ? 'Cleaning' : 'Tasks'
     setTab(tabsForRole.has(target) ? target : homeTab(role))
     goBack()
   }
@@ -254,6 +255,7 @@ export function FieldApp() {
             notifications={notifications}
             workOrders={workOrders}
             inspections={inspections}
+            requests={serviceRequests}
             onBack={goBack}
             backLabel={`Back to ${TAB_LABEL[homeTab(role)]}`}
             onOpen={openNotification}

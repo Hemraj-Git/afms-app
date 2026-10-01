@@ -19,6 +19,9 @@ import {
   Phone,
   Truck,
   TimerOff,
+  ArrowUp,
+  CircleX,
+  CalendarClock,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { AppNotification } from '@/types/afms'
@@ -36,6 +39,10 @@ const ALERT_ICONS: Record<AppNotification['type'], React.ReactNode> = {
   vendor_handover: <Phone className="w-3.5 h-3.5" />,
   outside_repair_sent: <Truck className="w-3.5 h-3.5" />,
   outside_repair_overdue: <TimerOff className="w-3.5 h-3.5" />,
+  request_resolved: <CheckCircle2 className="w-3.5 h-3.5" />,
+  request_escalated: <ArrowUp className="w-3.5 h-3.5" />,
+  request_closed: <CircleX className="w-3.5 h-3.5" />,
+  due_today: <CalendarClock className="w-3.5 h-3.5" />,
 }
 const ALERT_LINKS: Record<AppNotification['type'], string> = {
   wo_assigned: '/maintenance/work-orders',
@@ -44,6 +51,10 @@ const ALERT_LINKS: Record<AppNotification['type'], string> = {
   vendor_handover: '/maintenance/corrective',
   outside_repair_sent: '/maintenance/outside-repairs',
   outside_repair_overdue: '/maintenance/outside-repairs',
+  request_resolved: '/service-requests',
+  request_escalated: '/service-requests',
+  request_closed: '/service-requests',
+  due_today: '/maintenance/preventive',
 }
 
 // True only in the browser after hydration (see the sign-in corner below).

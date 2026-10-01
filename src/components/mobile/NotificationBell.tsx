@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Bell, CheckCircle2, Wrench, ClipboardCheck, LogOut as LogOutIcon, Phone, Truck, TimerOff } from 'lucide-react'
+import { ArrowUp, Bell, CalendarClock, CheckCircle2, CircleX, Wrench, ClipboardCheck, LogOut as LogOutIcon, Phone, Truck, TimerOff } from 'lucide-react'
 import type { AppNotification } from '@/types/afms'
 import { formatDateTimeDisplay } from '@/lib/dateUtils'
 import { SoundToggle } from '@/components/ui/SoundToggle'
@@ -14,6 +14,10 @@ const ICONS: Record<AppNotification['type'], React.ReactNode> = {
   vendor_handover: <Phone className="w-3.5 h-3.5" />,
   outside_repair_sent: <Truck className="w-3.5 h-3.5" />,
   outside_repair_overdue: <TimerOff className="w-3.5 h-3.5" />,
+  request_resolved: <CheckCircle2 className="w-3.5 h-3.5" />,
+  request_escalated: <ArrowUp className="w-3.5 h-3.5" />,
+  request_closed: <CircleX className="w-3.5 h-3.5" />,
+  due_today: <CalendarClock className="w-3.5 h-3.5" />,
 }
 
 export function NotificationBell({

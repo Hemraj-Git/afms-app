@@ -351,6 +351,12 @@ export interface AppNotification {
     | 'vendor_handover'
     | 'outside_repair_sent'
     | 'outside_repair_overdue'
+    // To whoever raised a request (0051)
+    | 'request_resolved'
+    | 'request_escalated'
+    | 'request_closed'
+    // The morning list of preventive jobs and inspections due today (0051)
+    | 'due_today'
   title: string
   body?: string
   refTable?: string
