@@ -2,24 +2,30 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { DoorOpen, Eye, LogOut } from 'lucide-react'
+import { DoorOpen, Eye, LogOut, Undo2 } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
 import type { AppNotification, UserRole } from '@/types/afms'
 import { openWorkCounts } from '@/lib/fieldWork'
 import { useOnline } from '@/lib/useFieldDevice'
 import {
-  ActiveRoomBanner, AppBar, BottomNav, ConfirmSheet, ListSkeleton, OfflineBanner, Toast, homeTab, navForRole, type FieldRole, type FieldTab,
+  ActiveRoomBanner, AppBar, BottomNav, ConfirmSheet, ListSkeleton, OfflineBanner, Toast, cn, homeTab, navForRole, type FieldRole, type FieldTab,
 } from '@/components/field'
 import { ProfileScreen } from './_screens/ProfileScreen'
 import { NotificationsScreen } from './_screens/NotificationsScreen'
 import { ChangePasswordSheet } from './_screens/ChangePasswordSheet'
 import { ComingSoon } from './_screens/ComingSoon'
+import { TasksScreen } from './_screens/TasksScreen'
+import { WorkOrderScreen } from './_screens/workOrder/WorkOrderScreen'
 
 // The redesigned field app (light theme), built at /mobile/v2 beside the live
 // app at /mobile until every screen is done, then switched over.
 
 const FIELD_ROLES: FieldRole[] = ['Technician', 'Housekeeping', 'Faculty', 'Guest']
 const asFieldRole = (r: UserRole): FieldRole => (FIELD_ROLES as string[]).includes(r) ? (r as FieldRole) : 'Guest'
+
+// A screen opened over the tabs. Opening one adds a browser history entry, so
+// the phone's back button closes it the same way the screen's Back does.
+type Screen = { kind: 'notifications' } | { kind: 'workOrder'; id: string }
 
 const TAB_LABEL: Record<FieldTab, string> = {
   Tasks: 'tasks',
@@ -44,14 +50,51 @@ export function FieldApp() {
   const role: FieldRole = isAdmin ? previewRole : asFieldRole(currentUser.role)
 
   const [tab, setTab] = useState<FieldTab>(() => homeTab(role))
-  const [screen, setScreen] = useState<'tabs' | 'notifications'>('tabs')
+  const [screen, setScreen] = useState<Screen | null>(null)
+  const screenRef = useRef<Screen | null>(null)
+  useEffect(() => {
+    screenRef.current = screen
+  }, [screen])
+  // Set by a screen with unsaved changes, so leaving it asks first.
+  const dirtyRef = useRef(false)
+  const [askLeave, setAskLeave] = useState(false)
+
+  const openScreen = useCallback((next: Screen) => {
+    dirtyRef.current = false
+    if (screenRef.current) window.history.replaceState({ fieldScreen: true }, '')
+    else window.history.pushState({ fieldScreen: true }, '')
+    setScreen(next)
+  }, [])
+  const goBack = useCallback(() => window.history.back(), [])
+  const setDirty = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty
+  }, [])
+
+  useEffect(() => {
+    const onPop = () => {
+      if (!screenRef.current) return
+      if (dirtyRef.current) {
+        // Stay put and ask; "Leave" goes back again.
+        window.history.pushState({ fieldScreen: true }, '')
+        setAskLeave(true)
+        return
+      }
+      setScreen(null)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
   // A role change (Admin preview) starts on that role's home.
   const lastRole = useRef(role)
   useEffect(() => {
     if (lastRole.current !== role) {
       lastRole.current = role
       setTab(homeTab(role))
-      setScreen('tabs')
+      if (screenRef.current) {
+        dirtyRef.current = false
+        window.history.back()
+      }
     }
   }, [role])
 
@@ -90,13 +133,18 @@ export function FieldApp() {
     }
   }
 
-  // Opening a notification marks it read and goes to the work it is about.
+  // Opening a notification marks it read and goes to the work it is about:
+  // straight to the job when it is one of the technician's work orders.
   const openNotification = (n: AppNotification) => {
     if (!n.isRead) markNotificationRead(n.id)
+    if (role === 'Technician' && n.refTable === 'work_orders' && n.refId && workOrders.some(w => w.id === n.refId && w.type !== 'Housekeeping')) {
+      openScreen({ kind: 'workOrder', id: n.refId })
+      return
+    }
     const target: FieldTab =
       n.type === 'inspection_assigned' ? 'Inspections' : n.type === 'auto_checkout' ? 'Scan' : role === 'Housekeeping' ? 'Cleaning' : 'Tasks'
     setTab(tabsForRole.has(target) ? target : homeTab(role))
-    setScreen('tabs')
+    goBack()
   }
 
   const markAllRead = () => notifications.filter(n => !n.isRead).forEach(n => markNotificationRead(n.id))
@@ -108,6 +156,7 @@ export function FieldApp() {
 
   const content = (() => {
     if (isDataLoading) return <div className="p-4"><ListSkeleton count={3} label="Loading your work" /></div>
+    if (tab === 'Tasks') return <TasksScreen onOpen={wo => openScreen({ kind: 'workOrder', id: wo.id })} />
     if (tab === 'Profile') {
       return <ProfileScreen user={currentUser} role={role} onChangePassword={() => setChangingPassword(true)} onSignOut={() => setConfirmSignOut(true)} />
     }
@@ -136,19 +185,31 @@ export function FieldApp() {
           </div>
         ) : null}
 
-        {screen === 'notifications' ? (
+        {screen?.kind === 'workOrder' ? (
+          <WorkOrderScreen
+            workOrderId={screen.id}
+            onBack={goBack}
+            onDirtyChange={setDirty}
+            onToast={showToast}
+            onSaved={text => {
+              dirtyRef.current = false
+              showToast(text)
+              goBack()
+            }}
+          />
+        ) : screen?.kind === 'notifications' ? (
           <NotificationsScreen
             notifications={notifications}
             workOrders={workOrders}
             inspections={inspections}
-            onBack={() => setScreen('tabs')}
+            onBack={goBack}
             backLabel={`Back to ${TAB_LABEL[homeTab(role)]}`}
             onOpen={openNotification}
             onMarkAllRead={markAllRead}
           />
         ) : (
           <>
-            <AppBar role={role} unread={unreadNotificationCount} onBell={() => setScreen('notifications')} />
+            <AppBar role={role} unread={unreadNotificationCount} onBell={() => openScreen({ kind: 'notifications' })} />
             {!online ? <OfflineBanner onRetry={() => void reloadData()} /> : null}
             {activeCheckIn ? <ActiveRoomBanner room={activeCheckIn.roomName} onCheckOut={() => setConfirmCheckout(true)} busy={checkingOut} /> : null}
             <main className="min-h-0 flex-1 overflow-y-auto">{content}</main>
@@ -157,7 +218,13 @@ export function FieldApp() {
         )}
 
         {toast ? (
-          <div className="pointer-events-none absolute inset-x-3 bottom-[calc(104px+env(safe-area-inset-bottom))] z-40">
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-x-3 z-40',
+              // Above the bottom nav, or above a job's save buttons.
+              screen?.kind === 'workOrder' ? 'bottom-[calc(150px+env(safe-area-inset-bottom))]' : 'bottom-[calc(104px+env(safe-area-inset-bottom))]',
+            )}
+          >
             <div className="pointer-events-auto">
               <Toast>{toast}</Toast>
             </div>
@@ -190,6 +257,22 @@ export function FieldApp() {
           confirmLabel="Sign out"
           onConfirm={signOut}
           onCancel={() => setConfirmSignOut(false)}
+        />
+      ) : null}
+
+      {askLeave ? (
+        <ConfirmSheet
+          title="Leave without saving?"
+          body="Your changes to this work order will be lost."
+          icon={Undo2}
+          tone="destructive"
+          confirmLabel="Leave without saving"
+          onConfirm={() => {
+            setAskLeave(false)
+            dirtyRef.current = false
+            window.history.back()
+          }}
+          onCancel={() => setAskLeave(false)}
         />
       ) : null}
 

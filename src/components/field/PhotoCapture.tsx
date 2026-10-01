@@ -10,7 +10,8 @@ import { cn } from './cn'
 //   failed    -> the picture is KEPT on the phone; Retry sends it again
 export type PhotoState =
   | { status: 'empty' }
-  | { status: 'uploading'; previewUrl?: string; percent: number; detail?: string }
+  // `percent` when the upload reports it; without it the bar just shows motion.
+  | { status: 'uploading'; previewUrl?: string; percent?: number; detail?: string }
   | { status: 'uploaded'; previewUrl?: string; at?: string }
   | { status: 'failed'; previewUrl?: string }
 
@@ -70,10 +71,15 @@ export function PhotoCapture({ label, state, required, onTake, onRetry, onCancel
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <span className="text-base font-semibold text-fa-text">{label}</span>
           <div role="progressbar" aria-valuenow={state.percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${label}: uploading`} className="h-2 overflow-hidden rounded-full bg-fa-sunken">
-            <div className="h-2 rounded-full bg-fa-primary transition-[width]" style={{ width: `${Math.max(2, Math.min(100, state.percent))}%` }} />
+            {state.percent === undefined ? (
+              <div className="h-2 w-2/5 animate-pulse rounded-full bg-fa-primary" />
+            ) : (
+              <div className="h-2 rounded-full bg-fa-primary transition-[width]" style={{ width: `${Math.max(2, Math.min(100, state.percent))}%` }} />
+            )}
           </div>
           <span className="text-sm tabular-nums text-fa-text-2">
-            Uploading… {Math.round(state.percent)}%{state.detail ? ` · ${state.detail}` : ''}
+            Uploading…{state.percent === undefined ? '' : ` ${Math.round(state.percent)}%`}
+            {state.detail ? ` · ${state.detail}` : ''}
           </span>
         </div>
         {onCancel ? (

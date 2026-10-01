@@ -1,5 +1,5 @@
 import React from 'react'
-import { Camera, Check, CircleCheck, CircleX, ImageIcon, StickyNote } from 'lucide-react'
+import { Camera, Check, CircleAlert, CircleCheck, CircleX, ImageIcon, LoaderCircle, RefreshCw, StickyNote } from 'lucide-react'
 import { cn } from './cn'
 
 // A tick-off step of a maintenance or cleaning checklist: a big tick box, the
@@ -11,12 +11,15 @@ export interface ChecklistRowProps {
   onToggle: () => void
   note?: string
   photoCount?: number
+  // The step's own photo, when it has one: shown as a thumbnail with how its
+  // upload is going (a failed one stays on the phone and can be sent again).
+  photo?: { url?: string; status: 'uploading' | 'uploaded' | 'failed'; onRetry?: () => void }
   onNote?: () => void
   onPhoto?: () => void
   disabled?: boolean
 }
 
-export function ChecklistRow({ label, done, onToggle, note, photoCount = 0, onNote, onPhoto, disabled }: ChecklistRowProps) {
+export function ChecklistRow({ label, done, onToggle, note, photoCount = 0, photo, onNote, onPhoto, disabled }: ChecklistRowProps) {
   return (
     <div className="flex flex-col gap-0.5 border-b border-fa-border py-1.5 last:border-b-0">
       <button
@@ -37,7 +40,7 @@ export function ChecklistRow({ label, done, onToggle, note, photoCount = 0, onNo
         </span>
         <span>{label}</span>
       </button>
-      {note || photoCount > 0 ? (
+      {note || photoCount > 0 || photo ? (
         <div className="ml-[38px] flex flex-col gap-2">
           {note ? (
             <div className="flex items-start gap-1.5 rounded-lg bg-fa-sunken px-2.5 py-2 text-[15px] text-fa-text-2">
@@ -45,7 +48,39 @@ export function ChecklistRow({ label, done, onToggle, note, photoCount = 0, onNo
               <span>{note}</span>
             </div>
           ) : null}
-          {photoCount > 0 ? (
+          {photo ? (
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-fa-photo">
+                {photo.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a local preview or an upload URL
+                  <img src={photo.url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <ImageIcon className="h-4 w-4 text-white" strokeWidth={1.75} aria-hidden />
+                )}
+              </span>
+              {photo.status === 'uploading' ? (
+                <span className="flex items-center gap-1.5 text-sm text-fa-text-2">
+                  <LoaderCircle className="h-4 w-4 animate-spin" strokeWidth={2} aria-hidden />
+                  Uploading…
+                </span>
+              ) : photo.status === 'failed' ? (
+                <>
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-fa-danger">
+                    <CircleAlert className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+                    Upload failed
+                  </span>
+                  {photo.onRetry ? (
+                    <button type="button" onClick={photo.onRetry} className="flex min-h-11 items-center gap-1.5 rounded-[10px] px-2.5 text-[15px] font-semibold text-fa-danger hover:bg-fa-danger-weak">
+                      <RefreshCw className="h-4 w-4" strokeWidth={2} aria-hidden />
+                      Retry
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <span className="text-sm text-fa-text-2">1 photo</span>
+              )}
+            </div>
+          ) : photoCount > 0 ? (
             <div className="flex items-center gap-2">
               <span className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-fa-photo">
                 <ImageIcon className="h-4 w-4 text-white" strokeWidth={1.75} aria-hidden />
@@ -68,7 +103,7 @@ export function ChecklistRow({ label, done, onToggle, note, photoCount = 0, onNo
           {onPhoto ? (
             <button type="button" onClick={onPhoto} disabled={disabled} className="flex min-h-11 items-center gap-1.5 rounded-[10px] px-2.5 text-[15px] font-semibold text-fa-primary hover:bg-fa-primary-weak disabled:opacity-50">
               <Camera className="h-4 w-4" strokeWidth={2} aria-hidden />
-              Photo
+              {photo ? 'Retake' : 'Photo'}
             </button>
           ) : null}
         </div>

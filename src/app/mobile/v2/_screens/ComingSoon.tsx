@@ -1,11 +1,10 @@
 import React from 'react'
-import { ClipboardCheck, Inbox, ScanLine, Sparkles, Wrench } from 'lucide-react'
+import { ClipboardCheck, Inbox, ScanLine, Sparkles } from 'lucide-react'
 import { EmptyState, type FieldTab } from '@/components/field'
 
 // A tab the redesign has not reached yet (this preview only; the live field
 // app at /mobile keeps working meanwhile).
-const NEXT: Partial<Record<FieldTab, { icon: typeof Wrench; title: string; phase: number }>> = {
-  Tasks: { icon: Wrench, title: 'Tasks', phase: 3 },
+const NEXT: Partial<Record<FieldTab, { icon: typeof Inbox; title: string; phase: number }>> = {
   Cleaning: { icon: Sparkles, title: 'Cleaning', phase: 4 },
   Inspections: { icon: ClipboardCheck, title: 'Inspections', phase: 4 },
   Scan: { icon: ScanLine, title: 'Scan', phase: 5 },
