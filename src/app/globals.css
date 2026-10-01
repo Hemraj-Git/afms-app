@@ -1,5 +1,51 @@
 @import "tailwindcss";
 
+/* Field app (the phone app at /mobile) design tokens, from the "AFMS Field
+   Operations - Mobile redesign" canvas. Prefixed fa- so the desktop's colours
+   are untouched: bg-fa-bg, text-fa-text-2, border-fa-border, shadow-fa-e1... */
+@theme {
+  --color-fa-bg: #F6F7F9;
+  --color-fa-surface: #FFFFFF;
+  --color-fa-sunken: #EEF1F5;
+  --color-fa-border: #DCE1E8;
+  --color-fa-border-strong: #B9C2CE;
+  --color-fa-text: #0F172A;
+  --color-fa-text-2: #475569;
+  --color-fa-text-3: #5B6778;
+  --color-fa-primary: #1D4ED8;
+  --color-fa-primary-strong: #1E3A8A;
+  --color-fa-primary-weak: #EAF0FE;
+  --color-fa-info-weak: #DBEAFE;
+  --color-fa-hk: #6D28D9;
+  --color-fa-hk-weak: #F1EAFE;
+  --color-fa-insp: #047857;
+  --color-fa-insp-weak: #E3F6EE;
+  --color-fa-guest: #0F766E;
+  --color-fa-guest-weak: #E1F5F2;
+  --color-fa-danger: #B91C1C;
+  --color-fa-danger-weak: #FEE4E2;
+  --color-fa-high: #B45309;
+  --color-fa-warning-weak: #FEF3C7;
+  --color-fa-warning-ink: #78350F;
+  --color-fa-warning-line: #F5D98B;
+  --color-fa-success: #15803D;
+  --color-fa-success-weak: #DCFCE7;
+  --color-fa-disabled: #E3E7ED;
+  --color-fa-skeleton: #E4E8EE;
+  --color-fa-photo: #CFD7E2;
+  --shadow-fa-e1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --shadow-fa-e2: 0 -2px 12px rgba(15, 23, 42, 0.08);
+  --shadow-fa-toast: 0 8px 24px rgba(15, 23, 42, 0.3);
+  --shadow-fa-sheet: 0 -12px 32px rgba(15, 23, 42, 0.18);
+  --shadow-fa-scan: 0 4px 12px rgba(29, 78, 216, 0.35);
+}
+/* The fonts come from next/font (src/lib/fieldFonts.ts), which sets these
+   variables on the field app's root element. */
+@theme inline {
+  --font-plex: var(--font-plex-sans), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-plex-mono: var(--font-plex-mono-src), ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
 @layer base {
   :root {
     --background: 210 40% 98%;
