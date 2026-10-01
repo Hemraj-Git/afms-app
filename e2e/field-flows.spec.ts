@@ -108,7 +108,8 @@ test('Admin creates and assigns a corrective work order; the technician sends a 
   await send.getByRole('button', { name: 'Record as sent' }).click()
   await expect(tech.page.getByText(/OSR-\d{4}-\d{4}/).first()).toBeVisible()
 
-  // The on-site photo, then the after-repair photo, then complete.
+  // What was done, the on-site photo, then the after-repair photo, then complete.
+  await tech.page.getByLabel(/^Solution taken/).fill(`${E2E} Refitted the repaired control board.`)
   await attachPhoto(tech.page, tech.page.getByRole('button', { name: /Photo with the asset on site/ }))
   await expect(tech.page.getByText(/Uploaded · /)).toHaveCount(1)
   await attachPhoto(tech.page, tech.page.getByRole('button', { name: /After repair/ }))

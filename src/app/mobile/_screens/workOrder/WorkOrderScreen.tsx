@@ -132,6 +132,7 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
     mode,
     startPhoto: photos.urlOf('start'),
     completionPhoto: photos.urlOf('completion'),
+    solution,
     vendorId,
     vendorTicketNo: ticket,
     uploading: photos.uploading,
@@ -208,8 +209,12 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
       <PhotoCapture label={label} state={photos.stateOf(key)} required={opts.required} note={opts.note} onTake={() => photos.take(key)} onRetry={() => photos.retry(key)} />
     )
 
-  const textArea = (label: string, value: string, set: (v: string) => void, placeholder: string, required?: boolean) =>
-    readOnly ? <Fact label={label} value={value} /> : <TextAreaField label={label} required={required} rows={3} value={value} onChange={e => set(e.target.value)} placeholder={placeholder} />
+  const textArea = (label: string, value: string, set: (v: string) => void, placeholder: string, required?: boolean, error?: string) =>
+    readOnly ? (
+      <Fact label={label} value={value} />
+    ) : (
+      <TextAreaField label={label} required={required} rows={3} value={value} onChange={e => set(e.target.value)} placeholder={placeholder} error={error} />
+    )
 
   return (
     <>
@@ -325,9 +330,10 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
               <PartsList parts={parts} onChange={setParts} readOnly={readOnly} />
             </Step>
 
-            <Step icon={Flag} title="4. Finish">
+            <Step id="wo-completionPhoto" icon={Flag} title="4. Finish">
               {textArea('Completion notes', remarks, setRemarks, 'What was serviced, readings taken, anything to watch')}
-              {photoSlot('completion', 'Completion proof photo')}
+              {photoSlot('completion', 'Completion proof photo', { required: true, note: 'Needed to complete the job' })}
+              <StepError>{err('completionPhoto')}</StepError>
             </Step>
           </>
         ) : (
@@ -437,7 +443,9 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
 
             <Step id="wo-completionPhoto" icon={CircleCheck} title="Resolution">
               {textArea('Problem found', issue, setIssue, 'e.g. Capacitor blown, drain line blocked')}
-              {textArea('Solution taken', solution, setSolution, 'What was repaired, replaced or adjusted')}
+              <div id="wo-solution" className="scroll-mt-4">
+                {textArea('Solution taken', solution, setSolution, 'What was repaired, replaced or adjusted', true, err('solution'))}
+              </div>
               <div className="flex flex-col gap-2">
                 <span className="text-[15px] font-semibold">Parts used</span>
                 <PartsList parts={parts} onChange={setParts} readOnly={readOnly} />

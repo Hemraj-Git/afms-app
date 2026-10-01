@@ -110,21 +110,24 @@ describe('what stops a save', () => {
     expect(fields({ type: 'Corrective' }, 'In Progress')).toEqual([])
   })
 
-  it('needs the on-site photo to close a preventive job', () => {
-    expect(fields({}, 'Completed')).toEqual(['startPhoto'])
-    expect(fields({ startPhoto: 'u' }, 'Completed')).toEqual([])
+  it('needs the on-site and the completion photos to close a preventive job', () => {
+    expect(fields({}, 'Completed')).toEqual(['startPhoto', 'completionPhoto'])
+    expect(fields({ startPhoto: 'u' }, 'Completed')).toEqual(['completionPhoto'])
+    expect(fields({ startPhoto: 'u', completionPhoto: 'u' }, 'Completed')).toEqual([])
   })
 
-  it('needs both photos to close your own breakdown', () => {
-    expect(fields({ type: 'Corrective' }, 'Completed')).toEqual(['startPhoto', 'completionPhoto'])
+  it('needs both photos and what was done to close your own breakdown', () => {
+    expect(fields({ type: 'Corrective' }, 'Completed')).toEqual(['startPhoto', 'solution', 'completionPhoto'])
+    expect(fields({ type: 'Corrective', startPhoto: 'u', completionPhoto: 'u', solution: ' ' }, 'Completed')).toEqual(['solution'])
+    expect(fields({ type: 'Corrective', startPhoto: 'u', completionPhoto: 'u', solution: 'Replaced capacitor' }, 'Completed')).toEqual([])
   })
 
   it('needs the vendor, then their job number to close, for a vendor job -- and no photos', () => {
     const v = { type: 'Corrective' as const, mode: 'Vendor' as const }
     expect(fields(v, 'In Progress')).toEqual(['vendorId'])
     expect(fields({ ...v, vendorId: 'x' }, 'In Progress')).toEqual([])
-    expect(fields({ ...v, vendorId: 'x' }, 'Completed')).toEqual(['vendorTicketNo'])
-    expect(fields({ ...v, vendorId: 'x', vendorTicketNo: 'J-1' }, 'Completed')).toEqual([])
+    expect(fields({ ...v, vendorId: 'x' }, 'Completed')).toEqual(['vendorTicketNo', 'solution'])
+    expect(fields({ ...v, vendorId: 'x', vendorTicketNo: 'J-1', solution: 'Gas top-up' }, 'Completed')).toEqual([])
   })
 
   it('waits for photos, and will not save one that failed', () => {
@@ -133,7 +136,7 @@ describe('what stops a save', () => {
   })
 
   it('will not close while a part is out for repair', () => {
-    const p = draftProblems({ ...base, type: 'Corrective', startPhoto: 'u', completionPhoto: 'u', completionBlocked: 'Still out' }, 'Completed')
+    const p = draftProblems({ ...base, type: 'Corrective', startPhoto: 'u', completionPhoto: 'u', solution: 'Fixed', completionBlocked: 'Still out' }, 'Completed')
     expect(p).toEqual([{ field: 'outsideRepair', message: 'Still out' }])
   })
 })

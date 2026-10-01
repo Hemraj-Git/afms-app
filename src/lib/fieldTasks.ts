@@ -129,6 +129,8 @@ export interface WorkOrderDraft {
   completionPhoto: string
   vendorId: string
   vendorTicketNo: string
+  // Breakdown: what was done to fix it.
+  solution?: string
   // Photos still on their way up, and ones that failed (kept on the phone).
   uploading: number
   failed: number
@@ -138,7 +140,7 @@ export interface WorkOrderDraft {
 
 // Each problem names the part of the screen it belongs to, so the screen can
 // show it there and scroll to it.
-export type DraftField = 'startPhoto' | 'completionPhoto' | 'vendorId' | 'vendorTicketNo' | 'photos' | 'outsideRepair'
+export type DraftField = 'startPhoto' | 'completionPhoto' | 'solution' | 'vendorId' | 'vendorTicketNo' | 'photos' | 'outsideRepair'
 export interface DraftProblem {
   field: DraftField
   message: string
@@ -149,6 +151,8 @@ export interface DraftProblem {
 // - a vendor job needs the vendor; closing it also needs the vendor's job no.
 // - closing your own job needs the on-site photo; a breakdown also the
 //   after-repair photo (a vendor's job sheet is the proof for a vendor job).
+// - closing a preventive job needs its completion proof photo, and closing
+//   any breakdown says what was done ("Solution taken").
 // - closing a cleaning task needs the after-cleaning photo (the before photo
 //   is optional, as it always was).
 // - nothing closes while a part is still at an outside workshop.
@@ -167,7 +171,9 @@ export function draftProblems(d: WorkOrderDraft, intent: SaveIntent): DraftProbl
       if (!d.completionPhoto) problems.push({ field: 'completionPhoto', message: 'Take the after-cleaning photo.' })
     } else {
       if (!vendorJob && !d.startPhoto) problems.push({ field: 'startPhoto', message: 'Take the photo with the asset on site.' })
+      if (d.type === 'Corrective' && !d.solution?.trim()) problems.push({ field: 'solution', message: 'Say what was done to fix it.' })
       if (d.type === 'Corrective' && !vendorJob && !d.completionPhoto) problems.push({ field: 'completionPhoto', message: 'Take the after-repair photo.' })
+      if (d.type === 'Preventive' && !d.completionPhoto) problems.push({ field: 'completionPhoto', message: 'Take the completion proof photo.' })
     }
     if (d.completionBlocked) problems.push({ field: 'outsideRepair', message: d.completionBlocked })
   }
