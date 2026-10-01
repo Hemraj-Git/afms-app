@@ -1591,13 +1591,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       if (!targetWo) return
       const woNumber = saved?.woNumber ?? mintedWoNumber ?? targetWo.woNumber
 
+      // The asset's status follows the order in the database itself (migration
+      // 0050): Under Maintenance on a corrective order's first assignment or
+      // when work starts, Operational when it is completed -- whoever saves,
+      // so it no longer depends on this person's own permissions.
       if (isFirstAssignment) {
-        // A Corrective WO getting its first assignment puts the asset
-        // 'Under Maintenance' immediately -- it doesn't wait for a separate
-        // "start work" step. Preventive only flips when explicitly started.
-        if (targetWo.type === 'Corrective' && targetWo.assetId) {
-          updateAssetStatus(targetWo.assetId, 'Under Maintenance')
-        }
         // A Corrective WO raised from a Service Request left the ticket stamped
         // with the PENDING placeholder -- carry the real number over onto it.
         if (targetWo.source === 'Service Request' && targetWo.sourceRefId) {
@@ -1611,7 +1609,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       // side effect and, for a Preventive WO, mint a duplicate recurring order.
       if (stampCompletedAt) {
         if (targetWo.assetId) {
-          updateAssetStatus(targetWo.assetId, 'Operational')
           const completionLabel =
             targetWo.type === 'Preventive' ? 'Preventive Maintenance Completed' :
             targetWo.type === 'Corrective' ? 'Corrective Maintenance Completed' :
@@ -1632,32 +1629,12 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           updateServiceRequestStatus(targetWo.sourceRefId, 'Resolved')
         }
 
-        // A completed Preventive Maintenance order schedules the next interval,
-        // anchored on the date it was ACTUALLY completed, never the original due
-        // date (a PM finished late shouldn't push every future cycle later forever).
-        if (targetWo.type === 'Preventive') {
-          const interval = targetWo.frequency || 'Quarterly'
-          const nextWoUuid = generateUUID()
-          addWorkOrdersMutation.mutate([{
-            id: nextWoUuid,
-            woNumber: makePendingWoNumber(nextWoUuid),
-            title: targetWo.title || `Preventive Maintenance (${interval})`,
-            type: 'Preventive',
-            assetId: targetWo.assetId,
-            roomId: targetWo.roomId,
-            priority: 'Medium',
-            source: 'Scheduled',
-            frequency: interval,
-            dueDate: addIntervalToDate(completedDateIso, interval),
-            status: 'Scheduled',
-            checklistTemplateId: targetWo.checklistTemplateId,
-            checklistSnapshot: targetWo.checklistSnapshot,
-            createdAt: completedDateIso,
-          }])
-        }
+        // The next preventive order in the schedule is made by the database on
+        // this save (0050), counted from the day it was actually completed. It
+        // used to be inserted from here, which only an Admin is allowed to do,
+        // so a technician finishing one on the phone ended the schedule.
       } else if (status === 'In Progress') {
         if (targetWo.assetId) {
-          updateAssetStatus(targetWo.assetId, 'Under Maintenance')
           addAssetLog({
             assetId: targetWo.assetId,
             action: 'Under Maintenance',
@@ -1667,6 +1644,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           })
         }
       }
+
+      // Re-read what the database changed on this save: the asset's status and,
+      // for a completed preventive order, the next one in its schedule.
+      if (targetWo.assetId) queryClient.invalidateQueries({ queryKey: assetKeys.list(currentUser.id) })
+      if (stampCompletedAt && targetWo.type === 'Preventive') queryClient.invalidateQueries({ queryKey: workOrderKeys.list(currentUser.id) })
     })()
     return true
   }
@@ -1751,11 +1733,12 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     const completedDateIso = getLocalDateStr()
     const realId = targetInsp?.id ?? id
 
-    // Mark it complete first: the screen shows it at once, and it is undone with
-    // a toast if the database refuses. The follow-on records (next cycle,
-    // corrective work order) are only created once that has saved -- before,
-    // they were created even when the completion failed, and from inside a state
-    // updater, which React may run twice in development.
+    // Mark it complete: the screen shows it at once, and it is undone with a
+    // toast if the database refuses. What follows -- the next inspection in the
+    // schedule, a corrective work order for a failure, the asset back to
+    // Operational for a pass -- is made by the database on that save (migration
+    // 0050). It used to be inserted from here, which only an Admin is allowed to
+    // do, so an inspector's failure raised nothing and the schedule stopped.
     void (async () => {
       try {
         await updateInspectionMutation.mutateAsync({
@@ -1776,53 +1759,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       const ins = targetInsp
       if (!ins) return
 
-      const tmpl = checklistTemplates.find(t => t.id === ins.templateId)
-      const interval = tmpl?.interval || 'Quarterly'
-      const baseDate = ins.dueDate || completedDateIso
-      const nextDueDate = addIntervalToDate(baseDate, interval)
-      const nextSeq = getNextSequence(inspections.map(x => x.inspectionNumber), 'INSP')
-      const nextInspNumber = formatYearlyId('INSP', nextSeq)
-
-      // Auto-schedule next inspection cycle. inspection_number is re-minted
-      // server-side by a DB trigger (see
-      // supabase/migrations/0014_server_side_ticket_numbering.sql); the number
-      // here is only an on-screen guess, corrected when the list is re-read.
-      addInspectionsMutation.mutate([{
-        id: generateUUID(),
-        inspectionNumber: nextInspNumber,
-        assetId: ins.assetId,
-        templateId: ins.templateId,
-        templateVersion: ins.templateVersion || 1,
-        dueDate: nextDueDate,
-        status: 'Scheduled',
-        checklistSnapshot: ins.checklistSnapshot || tmpl?.items,
-        createdAt: completedDateIso,
-      }])
+      // Re-read what the database made: the next inspection, and (for a
+      // failure) the corrective work order an Admin will assign.
+      queryClient.invalidateQueries({ queryKey: inspectionKeys.list(currentUser.id) })
+      queryClient.invalidateQueries({ queryKey: workOrderKeys.list(currentUser.id) })
+      queryClient.invalidateQueries({ queryKey: assetKeys.list(currentUser.id) })
 
       if (result === 'Fail') {
-        // Asset status intentionally does NOT flip to 'Under Maintenance'
-        // here anymore -- this Corrective record is unassigned (PENDING)
-        // until a technician picks it up, matching the same
-        // create-vs-assign split used for Service-Request-triggered
-        // Corrective Maintenance. It flips at first assignment instead
-        // (see updateWorkOrderStatus).
-        const correctiveWoUuid = generateUUID()
-        const correctiveWoNumber = makePendingWoNumber(correctiveWoUuid)
-        const newCorrectiveWo: WorkOrder = {
-          id: correctiveWoUuid,
-          woNumber: correctiveWoNumber,
-          title: `Corrective: Defect from ${ins.inspectionNumber}`,
-          type: 'Corrective',
-          assetId: ins.assetId,
-          source: 'Failed Inspection',
-          sourceRefId: ins.inspectionNumber,
-          dueDate: getLocalDateStr(new Date(Date.now() + 86400000 * 2)),
-          status: 'Scheduled',
-          issueLogged: `Failed inspection item during inspection: ${remarks}`,
-          createdAt: completedDateIso,
-        }
-        addWorkOrdersMutation.mutate([newCorrectiveWo])
-
         addAssetLog({
           assetId: ins.assetId,
           action: 'Inspection Failed',
@@ -1832,7 +1775,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
           remarks: `Inspection failed. A corrective maintenance task has been raised, pending technician assignment.`,
         })
       } else {
-        updateAssetStatus(ins.assetId, 'Operational')
         addAssetLog({
           assetId: ins.assetId,
           action: 'Inspection Done',
