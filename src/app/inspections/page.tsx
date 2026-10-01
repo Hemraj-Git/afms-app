@@ -29,9 +29,13 @@ import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
 import { useSearchPrefill } from '@/lib/useSearchPrefill'
 
 import { Modal } from '@/components/ui/Modal'
+import { useAccountStatuses } from '@/lib/queries/accountStatus'
+import { firstAssignableId, orderForAssignment, PENDING_SUFFIX } from '@/lib/accountState'
 export default function InspectionsPage() {
   const router = useRouter()
-  const { inspections, updateInspection, completeInspection, assets, checklistTemplates, users } = useAFMS()
+  const { inspections, updateInspection, completeInspection, assets, checklistTemplates, users, currentUser } = useAFMS()
+  // Invited people who have not signed in yet cannot be given work (see accountState.ts).
+  const { isPending } = useAccountStatuses(currentUser.id, currentUser.role === 'Admin')
   
   const [selectedInspForAssign, setSelectedInspForAssign] = useState<Inspection | null>(null)
   const [selectedInspForPerform, setSelectedInspForPerform] = useState<Inspection | null>(null)
@@ -159,7 +163,7 @@ export default function InspectionsPage() {
               <button
                 onClick={() => {
                   setSelectedInspForAssign(insp)
-                  setSelectedInspectorId(insp.assignedInspectorId || inspectors[0]?.id || '')
+                  setSelectedInspectorId(insp.assignedInspectorId || firstAssignableId(inspectors, isPending))
                   setAssignRemarks('')
                 }}
                 className="text-[10px] text-blue-600 hover:text-blue-800 ml-1 underline cursor-pointer font-medium"
@@ -244,7 +248,7 @@ export default function InspectionsPage() {
           <button
             onClick={() => {
               setSelectedInspForAssign(insp)
-              setSelectedInspectorId(inspectors[0]?.id || '')
+              setSelectedInspectorId(firstAssignableId(inspectors, isPending))
               setAssignRemarks('')
             }}
             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1"
@@ -389,9 +393,9 @@ export default function InspectionsPage() {
                     required
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 font-medium"
                   >
-                    {inspectors.map(insp => (
-                      <option key={insp.id} value={insp.id}>
-                        {insp.fullName} ({insp.role} • {insp.department || 'Staff'})
+                    {orderForAssignment(inspectors, isPending).map(insp => (
+                      <option key={insp.id} value={insp.id} disabled={isPending(insp.id)}>
+                        {insp.fullName} ({insp.role} • {insp.department || 'Staff'}){isPending(insp.id) ? PENDING_SUFFIX : ''}
                       </option>
                     ))}
                   </select>

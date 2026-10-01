@@ -47,6 +47,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, PRIORITY_ORDER, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 import { Modal, DRAWER_OVERLAY } from '@/components/ui/Modal'
+import { useAccountStatuses } from '@/lib/queries/accountStatus'
+import { firstAssignableId, orderForAssignment, PENDING_SUFFIX } from '@/lib/accountState'
 export default function WorkOrdersHubPage() {
   const {
     workOrders,
@@ -58,7 +60,10 @@ export default function WorkOrdersHubPage() {
     updateWorkOrderStatus,
     slaConfig,
     updateSlaConfig,
+    currentUser,
   } = useAFMS()
+  // Invited people who have not signed in yet cannot be given work (see accountState.ts).
+  const { isPending } = useAccountStatuses(currentUser.id, currentUser.role === 'Admin')
 
   const [activeTab, setActiveTab] = useState<'All' | 'Preventive' | 'Corrective' | 'Housekeeping'>('All')
   const [searchQuery, setSearchQuery] = useState('')
@@ -80,9 +85,8 @@ export default function WorkOrdersHubPage() {
   // Create Work Order form: checked by workOrderSchema, errors under the fields.
   // The first eligible person for a type (a technician, or housekeeping staff).
   const firstAssignee = (t: WorkOrderForm['type']) =>
-    users.find(u => (t === 'Housekeeping' ? u.role === 'Housekeeping' : u.role === 'Technician'))?.id ||
-    users.find(u => canBeAssigned(u.role, t))?.id ||
-    ''
+    firstAssignableId(users.filter(u => (t === 'Housekeeping' ? u.role === 'Housekeeping' : u.role === 'Technician')), isPending) ||
+    firstAssignableId(users.filter(u => canBeAssigned(u.role, t)), isPending)
   const blankWorkOrder = (): WorkOrderForm => ({
     type: 'Preventive',
     title: '',
@@ -119,7 +123,7 @@ export default function WorkOrdersHubPage() {
   const chooseType = (t: WorkOrderForm['type']) => {
     setValue('type', t)
     const current = users.find(u => u.id === getValues('assignedTechnicianId'))
-    if (!current || !canBeAssigned(current.role, t)) setValue('assignedTechnicianId', firstAssignee(t))
+    if (!current || !canBeAssigned(current.role, t) || isPending(current.id)) setValue('assignedTechnicianId', firstAssignee(t))
   }
 
   // A Preventive/Corrective record with no technician assigned yet is a
@@ -665,13 +669,11 @@ export default function WorkOrdersHubPage() {
                       className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white ${INVALID}`}
                     >
                       <option value="" disabled>Choose a person…</option>
-                      {users
-                        .filter(u => canBeAssigned(u.role, type))
-                        .map(u => (
-                          <option key={u.id} value={u.id}>
-                            {u.fullName} ({u.role})
-                          </option>
-                        ))}
+                      {orderForAssignment(users.filter(u => canBeAssigned(u.role, type)), isPending).map(u => (
+                        <option key={u.id} value={u.id} disabled={isPending(u.id)}>
+                          {u.fullName} ({u.role}){isPending(u.id) ? PENDING_SUFFIX : ''}
+                        </option>
+                      ))}
                     </select>
                     <FieldError id="wo-assignee-error" message={errors.assignedTechnicianId?.message} />
                   </div>

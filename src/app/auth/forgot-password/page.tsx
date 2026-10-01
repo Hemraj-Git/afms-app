@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { Mail, AlertCircle, Loader2, KeyRound, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { requestPasswordReset } from '@/app/actions/auth'
+import { EMAIL_LINK_VALID_HOURS } from '@/lib/authPolicy'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -51,7 +52,7 @@ export default function ForgotPasswordPage() {
                 <p className="font-bold text-sm">Check your email</p>
                 <p>
                   If <span className="font-semibold break-all">{email.trim()}</span> belongs to a staff account, a link to set a new
-                  password is on its way. It can take a few minutes.
+                  password is on its way. It can take a few minutes, and the link works for {EMAIL_LINK_VALID_HOURS} hours.
                 </p>
               </div>
             </div>

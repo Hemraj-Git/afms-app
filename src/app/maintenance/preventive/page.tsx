@@ -32,6 +32,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 import { Modal, DRAWER_OVERLAY } from '@/components/ui/Modal'
+import { useAccountStatuses } from '@/lib/queries/accountStatus'
+import { firstAssignableId, orderForAssignment, PENDING_SUFFIX } from '@/lib/accountState'
 // A not-yet-assigned Preventive record has a 'PENDING-<uuid>' placeholder
 // woNumber (see makePendingWoNumber) -- show something readable instead of
 // that raw internal string until it's minted into a real WO-PM-#### number.
@@ -40,6 +42,8 @@ const displayWoNumber = (woNumber: string) => (isPendingWorkOrder(woNumber) ? 'P
 export default function PreventiveMaintenancePage() {
   const router = useRouter()
   const { workOrders, updateWorkOrderStatus, assets, rooms, checklistTemplates, users, currentUser } = useAFMS()
+  // Invited people who have not signed in yet cannot be given work (see accountState.ts).
+  const { isPending } = useAccountStatuses(currentUser.id, currentUser.role === 'Admin')
   
   const [selectedWoForAssign, setSelectedWoForAssign] = useState<WorkOrder | null>(null)
   const [selectedWoForDetails, setSelectedWoForDetails] = useState<WorkOrder | null>(null)
@@ -182,7 +186,7 @@ export default function PreventiveMaintenancePage() {
           <button
             onClick={() => {
               setSelectedWoForAssign(wo)
-              setSelectedTechnicianId(availableTechs[0]?.id || '')
+              setSelectedTechnicianId(firstAssignableId(availableTechs, isPending))
               setAssignRemarks('')
             }}
             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5"
@@ -277,9 +281,9 @@ export default function PreventiveMaintenancePage() {
                     required
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 font-medium"
                   >
-                    {availableTechs.map(tech => (
-                      <option key={tech.id} value={tech.id}>
-                        {tech.fullName} ({tech.role} - {tech.department || 'Maintenance'})
+                    {orderForAssignment(availableTechs, isPending).map(tech => (
+                      <option key={tech.id} value={tech.id} disabled={isPending(tech.id)}>
+                        {tech.fullName} ({tech.role} - {tech.department || 'Maintenance'}){isPending(tech.id) ? PENDING_SUFFIX : ''}
                       </option>
                     ))}
                   </select>
@@ -578,7 +582,7 @@ export default function PreventiveMaintenancePage() {
                             type="button"
                             onClick={() => {
                               setSelectedWoForAssign(wo)
-                              setSelectedTechnicianId(wo.assignedTechnicianId || technicians[0]?.id || '')
+                              setSelectedTechnicianId(wo.assignedTechnicianId || firstAssignableId(technicians, isPending))
                               setAssignRemarks('')
                             }}
                             className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold transition flex items-center justify-center gap-1.5 text-xs shadow-2xs"

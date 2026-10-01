@@ -23,8 +23,14 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 import { Modal } from '@/components/ui/Modal'
+import { useAccountStatuses } from '@/lib/queries/accountStatus'
+import { firstAssignableId, orderForAssignment, PENDING_SUFFIX } from '@/lib/accountState'
 export default function HousekeepingPage() {
-  const { workOrders, rooms, users, addWorkOrder, updateWorkOrderStatus } = useAFMS()
+  const { workOrders, rooms, users, addWorkOrder, updateWorkOrderStatus, currentUser } = useAFMS()
+  // Invited people who have not signed in yet cannot be given work (see accountState.ts).
+  const { isPending } = useAccountStatuses(currentUser.id, currentUser.role === 'Admin')
+  // Housekeeping staff first, then Admins; never someone still waiting on their invite.
+  const defaultCleaner = firstAssignableId([...users.filter(u => u.role === 'Housekeeping'), ...users.filter(u => u.role === 'Admin')], isPending)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -37,13 +43,16 @@ export default function HousekeepingPage() {
   const [title, setTitle] = useState('')
   const [roomId, setRoomId] = useState(rooms[0]?.id || '')
   useDefaultSelection(roomId, setRoomId, rooms[0]?.id)
-  const [assignedTechnicianId, setAssignedTechnicianId] = useState(
-    users.find(u => u.role === 'Housekeeping')?.id || users.find(u => u.role === 'Admin')?.id || ''
-  )
+  const [assignedTechnicianId, setAssignedTechnicianId] = useState(defaultCleaner)
+  // The invite states arrive a moment after the page, so the default chosen on
+  // the first render can turn out to be someone who has not signed in yet. The
+  // person actually used is worked out here rather than corrected afterwards
+  // (a pending person cannot be chosen in the list itself).
+  const assignee = assignedTechnicianId && !isPending(assignedTechnicianId) ? assignedTechnicianId : defaultCleaner
   useDefaultSelection(
     assignedTechnicianId,
     setAssignedTechnicianId,
-    users.find(u => u.role === 'Housekeeping')?.id || users.find(u => u.role === 'Admin')?.id
+    defaultCleaner || undefined
   )
   const [dueDate, setDueDate] = useState(getLocalDateStr())
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Low')
@@ -72,7 +81,7 @@ export default function HousekeepingPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const tech = users.find(u => u.id === assignedTechnicianId)
+    const tech = users.find(u => u.id === assignee)
     const woNum = formatYearlyId('WO-HK', getNextSequence(workOrders.map(w => w.woNumber), 'WO-HK'))
 
     addWorkOrder({
@@ -83,7 +92,7 @@ export default function HousekeepingPage() {
       priority,
       source: 'Routine',
       dueDate,
-      assignedTechnicianId,
+      assignedTechnicianId: assignee,
       assignedTechnicianName: tech?.fullName || 'Housekeeping Staff',
       status: 'Scheduled',
       issueLogged: notes || 'Facility cleanliness & sanitization schedule',
@@ -100,7 +109,7 @@ export default function HousekeepingPage() {
   const handleAssignStaff = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedWoForAssign) return
-    const staff = users.find(u => u.id === selectedStaffId) || housekeepingStaff[0]
+    const staff = users.find(u => u.id === selectedStaffId) || housekeepingStaff.find(u => u.id === firstAssignableId(housekeepingStaff, isPending))
     if (!staff) return
 
     updateWorkOrderStatus(
@@ -210,7 +219,7 @@ export default function HousekeepingPage() {
             <button
               onClick={() => {
                 setSelectedWoForAssign(wo)
-                setSelectedStaffId(wo.assignedTechnicianId || housekeepingStaff[0]?.id || '')
+                setSelectedStaffId(wo.assignedTechnicianId || firstAssignableId(housekeepingStaff, isPending))
                 setAssignRemarks('')
               }}
               className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
@@ -333,9 +342,9 @@ export default function HousekeepingPage() {
                     required
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 font-medium"
                   >
-                    {housekeepingStaff.map(staff => (
-                      <option key={staff.id} value={staff.id}>
-                        {staff.fullName} ({staff.role})
+                    {orderForAssignment(housekeepingStaff, isPending).map(staff => (
+                      <option key={staff.id} value={staff.id} disabled={isPending(staff.id)}>
+                        {staff.fullName} ({staff.role}){isPending(staff.id) ? PENDING_SUFFIX : ''}
                       </option>
                     ))}
                   </select>
@@ -412,13 +421,13 @@ export default function HousekeepingPage() {
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Assign Staff</label>
                   <select
-                    value={assignedTechnicianId}
+                    value={assignee}
                     onChange={e => setAssignedTechnicianId(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white"
                   >
-                    {housekeepingStaff.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName} ({u.role})
+                    {orderForAssignment(housekeepingStaff, isPending).map(u => (
+                      <option key={u.id} value={u.id} disabled={isPending(u.id)}>
+                        {u.fullName} ({u.role}){isPending(u.id) ? PENDING_SUFFIX : ''}
                       </option>
                     ))}
                   </select>

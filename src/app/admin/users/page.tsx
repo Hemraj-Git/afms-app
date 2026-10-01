@@ -11,6 +11,7 @@ import {
   Search,
   Pencil,
   Trash2,
+  MailPlus,
   X,
   Mail,
   Phone,
@@ -30,7 +31,8 @@ import {
   QrCode,
 } from 'lucide-react'
 import { UserProfile, UserRole, Department, ServiceRequest } from '@/types/afms'
-import { inviteUser } from '@/app/actions/users'
+import { inviteUser, resendInvite } from '@/app/actions/users'
+import { useAccountStatuses } from '@/lib/queries/accountStatus'
 import { formatDateDisplay } from '@/lib/dateUtils'
 import { useSearchPrefill } from '@/lib/useSearchPrefill'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -42,6 +44,7 @@ import { useFormCheck } from '@/lib/useFormCheck'
 import { nameSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
 import { confirmAction } from '@/lib/confirm'
+import { EMAIL_LINK_VALID_HOURS } from '@/lib/authPolicy'
 export default function UsersAdminPage() {
   const {
     users,
@@ -55,7 +58,27 @@ export default function UsersAdminPage() {
     assets,
     roomAccessLogs,
     serviceRequests,
+    currentUser,
   } = useAFMS()
+
+  // Which accounts are still waiting on their invite (never signed in), so the
+  // list can say so and offer to send it again.
+  const { byId: accountStatus, isPending, refetch: refetchAccountStatus } = useAccountStatuses(currentUser.id, currentUser.role === 'Admin')
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const handleResendInvite = async (user: UserProfile, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setResendingId(user.id)
+    try {
+      const result = await resendInvite(user.id)
+      if (result.success) showToast('success', `Invite sent again to ${result.email}. The link works for ${EMAIL_LINK_VALID_HOURS} hours.`)
+      else showToast('error', result.error)
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Could not resend the invite.')
+    } finally {
+      setResendingId(null)
+      void refetchAccountStatus()
+    }
+  }
 
   // Active Tab: Users or Departments
   const [activeTab, setActiveTab] = useState<'users' | 'departments'>('users')
@@ -213,6 +236,7 @@ export default function UsersAdminPage() {
         phone: result.profile.phone,
       })
       setInviteSuccessEmail(result.profile.email)
+      void refetchAccountStatus()
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : 'Could not send the invite.')
     } finally {
@@ -362,10 +386,18 @@ export default function UsersAdminPage() {
             {user.fullName.charAt(0)}
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="font-bold text-slate-900 group-hover:text-blue-600 transition">
                 {user.fullName}
               </p>
+              {isPending(user.id) && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-amber-50 text-amber-800 border-amber-200"
+                  title={`Invited ${formatDateDisplay(accountStatus.get(user.id)?.invitedAt)} and has not signed in yet. Work cannot be assigned until they do.`}
+                >
+                  Invite pending
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">{user.email}</p>
           </div>
@@ -418,6 +450,17 @@ export default function UsersAdminPage() {
       meta: { thClassName: 'py-3.5 px-6 text-right', tdClassName: 'py-4 px-6 text-right' },
       cell: ({ row: { original: user } }) => (
         <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+          {isPending(user.id) && (
+            <button
+              onClick={e => handleResendInvite(user, e)}
+              disabled={resendingId === user.id}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100 disabled:opacity-60 transition"
+              title="Send the invite email again"
+            >
+              <MailPlus className="w-3.5 h-3.5" />
+              <span>{resendingId === user.id ? 'Sending...' : 'Resend invite'}</span>
+            </button>
+          )}
           <button
             onClick={e => openEditUserModal(user, e)}
             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition"
@@ -1053,9 +1096,13 @@ export default function UsersAdminPage() {
                     <span>Invite sent!</span>
                   </div>
                   <p className="text-emerald-800">
-                    A real Supabase Auth account was created and an invite email was sent to{' '}
-                    <strong className="font-mono">{inviteSuccessEmail}</strong>. They&apos;ll set their own
-                    password from that email before they can sign in.
+                    An invite email was sent to <strong className="font-mono">{inviteSuccessEmail}</strong>. They
+                    set their own password from that email before they can sign in.
+                  </p>
+                  <p className="text-emerald-800">
+                    The link works for <strong>{EMAIL_LINK_VALID_HOURS} hours</strong>. Until they use it, the list
+                    shows them as <strong>Invite pending</strong> and work cannot be assigned to them; you can resend
+                    the invite from there.
                   </p>
                   <div className="pt-2 flex justify-end">
                     <button
