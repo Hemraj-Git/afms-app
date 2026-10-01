@@ -15,6 +15,10 @@ import * as Dialog from '@radix-ui/react-dialog'
 export const MODAL_OVERLAY =
   'fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in'
 
+// A dialog opened from inside a drawer (e.g. "Log resolution" from a work
+// order's details): one layer up, so it sits over the drawer, not behind it.
+export const STACKED_OVERLAY = MODAL_OVERLAY.replace('z-50', 'z-[60]')
+
 // A panel sliding in from the right (detail drawers).
 export const DRAWER_OVERLAY = 'fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in'
 

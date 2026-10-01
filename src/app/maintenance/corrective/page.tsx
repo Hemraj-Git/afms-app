@@ -36,7 +36,7 @@ import { isPendingWorkOrder } from '@/lib/idGenerator'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, WO_STATUS_ORDER, sortByOrder } from '@/components/ui/DataTable'
 
-import { Modal, DRAWER_OVERLAY } from '@/components/ui/Modal'
+import { Modal, DRAWER_OVERLAY, STACKED_OVERLAY } from '@/components/ui/Modal'
 import { useAccountStatuses } from '@/lib/queries/accountStatus'
 import { firstAssignableId, orderForAssignment, PENDING_SUFFIX } from '@/lib/accountState'
 // A not-yet-assigned Corrective record has a 'PENDING-<uuid>' placeholder
@@ -61,6 +61,8 @@ export default function CorrectiveMaintenancePage() {
   const [solutionTaken, setSolutionTaken] = useState('')
   const [partsList, setPartsList] = useState<WorkOrderPartItem[]>([])
   const [photoUrl, setPhotoUrl] = useState('')
+  // Closing a breakdown needs what was done -- the same rule as the field app.
+  const [solutionError, setSolutionError] = useState<string | null>(null)
   const [executionMode, setExecutionMode] = useState<'In House' | 'Vendor'>('In House')
 
   // Sorted soonest-due-first -- the fetch only orders by created_at.
@@ -94,19 +96,26 @@ export default function CorrectiveMaintenancePage() {
   const handleResolve = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedWoForResolve) return
+    const solution = solutionTaken.trim()
+    if (!solution) {
+      setSolutionError('Say what was done to fix it.')
+      return
+    }
+    setSolutionError(null)
     const now = new Date().toJSON().split('T')[0]
 
     // Refused (and explained) while something is still out for repair; the form stays open.
     const accepted = updateWorkOrderStatus(
       selectedWoForResolve.id,
       'Completed',
-      solutionTaken || 'Issue diagnosed and rectified.',
+      solution,
       {
         issueLogged: problemFound || selectedWoForResolve.issueLogged,
-        solutionTaken: solutionTaken || 'Issue diagnosed and rectified.',
-        technicianRemarks: solutionTaken,
+        solutionTaken: solution,
+        technicianRemarks: solution,
         partsReplaced: partsList.filter(p => p.partName.trim()),
-        completionPhotoUrl: photoUrl || '/images/asset-placeholder.png',
+        // Only a real photo: no stand-in image saved as if it were evidence.
+        completionPhotoUrl: photoUrl.trim() || undefined,
         executedBy: executionMode,
         completedAt: now,
       }
@@ -117,10 +126,10 @@ export default function CorrectiveMaintenancePage() {
       ...prev,
       status: 'Completed',
       issueLogged: problemFound || prev.issueLogged,
-      solutionTaken: solutionTaken || 'Issue diagnosed and rectified.',
-      technicianRemarks: solutionTaken,
+      solutionTaken: solution,
+      technicianRemarks: solution,
       partsReplaced: partsList.filter(p => p.partName.trim()),
-      completionPhotoUrl: photoUrl || '/images/asset-placeholder.png',
+      completionPhotoUrl: photoUrl.trim() || prev.completionPhotoUrl,
       executedBy: executionMode,
       completedAt: now,
     } : null)
@@ -289,7 +298,7 @@ export default function CorrectiveMaintenancePage() {
 
         {/* Modal 1: Assign / Reassign Technician Modal (Generates / Activates Work Order) */}
         {selectedWoForAssign && (
-            <Modal title={selectedWoForAssign.assignedTechnicianName ? 'Reassign Technician' : 'Assign Technician'} onClose={() => setSelectedWoForAssign(null)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title={selectedWoForAssign.assignedTechnicianName ? 'Reassign Technician' : 'Assign Technician'} onClose={() => setSelectedWoForAssign(null)} overlayClassName={STACKED_OVERLAY} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <span className="text-xs font-mono font-bold text-rose-600">{displayWoNumber(selectedWoForAssign.woNumber)}</span>
@@ -361,7 +370,7 @@ export default function CorrectiveMaintenancePage() {
 
         {/* Modal 2: Breakdown Resolution Modal */}
         {selectedWoForResolve && (
-            <Modal title="Log Breakdown Resolution" onClose={() => setSelectedWoForResolve(null)} className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <Modal title="Log Breakdown Resolution" onClose={() => setSelectedWoForResolve(null)} overlayClassName={STACKED_OVERLAY} className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <span className="text-xs font-mono font-bold text-rose-600">{displayWoNumber(selectedWoForResolve.woNumber)}</span>
@@ -400,10 +409,20 @@ export default function CorrectiveMaintenancePage() {
                     rows={3}
                     required
                     value={solutionTaken}
-                    onChange={e => setSolutionTaken(e.target.value)}
+                    onChange={e => {
+                      setSolutionTaken(e.target.value)
+                      if (solutionError && e.target.value.trim()) setSolutionError(null)
+                    }}
                     placeholder="e.g. Replaced capacitor, rewired terminal connections, calibrated load..."
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
+                    aria-invalid={solutionError ? true : undefined}
+                    aria-describedby={solutionError ? 'solution-error' : undefined}
+                    className={`w-full px-3 py-2 border rounded-xl ${solutionError ? 'border-rose-500' : 'border-slate-200'}`}
                   />
+                  {solutionError && (
+                    <p id="solution-error" className="mt-1 text-[11px] font-semibold text-rose-600">
+                      {solutionError}
+                    </p>
+                  )}
                 </div>
 
                 {/* 3. Execution Mode: In House vs Vendor */}
@@ -489,23 +508,14 @@ export default function CorrectiveMaintenancePage() {
                   <div className="space-y-2">
                     <input
                       type="text"
-                      placeholder="Enter photo URL or leave default"
+                      placeholder="Photo link, if there is one"
                       value={photoUrl}
                       onChange={e => setPhotoUrl(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl"
                     />
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPhotoUrl('/images/asset-placeholder.png')}
-                        className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium"
-                      >
-                        Use Placeholder Image
-                      </button>
-                      {photoUrl && (
-                        <span className="text-[11px] text-emerald-700 font-semibold">✓ Photo Attached</span>
-                      )}
-                    </div>
+                    {photoUrl.trim() && (
+                      <span className="text-[11px] text-emerald-700 font-semibold">✓ Photo Attached</span>
+                    )}
                   </div>
                 </div>
 
@@ -744,6 +754,7 @@ export default function CorrectiveMaintenancePage() {
                               setSelectedWoForResolve(wo)
                               setProblemFound(wo.issueLogged || '')
                               setSolutionTaken(wo.solutionTaken || '')
+                              setSolutionError(null)
                               setPartsList(wo.partsReplaced || [])
                               setPhotoUrl(wo.completionPhotoUrl || '')
                               setExecutionMode(wo.executedBy || 'In House')

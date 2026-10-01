@@ -31,7 +31,7 @@ import { isPendingWorkOrder } from '@/lib/idGenerator'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
-import { Modal, DRAWER_OVERLAY } from '@/components/ui/Modal'
+import { Modal, DRAWER_OVERLAY, STACKED_OVERLAY } from '@/components/ui/Modal'
 import { useAccountStatuses } from '@/lib/queries/accountStatus'
 import { firstAssignableId, orderForAssignment, PENDING_SUFFIX } from '@/lib/accountState'
 // A not-yet-assigned Preventive record has a 'PENDING-<uuid>' placeholder
@@ -249,7 +249,7 @@ export default function PreventiveMaintenancePage() {
 
         {/* Modal 1: Assign Technician (Generates / Activates Work Order) */}
         {selectedWoForAssign && (
-            <Modal title={selectedWoForAssign.assignedTechnicianName ? 'Reassign Technician' : 'Assign Technician'} onClose={() => setSelectedWoForAssign(null)} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <Modal title={selectedWoForAssign.assignedTechnicianName ? 'Reassign Technician' : 'Assign Technician'} onClose={() => setSelectedWoForAssign(null)} overlayClassName={STACKED_OVERLAY} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <span className="text-xs font-mono font-bold text-blue-600">{displayWoNumber(selectedWoForAssign.woNumber)}</span>
