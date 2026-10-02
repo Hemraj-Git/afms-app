@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
+import { answerOf, checkpointsFor } from '@/lib/fieldInspections'
 import {
   ShieldCheck,
   CheckCircle2,
@@ -78,6 +79,8 @@ export default function InspectionsPage() {
       assignedInspectorId: inspector.id,
       assignedInspectorName: inspector.fullName,
       status: 'Scheduled',
+      // Shown to the inspector on the phone (it used to be asked for and dropped).
+      instructions: assignRemarks.trim() || undefined,
     })
 
     setSelectedInspForAssign(null)
@@ -402,7 +405,7 @@ export default function InspectionsPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Inspection Instructions / Remarks</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Instructions for the field (shown on their phone)</label>
                   <textarea
                     rows={2}
                     value={assignRemarks}
@@ -554,7 +557,7 @@ export default function InspectionsPage() {
                     <p className="text-slate-400 text-[10px] font-semibold uppercase">Inspected By</p>
                     <div className="flex items-center gap-1 mt-0.5 font-bold text-slate-900">
                       <User className="w-3.5 h-3.5 text-blue-600" />
-                      <span>{selectedInspForView.assignedInspectorName || 'Diana Prince'}</span>
+                      <span>{selectedInspForView.assignedInspectorName || '—'}</span>
                     </div>
                   </div>
 
@@ -567,23 +570,40 @@ export default function InspectionsPage() {
                   </div>
                 </div>
 
-                {/* Remarks */}
+                {/* What the office asked for */}
+                {selectedInspForView.instructions ? (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="text-slate-600 font-bold uppercase text-[10px] tracking-wider">Instructions to the inspector</p>
+                    <p className="text-slate-700 mt-1 whitespace-pre-wrap">{selectedInspForView.instructions}</p>
+                  </div>
+                ) : null}
+
+                {/* Remarks -- as written; nothing is filled in */}
                 <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100/80">
                   <p className="text-blue-900 font-bold uppercase text-[10px] tracking-wider">Inspector Remarks</p>
-                  <p className="text-slate-700 mt-1 font-medium">
-                    {selectedInspForView.inspectorRemarks || 'Compliant with all parameters. Physical parameters checked.'}
+                  <p className="text-slate-700 mt-1 font-medium whitespace-pre-wrap">
+                    {selectedInspForView.inspectorRemarks || <span className="italic font-normal text-slate-400">Not recorded</span>}
                   </p>
                 </div>
 
-                {/* Overall Inspection Photo */}
-                {selectedInspForView.photoUrl && (
-                  <div className="space-y-1.5">
-                    <p className="font-bold text-slate-900 text-xs uppercase tracking-wider">Overall Photo</p>
-                    <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                      <img src={selectedInspForView.photoUrl} alt="Overall inspection proof" className="w-full h-44 object-cover" />
+                {/* Proof the inspector was there: at the start and at the end */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {([
+                    ['At the start', selectedInspForView.startPhotoUrl],
+                    ['At the end', selectedInspForView.photoUrl],
+                  ] as const).map(([label, url]) => (
+                    <div key={label} className="space-y-1">
+                      <p className="font-bold text-slate-700 text-[10px] uppercase tracking-wider">{label}</p>
+                      {url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="block rounded-xl overflow-hidden border border-slate-200 bg-white">
+                          <img src={url} alt={`Inspection photo ${label.toLowerCase()}`} className="w-full h-32 object-cover" />
+                        </a>
+                      ) : (
+                        <div className="h-32 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-[11px] text-slate-400">Not taken</div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  ))}
+                </div>
 
                 {/* Checklist Verification Results */}
                 <div className="space-y-2 pt-2">
@@ -592,12 +612,10 @@ export default function InspectionsPage() {
                   </p>
 
                   <div className="space-y-2">
-                    {checklistTemplates
-                      .find(t => t.id === selectedInspForView.templateId)
-                      ?.items.map((item, idx) => {
-                        const val = selectedInspForView.checklistResponses?.[item.id]?.value || 
-                                    (typeof selectedInspForView.checklistResponses?.[item.id] === 'string' ? selectedInspForView.checklistResponses?.[item.id] : 'Pass')
-                        const isPass = val === 'Pass' || !val || val === true
+                    {checkpointsFor(selectedInspForView, checklistTemplates).map((item, idx) => {
+                        // As answered: PASS, FAIL (with what was wrong), or not answered.
+                        const { result, note } = answerOf(selectedInspForView.checklistResponses?.[item.id])
+                        const isPass = result === 'Pass'
 
                         const itemPhoto = selectedInspForView.itemPhotos?.[item.id]
 
@@ -613,20 +631,27 @@ export default function InspectionsPage() {
                               {item.mandatory && (
                                 <span className="text-[10px] text-slate-400 font-medium">Mandatory Verification</span>
                               )}
+                              {note ? <p className="text-[11px] font-medium text-rose-700">What is wrong: {note}</p> : null}
                             </div>
 
                             {itemPhoto && (
-                              <img src={itemPhoto} alt={`Photo for ${item.itemText}`} className="h-10 w-10 rounded-lg object-cover border border-slate-200 shrink-0" />
+                              <a href={itemPhoto} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                                <img src={itemPhoto} alt={`Photo for ${item.itemText}`} className="h-10 w-10 rounded-lg object-cover border border-slate-200" />
+                              </a>
                             )}
 
                             <span
                               className={`px-3 py-1 rounded-lg text-xs font-bold shrink-0 flex items-center gap-1 ${
-                                isPass
+                                result === null
+                                  ? 'bg-slate-50 text-slate-500 border border-slate-200'
+                                  : isPass
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'
                               }`}
                             >
-                              {isPass ? (
+                              {result === null ? (
+                                <span>Not answered</span>
+                              ) : isPass ? (
                                 <>
                                   <CheckCircle2 className="w-3.5 h-3.5" />
                                   <span>PASS</span>

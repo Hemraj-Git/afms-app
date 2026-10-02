@@ -1,9 +1,12 @@
 'use client'
 
 import React, { useState } from 'react'
-import { CalendarClock, CircleAlert, ClipboardCheck, ImageIcon, MapPin, Minus, Package, Plus, Sparkles, StickyNote, Trash2, User, Wrench, type LucideIcon } from 'lucide-react'
+import {
+  Building2, CalendarClock, CircleAlert, ClipboardCheck, ImageIcon, MapPin, Minus, Package, Plus, Sparkles, StickyNote, Trash2, User, Wrench, type LucideIcon,
+} from 'lucide-react'
+import { useAFMS } from '@/context/AFMSContext'
 import type { WorkOrderPartItem } from '@/types/afms'
-import { BottomSheet, Button, Card, CardTitle, IconButton, IdText, TextAreaField, TextField } from '@/components/field'
+import { BottomSheet, Button, Card, CardTitle, IconButton, IdText, SelectField, TextAreaField, TextButton, TextField } from '@/components/field'
 
 // The pieces of the work-order screen (redesign canvas, WO-Preventive and
 // WO-Corrective), kept apart from the screen's state and saving.
@@ -93,13 +96,23 @@ export function StepError({ children }: { children?: React.ReactNode }) {
 }
 
 // The complaint that started a breakdown, from the person who raised it.
-export function ReportedIssue({ ticket, text, who, when }: { ticket: string; text: string; who?: string; when?: string }) {
+export function ReportedIssue({ ticket, text, who, when, photos }: { ticket: string; text: string; who?: string; when?: string; photos?: string[] }) {
   return (
     <Card className="gap-2">
       <CardTitle icon={CircleAlert} aside={<IdText>{ticket}</IdText>}>
         Reported issue
       </CardTitle>
-      <p className="m-0 text-[17px] leading-relaxed">{text}</p>
+      <p className="m-0 whitespace-pre-line text-[17px] leading-relaxed">{text}</p>
+      {photos?.length ? (
+        <div className="flex flex-wrap gap-2">
+          {photos.map(url => (
+            <a key={url} href={url} target="_blank" rel="noreferrer" aria-label="Open the reported photo">
+              {/* eslint-disable-next-line @next/next/no-img-element -- an uploaded photo */}
+              <img src={url} alt="" className="h-20 w-20 rounded-[10px] object-cover" />
+            </a>
+          ))}
+        </div>
+      ) : null}
       {who ? (
         <div className="flex items-center gap-[7px] text-[15px] text-fa-text-2">
           <User className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
@@ -230,6 +243,114 @@ export function NoteSheet({ step, value, onSave, onClose }: { step: string; valu
       <div className="flex flex-col gap-2.5">
         <Button onClick={() => onSave(text.trim())}>Save note</Button>
         <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+      </div>
+    </BottomSheet>
+  )
+}
+
+// What the office wrote for this job: its scope / the issue as logged, and
+// the instructions given when it was assigned. Read-only for the technician.
+export function OfficeNotes({ scope, instructions }: { scope?: string; instructions?: string }) {
+  if (!scope?.trim() && !instructions?.trim()) return null
+  return (
+    <Card className="gap-2 border-fa-primary-weak bg-fa-primary-weak/40">
+      <CardTitle icon={Building2}>From the office</CardTitle>
+      {scope?.trim() ? (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-semibold text-fa-text-2">Job details</span>
+          <p className="m-0 whitespace-pre-line text-[17px] leading-relaxed">{scope}</p>
+        </div>
+      ) : null}
+      {instructions?.trim() ? (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-semibold text-fa-text-2">Instructions</span>
+          <p className="m-0 whitespace-pre-line text-[17px] leading-relaxed">{instructions}</p>
+        </div>
+      ) : null}
+    </Card>
+  )
+}
+
+// Choosing a vendor, with "Add a vendor" for one not in the list yet (0052).
+export function VendorPicker({
+  label,
+  value,
+  onChange,
+  error,
+  required,
+}: {
+  label: string
+  value: string
+  onChange: (vendorId: string) => void
+  error?: string
+  required?: boolean
+}) {
+  const { vendors } = useAFMS()
+  const [adding, setAdding] = useState(false)
+  return (
+    <div className="flex flex-col gap-1">
+      <SelectField
+        label={label}
+        required={required}
+        placeholder="Choose the vendor"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        error={error}
+        options={[...vendors].sort((a, b) => a.name.localeCompare(b.name)).map(v => ({ value: v.id, label: v.name }))}
+      />
+      <TextButton className="self-start" onClick={() => setAdding(true)}>
+        <Plus className="h-4 w-4" strokeWidth={2} aria-hidden />
+        Add a vendor not in the list
+      </TextButton>
+      {adding ? (
+        <AddVendorSheet
+          onClose={() => setAdding(false)}
+          onAdded={id => {
+            onChange(id)
+            setAdding(false)
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function AddVendorSheet({ onClose, onAdded }: { onClose: () => void; onAdded: (id: string) => void }) {
+  const { addFieldVendor } = useAFMS()
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [contact, setContact] = useState('')
+  const [category, setCategory] = useState('')
+  const [errors, setErrors] = useState<{ name?: string; phone?: string }>({})
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    const next = { name: name.trim() ? undefined : 'Enter the vendor’s name.', phone: phone.trim() ? undefined : 'Enter a phone number.' }
+    setErrors(next)
+    if (next.name || next.phone) return
+    setBusy(true)
+    const id = await addFieldVendor({ name, phone, contactPerson: contact, category })
+    setBusy(false)
+    if (id) onAdded(id)
+  }
+
+  return (
+    <BottomSheet title="Add a vendor" onClose={onClose} preventClose={busy}>
+      <div>
+        <h2 className="m-0 text-[22px] font-bold">Add a vendor</h2>
+        <p className="m-0 text-base text-fa-text-2">The office can add their email, address and AMC later.</p>
+      </div>
+      <TextField label="Vendor / workshop name" required value={name} onChange={e => setName(e.target.value)} error={errors.name} placeholder="e.g. CoolFix Workshop" autoFocus />
+      <TextField label="Phone" required type="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} error={errors.phone} placeholder="10-digit number" />
+      <TextField label="Contact person" value={contact} onChange={e => setContact(e.target.value)} />
+      <TextField label="What they repair" value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g. AC compressors, motors" />
+      <div className="flex flex-col gap-2.5">
+        <Button icon={Plus} loading={busy} onClick={() => void save()}>
+          Add vendor
+        </Button>
+        <Button variant="secondary" disabled={busy} onClick={onClose}>
           Cancel
         </Button>
       </div>

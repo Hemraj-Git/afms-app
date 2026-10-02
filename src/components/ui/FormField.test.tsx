@@ -21,9 +21,9 @@ function RequestForm({ onSave }: { onSave: (v: ServiceRequestForm) => void }) {
   })
   return (
     <form ref={ref} noValidate onSubmit={e => handleSubmit(onSave, () => focusFirstError(ref.current))(e)}>
-      <label htmlFor="t">Title</label>
-      <input id="t" {...register('title')} {...invalidProps('t', errors.title?.message)} className={INVALID} />
-      <FieldError id="t-error" message={errors.title?.message} />
+      <label htmlFor="t">Description</label>
+      <textarea id="t" {...register('description')} {...invalidProps('t', errors.description?.message)} className={INVALID} />
+      <FieldError id="t-error" message={errors.description?.message} />
       <label htmlFor="r">Room</label>
       <select id="r" {...register('roomId')} {...invalidProps('r', errors.roomId?.message)}>
         <option value="">Choose…</option>
@@ -46,15 +46,15 @@ describe('inline form errors', () => {
     render(<RequestForm onSave={onSave} />)
     fireEvent.click(screen.getByText('Save'))
 
-    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(3))
+    // The equipment is only asked for once a room with equipment is chosen.
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
     expect(onSave).not.toHaveBeenCalled()
-    const title = screen.getByLabelText('Title')
+    const title = screen.getByLabelText('Description')
     expect(title.getAttribute('aria-invalid')).toBe('true')
     // The message is tied to the field for screen readers.
     expect(title.getAttribute('aria-describedby')).toBe('t-error')
-    expect(document.getElementById('t-error')?.textContent).toBe('Enter title.')
+    expect(document.getElementById('t-error')?.textContent).toBe('Describe the problem.')
     expect(screen.getByText('Choose the room or area.')).toBeTruthy()
-    expect(screen.getByText('Choose the asset that needs attention.')).toBeTruthy()
     expect(document.activeElement).toBe(title)
   })
 
@@ -62,16 +62,18 @@ describe('inline form errors', () => {
     const onSave = vi.fn()
     render(<RequestForm onSave={onSave} />)
     fireEvent.click(screen.getByText('Save'))
-    await screen.findByText('Enter title.')
+    await screen.findByText('Describe the problem.')
 
-    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'AC not cooling' } })
-    await waitFor(() => expect(screen.queryByText('Enter title.')).toBeNull())
-    expect(screen.getByLabelText('Title').getAttribute('aria-invalid')).toBe('false')
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'AC not cooling' } })
+    await waitFor(() => expect(screen.queryByText('Describe the problem.')).toBeNull())
+    expect(screen.getByLabelText('Description').getAttribute('aria-invalid')).toBe('false')
 
     fireEvent.change(screen.getByLabelText('Room'), { target: { value: 'r1' } })
+    fireEvent.click(screen.getByText('Save'))
+    await screen.findByText('Choose the equipment that needs attention.')
     fireEvent.change(screen.getByLabelText('Asset'), { target: { value: 'a1' } })
     fireEvent.click(screen.getByText('Save'))
     await waitFor(() => expect(onSave).toHaveBeenCalled())
-    expect(onSave.mock.calls[0][0]).toMatchObject({ title: 'AC not cooling', roomId: 'r1', assetId: 'a1' })
+    expect(onSave.mock.calls[0][0]).toMatchObject({ description: 'AC not cooling', roomId: 'r1', assetId: 'a1' })
   })
 })

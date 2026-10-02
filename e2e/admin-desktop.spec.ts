@@ -70,14 +70,17 @@ test('Create Service Request: errors under the fields, Escape closes', async ({ 
   const dialog = page.getByRole('dialog', { name: 'Create Service Request' })
   await expect(dialog).toBeVisible()
 
+  // The same rules as the phone: the room and a description; the title is optional.
   await dialog.getByRole('button', { name: 'Submit Service Request' }).click()
-  const title = dialog.getByLabel('Issue Title / Subject *')
-  await expect(dialog.getByText('Enter title.')).toBeVisible()
-  await expect(title).toHaveAttribute('aria-invalid', 'true')
-  await expect(title).toBeFocused()
+  const room = dialog.getByLabel('Room / Operational Area *')
+  await expect(dialog.getByText('Choose the room or area.')).toBeVisible()
+  await expect(room).toHaveAttribute('aria-invalid', 'true')
+  await expect(room).toBeFocused()
+  const description = dialog.getByLabel('Description *')
+  await expect(dialog.getByText('Describe the problem.')).toBeVisible()
 
-  await title.fill('Only checking the form')
-  await expect(dialog.getByText('Enter title.')).toHaveCount(0)
+  await description.fill('Only checking the form')
+  await expect(dialog.getByText('Describe the problem.')).toHaveCount(0)
 
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)

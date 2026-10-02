@@ -9,6 +9,7 @@ import { formatDateDisplay } from '@/lib/dateUtils'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import { isWithVendor } from '@/lib/workOrderState'
 import { VendorHandoverCard } from '@/components/VendorHandoverCard'
+import { WorkOrderRecord } from '@/components/workOrders/WorkOrderRecord'
 import { OutsideRepairPanel, OutsideRepairTag } from '@/components/outsideRepair/OutsideRepairPanel'
 import {
   AlertTriangle,
@@ -25,10 +26,6 @@ import {
   ArrowRight,
   ShieldAlert,
   Eye,
-  Package,
-  Clock,
-  Image as ImageIcon,
-  FileText,
   Trash2,
 } from 'lucide-react'
 import { WorkOrder, WorkOrderPartItem } from '@/types/afms'
@@ -83,8 +80,11 @@ export default function CorrectiveMaintenancePage() {
     updateWorkOrderStatus(
       selectedWoForAssign.id,
       'Scheduled',
-      assignRemarks || `Assigned to ${tech.fullName}`,
+      // The instructions go to the field in their own field; the technician's
+      // notes are left for the technician.
+      undefined,
       {
+        instructions: assignRemarks.trim() || undefined,
         assignedTechnicianId: tech.id,
         assignedTechnicianName: tech.fullName,
       }
@@ -110,7 +110,8 @@ export default function CorrectiveMaintenancePage() {
       'Completed',
       solution,
       {
-        issueLogged: problemFound || selectedWoForResolve.issueLogged,
+        // The issue as reported stays; what the technician found is its own field.
+        diagnosis: problemFound.trim() || undefined,
         solutionTaken: solution,
         technicianRemarks: solution,
         partsReplaced: partsList.filter(p => p.partName.trim()),
@@ -125,7 +126,7 @@ export default function CorrectiveMaintenancePage() {
     setSelectedWoForDetails(prev => prev && prev.id === selectedWoForResolve.id ? {
       ...prev,
       status: 'Completed',
-      issueLogged: problemFound || prev.issueLogged,
+      diagnosis: problemFound.trim() || prev.diagnosis,
       solutionTaken: solution,
       technicianRemarks: solution,
       partsReplaced: partsList.filter(p => p.partName.trim()),
@@ -339,7 +340,7 @@ export default function CorrectiveMaintenancePage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Dispatch Instructions / Remarks</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Instructions for the field (shown on their phone)</label>
                   <textarea
                     rows={2}
                     value={assignRemarks}
@@ -623,163 +624,42 @@ export default function CorrectiveMaintenancePage() {
                     <VendorHandoverCard wo={wo} />
                     <OutsideRepairPanel workOrder={wo} theme="light" readOnly={wo.status === 'Completed' || wo.status === 'Cancelled'} />
 
-                    {/* IF COMPLETED: Problem found, Action taken, Parts, Photo */}
-                    {isCompleted ? (
-                      <div className="space-y-3.5 pt-2 border-t border-slate-100">
-                        {/* 1. Problem Found by Technician */}
-                        <div className="p-3.5 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-1">
-                          <p className="font-bold text-[11px] text-rose-900 uppercase tracking-wider flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                            Problem Found by Technician
-                          </p>
-                          <p className="text-slate-800 text-xs leading-relaxed">
-                            {wo.issueLogged || 'Breakdown defect diagnosed during on-site inspection.'}
-                          </p>
-                        </div>
+                    <WorkOrderRecord wo={wo} checklistItems={[]} />
 
-                        {/* 2. Action Taken by Technician */}
-                        <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl space-y-1">
-                          <p className="font-bold text-[11px] text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            Action Taken by Technician
-                          </p>
-                          <p className="text-slate-800 text-xs leading-relaxed">
-                            {wo.solutionTaken || wo.technicianRemarks || 'Defect rectified, tested, and restored to operational service.'}
-                          </p>
-                        </div>
+                    {/* Operational Actions */}
+                    {!isCompleted ? (
+                    <div className="space-y-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWoForResolve(wo)
+                          setProblemFound(wo.diagnosis || '')
+                          setSolutionTaken(wo.solutionTaken || '')
+                          setSolutionError(null)
+                          setPartsList(wo.partsReplaced || [])
+                          setPhotoUrl(wo.completionPhotoUrl || '')
+                          setExecutionMode(wo.executedBy || 'In House')
+                        }}
+                        className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs transition flex items-center justify-center gap-1.5"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Log Breakdown Resolution &amp; Complete</span>
+                      </button>
 
-                        {/* 3. Spare Parts Required / Replaced */}
-                        <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                          <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <Package className="w-3.5 h-3.5 text-blue-600" />
-                            Spare Parts Required / Replaced
-                          </p>
-                          {wo.partsReplaced && wo.partsReplaced.length > 0 ? (
-                            <div className="divide-y divide-slate-200/60 bg-white rounded-lg border border-slate-200/60 overflow-hidden">
-                              {wo.partsReplaced.map((part, idx) => (
-                                <div key={idx} className="p-2.5 flex items-center justify-between text-xs">
-                                  <div>
-                                    <p className="font-semibold text-slate-800">{part.partName}</p>
-                                    {part.notes && <p className="text-[10px] text-slate-400">{part.notes}</p>}
-                                  </div>
-                                  <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                                    Qty: {part.quantity}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-slate-500 italic text-[11px]">
-                              No spare parts replaced (Labor and calibration only).
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Start of Work Evidence -- proof-of-presence photo
-                            captured before servicing began */}
-                        <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                          <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-                            Start of Work Evidence
-                          </p>
-                          {wo.startPhotoUrl ? (
-                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                              <img
-                                src={wo.startPhotoUrl}
-                                alt="Work Order Start Evidence"
-                                className="w-full h-44 object-cover"
-                              />
-                              <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
-                                <span>Proof of Presence at Job Start</span>
-                                <span className="font-mono text-emerald-700 font-bold">✓ Verified</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
-                              <ImageIcon className="w-5 h-5 text-slate-300" />
-                              <span>No start-of-work photo attached to this record.</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 4. Photo Evidence */}
-                        <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                          <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-                            Completion Photo Evidence
-                          </p>
-                          {wo.completionPhotoUrl ? (
-                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                              <img
-                                src={wo.completionPhotoUrl}
-                                alt="Work Order Completion Evidence"
-                                className="w-full h-44 object-cover"
-                              />
-                              <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
-                                <span>Verified Work Site Evidence</span>
-                                <span className="font-mono text-emerald-700 font-bold">✓ Verified</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
-                              <ImageIcon className="w-5 h-5 text-slate-300" />
-                              <span>No digital photo attached to this completed record.</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      /* IF NOT COMPLETED: Show current status & actions */
-                      <div className="space-y-4 pt-2 border-t border-slate-100">
-                        <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-[11px] text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              Current Status: {wo.status}
-                            </span>
-                            <span className="text-[10px] text-amber-700 font-bold">
-                              Due: {formatDateDisplay(wo.dueDate)}
-                            </span>
-                          </div>
-                          <p className="text-slate-700 text-xs mt-1">
-                            <strong>Reported Issue:</strong> {wo.issueLogged || 'Breakdown defect logged.'}
-                          </p>
-                        </div>
-
-                        {/* Operational Actions */}
-                        <div className="space-y-2 pt-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedWoForResolve(wo)
-                              setProblemFound(wo.issueLogged || '')
-                              setSolutionTaken(wo.solutionTaken || '')
-                              setSolutionError(null)
-                              setPartsList(wo.partsReplaced || [])
-                              setPhotoUrl(wo.completionPhotoUrl || '')
-                              setExecutionMode(wo.executedBy || 'In House')
-                            }}
-                            className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs transition flex items-center justify-center gap-1.5"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>Log Breakdown Resolution &amp; Complete</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedWoForAssign(wo)
-                              setSelectedTechnicianId(wo.assignedTechnicianId || firstAssignableId(technicians, isPending))
-                              setAssignRemarks('')
-                            }}
-                            className="w-full py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold transition flex items-center justify-center gap-1.5 text-xs"
-                          >
-                            <User className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Reassign Technician</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWoForAssign(wo)
+                          setSelectedTechnicianId(wo.assignedTechnicianId || firstAssignableId(technicians, isPending))
+                          setAssignRemarks('')
+                        }}
+                        className="w-full py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold transition flex items-center justify-center gap-1.5 text-xs"
+                      >
+                        <User className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Reassign Technician</span>
+                      </button>
+                    </div>
+                    ) : null}
                   </div>
                 </div>
 

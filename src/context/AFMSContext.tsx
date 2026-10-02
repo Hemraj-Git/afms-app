@@ -162,7 +162,8 @@ interface AFMSContextType {
   inspections: Inspection[]
   addInspection: (insp: Omit<Inspection, 'id' | 'createdAt'>) => void
   updateInspection: (id: string, updates: Partial<Inspection>) => void
-  completeInspection: (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any, photoUrl?: string, itemPhotos?: Record<string, string>) => void
+  // photoUrl: the photo at the end; startPhotoUrl: the one on arrival (0052).
+  completeInspection: (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any, photoUrl?: string, itemPhotos?: Record<string, string>, startPhotoUrl?: string) => void
   
   // Service Requests (SR-YYYY-#### automatically generated, unchangeable)
   serviceRequests: ServiceRequest[]
@@ -182,6 +183,9 @@ interface AFMSContextType {
 
   vendors: Vendor[]
   addVendor: (vendor: Omit<Vendor, 'id' | 'code'>) => Promise<Vendor>
+  // A repair vendor added by a technician from the phone (0052): returns its id,
+  // or null with the reason shown as a toast.
+  addFieldVendor: (input: { name: string; phone: string; contactPerson?: string; category?: string }) => Promise<string | null>
   updateVendor: (id: string, vendor: Partial<Vendor>) => void
   deleteVendor: (id: string) => { success: boolean; message?: string }
   documents: DocumentItem[]
@@ -1716,7 +1720,22 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     updateInspectionMutation.mutate({ id: resolveInspectionId(id), changes: updates })
   }
 
-  const completeInspection = (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any, photoUrl?: string, itemPhotos?: Record<string, string>) => {
+  const addFieldVendor = async (input: { name: string; phone: string; contactPerson?: string; category?: string }): Promise<string | null> => {
+    const { data, error } = await supabase.rpc('add_field_vendor', {
+      p_name: input.name,
+      p_phone: input.phone,
+      p_contact_person: input.contactPerson ?? '',
+      p_category: input.category ?? '',
+    })
+    if (error || !data) {
+      showToast('error', `Could not add the vendor: ${error?.message ?? 'no reply'}`)
+      return null
+    }
+    await queryClient.invalidateQueries({ queryKey: vendorKeys.list(currentUser.id) })
+    return data
+  }
+
+  const completeInspection = (id: string, result: 'Pass' | 'Fail', remarks: string, responses: any, photoUrl?: string, itemPhotos?: Record<string, string>, startPhotoUrl?: string) => {
     // Attempt window policy check for Inspections
     const targetInsp = inspections.find(ins => ins.id === id || ins.inspectionNumber === id)
     if (targetInsp) {
@@ -1749,6 +1768,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             inspectorRemarks: remarks,
             checklistResponses: responses,
             photoUrl: photoUrl || undefined,
+            startPhotoUrl: startPhotoUrl || undefined,
             itemPhotos: itemPhotos || undefined,
             completedAt: completedDateIso,
           },
@@ -2126,6 +2146,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         deleteChecklistTemplate,
         vendors,
         addVendor,
+        addFieldVendor,
         updateVendor,
         deleteVendor,
         documents,

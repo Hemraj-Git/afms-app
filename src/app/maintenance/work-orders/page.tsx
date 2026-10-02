@@ -14,6 +14,7 @@ import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
 import { isWorkOrderOverdue } from '@/lib/isWorkOrderOverdue'
 import { isWithVendor } from '@/lib/workOrderState'
 import { VendorHandoverCard } from '@/components/VendorHandoverCard'
+import { WorkOrderRecord } from '@/components/workOrders/WorkOrderRecord'
 import { OutsideRepairPanel, OutsideRepairTag } from '@/components/outsideRepair/OutsideRepairPanel'
 import {
   ClipboardList,
@@ -23,20 +24,15 @@ import {
   Search,
   Filter,
   Plus,
-  Clock,
   User,
   CheckCircle2,
   Calendar,
   Layers,
   ChevronRight,
   ArrowUpDown,
-  FileText,
   SlidersHorizontal,
   X,
   Eye,
-  Package,
-  CheckSquare,
-  Image as ImageIcon,
   Lock,
 } from 'lucide-react'
 import { WorkOrder } from '@/types/afms'
@@ -844,16 +840,10 @@ export default function WorkOrdersHubPage() {
           const tech = users.find(u => u.id === wo.assignedTechnicianId)
           const isCompleted = wo.status === 'Completed'
 
-          // Checklist snapshot or template or standard fallback for Preventive
+          // The checklist the job was given (or its template's); none is invented.
           const checklistItems = (wo.checklistSnapshot && wo.checklistSnapshot.length > 0)
             ? wo.checklistSnapshot
-            : (checklistTemplates.find(t => t.id === wo.checklistTemplateId)?.items || [
-                { id: 'pm-item-1', order: 1, itemText: 'Inspect motor bearings and lubricate per manufacturer specifications', mandatory: true, photoRequired: false },
-                { id: 'pm-item-2', order: 2, itemText: 'Clean air filters, condenser coils, and check air flow ducts', mandatory: true, photoRequired: false },
-                { id: 'pm-item-3', order: 3, itemText: 'Check electrical terminations, earthing continuity, and voltage levels', mandatory: true, photoRequired: false },
-                { id: 'pm-item-4', order: 4, itemText: 'Verify operating pressure, refrigerant levels, and temperature differential', mandatory: true, photoRequired: false },
-                { id: 'pm-item-5', order: 5, itemText: 'Test safety interlocks, circuit breaker trip settings, and emergency stops', mandatory: true, photoRequired: false },
-              ])
+            : (checklistTemplates.find(t => t.id === wo.checklistTemplateId)?.items ?? [])
 
           return (
               <Modal title="Work order details" onClose={() => setSelectedWoForDetails(null)} overlayClassName={DRAWER_OVERLAY} className="w-full max-w-lg bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
@@ -979,310 +969,7 @@ export default function WorkOrdersHubPage() {
                       <OutsideRepairPanel workOrder={wo} theme="light" readOnly={wo.status === 'Completed' || wo.status === 'Cancelled'} />
                     )}
 
-                    {/* Start of Work Evidence Photo (Proof of Presence) */}
-                    <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                          <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
-                          Start of Work Evidence (Proof of Presence)
-                        </p>
-                        {wo.startPhotoUrl ? (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            ✓ Verified On-Site
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                            {wo.status === 'Completed' ? 'Not Logged' : 'Pending On-Site Arrival'}
-                          </span>
-                        )}
-                      </div>
-                      {wo.startPhotoUrl ? (
-                        <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                          <img
-                            src={wo.startPhotoUrl}
-                            alt="Start of Work Evidence"
-                            className="w-full h-44 object-cover"
-                          />
-                          <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
-                            <span>Captured at job commencement by technician</span>
-                            <span className="font-mono text-blue-600 font-bold">Proof of Presence</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
-                          <ImageIcon className="w-5 h-5 text-slate-300 shrink-0" />
-                          <span className="text-[11px]">
-                            {wo.status === 'Completed'
-                              ? 'No start-of-work proof photo was logged for this work order.'
-                              : 'Technician will capture a proof-of-presence photo upon commencing work on-site.'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* COMPLETED DETAILS: Per Maintenance Type */}
-                    {isCompleted ? (
-                      <div className="space-y-4 pt-2 border-t border-slate-100">
-                        {/* TYPE 1: CORRECTIVE MAINTENANCE */}
-                        {wo.type === 'Corrective' && (
-                          <div className="space-y-3.5">
-                            {/* Problem found */}
-                            <div className="p-3.5 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-1">
-                              <p className="font-bold text-[11px] text-rose-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                                Problem Found by Technician
-                              </p>
-                              <p className="text-slate-800 text-xs leading-relaxed">
-                                {wo.issueLogged || 'Breakdown defect diagnosed during on-site inspection.'}
-                              </p>
-                            </div>
-
-                            {/* Action taken */}
-                            <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl space-y-1">
-                              <p className="font-bold text-[11px] text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                Action Taken by Technician
-                              </p>
-                              <p className="text-slate-800 text-xs leading-relaxed">
-                                {wo.solutionTaken || wo.technicianRemarks || 'Defect rectified, tested, and restored to operational service.'}
-                              </p>
-                            </div>
-
-                            {/* Spare parts replaced */}
-                            <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                              <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                <Package className="w-3.5 h-3.5 text-blue-600" />
-                                Spare Parts Required / Replaced
-                              </p>
-                              {wo.partsReplaced && wo.partsReplaced.length > 0 ? (
-                                <div className="divide-y divide-slate-200/60 bg-white rounded-lg border border-slate-200/60 overflow-hidden">
-                                  {wo.partsReplaced.map((part, idx) => (
-                                    <div key={idx} className="p-2.5 flex items-center justify-between text-xs">
-                                      <div>
-                                        <p className="font-semibold text-slate-800">{part.partName}</p>
-                                        {part.notes && <p className="text-[10px] text-slate-400">{part.notes}</p>}
-                                      </div>
-                                      <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                                        Qty: {part.quantity}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-slate-500 italic text-[11px]">
-                                  No spare parts replaced (Labor and calibration only).
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Completion photo */}
-                            <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                              <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-                                Completion Photo Evidence
-                              </p>
-                              {wo.completionPhotoUrl ? (
-                                <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                                  <img
-                                    src={wo.completionPhotoUrl}
-                                    alt="Corrective Completion Evidence"
-                                    className="w-full h-44 object-cover"
-                                  />
-                                  <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
-                                    <span>Verified Work Site Evidence</span>
-                                    <span className="font-mono text-emerald-700 font-bold">✓ Verified</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
-                                  <ImageIcon className="w-5 h-5 text-slate-300" />
-                                  <span>No completion photo attached to this completed record.</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* TYPE 2: PREVENTIVE MAINTENANCE */}
-                        {wo.type === 'Preventive' && (
-                          <div className="space-y-4">
-                            {/* Checklist checked */}
-                            <div className="space-y-2">
-                              <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
-                                Preventive Maintenance Checklist Checked
-                              </p>
-
-                              <div className="divide-y divide-slate-100 bg-slate-50 rounded-xl border border-slate-200/80 overflow-hidden">
-                                {checklistItems.map((item, idx) => {
-                                  const response = wo.checklistResponses?.[item.id]
-                                  const isChecked = response?.value !== undefined ? !!response.value : true
-                                  const itemRemarks = response?.remarks
-
-                                  return (
-                                    <div key={item.id || idx} className="p-3 bg-white space-y-1">
-                                      <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-start gap-2">
-                                          <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                          </span>
-                                          <span className="font-medium text-slate-800 text-xs leading-snug">
-                                            {item.itemText}
-                                          </span>
-                                        </div>
-                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                                          {isChecked ? 'Passed / Done' : 'Inspected'}
-                                        </span>
-                                      </div>
-                                      {itemRemarks && (
-                                        <p className="text-[11px] text-slate-500 pl-6 italic">
-                                          Notes: {itemRemarks}
-                                        </p>
-                                      )}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Technician remarks */}
-                            <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-1">
-                              <p className="font-bold text-[11px] text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <FileText className="w-3.5 h-3.5 text-blue-600" />
-                                Technician Servicing Notes
-                              </p>
-                              <p className="text-slate-800 text-xs leading-relaxed">
-                                {wo.technicianRemarks || wo.solutionTaken || 'All scheduled preventive maintenance tasks performed according to standard equipment procedures.'}
-                              </p>
-                            </div>
-
-                            {/* Completion photo */}
-                            <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                              <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-                                Completion Photo Evidence
-                              </p>
-                              {wo.completionPhotoUrl ? (
-                                <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                                  <img
-                                    src={wo.completionPhotoUrl}
-                                    alt="PM Servicing Photo Evidence"
-                                    className="w-full h-44 object-cover"
-                                  />
-                                  <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
-                                    <span>Technician On-Site Photo Verification</span>
-                                    <span className="font-mono text-emerald-700 font-bold">✓ Attached</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
-                                  <ImageIcon className="w-5 h-5 text-slate-300" />
-                                  <span>No digital photo attached to this completed servicing record.</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* TYPE 3: HOUSEKEEPING */}
-                        {wo.type === 'Housekeeping' && (
-                          <div className="space-y-4">
-                            {/* Sanitization notes */}
-                            <div className="p-3.5 bg-purple-50/70 border border-purple-200/80 rounded-xl space-y-1">
-                              <p className="font-bold text-[11px] text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                                Sanitation &amp; Hygiene Servicing Notes
-                              </p>
-                              <p className="text-slate-800 text-xs leading-relaxed">
-                                {wo.technicianRemarks || wo.solutionTaken || wo.issueLogged || 'Area thoroughly sanitized, waste disposed, and hygiene protocol verified.'}
-                              </p>
-                            </div>
-
-                            {/* Completion photo */}
-                            <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                              <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-                                Completion Photo Evidence
-                              </p>
-                              {wo.completionPhotoUrl ? (
-                                <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                                  <img
-                                    src={wo.completionPhotoUrl}
-                                    alt="Housekeeping Photo Evidence"
-                                    className="w-full h-44 object-cover"
-                                  />
-                                  <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
-                                    <span>Sanitization Verified</span>
-                                    <span className="font-mono text-emerald-700 font-bold">✓ Cleaned</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
-                                  <ImageIcon className="w-5 h-5 text-slate-300" />
-                                  <span>No digital photo attached to this housekeeping record.</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      /* SCHEDULED / IN-PROGRESS WORK ORDER DETAILS */
-                      <div className="space-y-4 pt-2 border-t border-slate-100">
-                        <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-[11px] text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-blue-600" />
-                              Current Status: {wo.status}
-                            </span>
-                            <span className="text-[10px] text-blue-700 font-bold">
-                              Due: {formatDateDisplay(wo.dueDate)}
-                            </span>
-                          </div>
-                          <p className="text-slate-700 text-xs">
-                            {wo.status === 'Scheduled'
-                              ? `Assigned to ${wo.assignedTechnicianName || 'technician'}. Awaiting on-site technician arrival and proof-of-presence photo capture.`
-                              : `Currently in progress with ${wo.assignedTechnicianName || 'technician'}.`}
-                          </p>
-                          {wo.issueLogged && (
-                            <p className="text-slate-600 text-xs pt-1 border-t border-blue-100/60">
-                              <strong>Reported Issue / Notes:</strong> {wo.issueLogged}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Planned Checklist Preview for PM */}
-                        {wo.type === 'Preventive' && (
-                          <div className="space-y-2">
-                            <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                              <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
-                              Planned Checklist Scope ({checklistItems.length} items)
-                            </p>
-                            <div className="divide-y divide-slate-100 bg-slate-50 rounded-xl border border-slate-200/80 overflow-hidden">
-                              {checklistItems.map((item, idx) => (
-                                <div key={item.id || idx} className="p-2.5 bg-white flex items-center gap-2 text-xs">
-                                  <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                    {idx + 1}
-                                  </span>
-                                  <span className="text-slate-700 flex-1">{item.itemText}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Technician Execution Protocol Notice */}
-                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
-                          <p className="font-semibold text-slate-800 flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-blue-600" />
-                            <span>On-Site Technician Execution</span>
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            Work orders are initiated on-site directly by the assigned technician ({wo.assignedTechnicianName || 'Technician'}) with proof-of-presence photo verification.
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <WorkOrderRecord wo={wo} checklistItems={checklistItems} />
                   </div>
                 </div>
 

@@ -20,6 +20,8 @@ export function mapInspectionRow(i: TableRow<'inspections'>): Inspection {
     inspectorRemarks: i.remarks ?? undefined,
     checklistSnapshot: (i.checklist_snapshot as unknown as ChecklistItemDef[] | null) || [],
     checklistResponses: (i.checklist_responses as unknown as Inspection['checklistResponses'] | null) || {},
+    startPhotoUrl: i.start_photo_url || undefined,
+    instructions: i.instructions || undefined,
     photoUrl: i.photo_url || undefined,
     itemPhotos: (i.item_photos as unknown as Record<string, string> | null) || undefined,
     completedAt: i.conducted_at ?? undefined,
@@ -63,6 +65,8 @@ export function inspectionToUpdate(changes: Partial<Inspection>): TableUpdate<'i
   if (changes.checklistSnapshot !== undefined) u.checklist_snapshot = changes.checklistSnapshot as unknown as Json
   if (changes.dueDate !== undefined) u.due_date = changes.dueDate
   if (changes.completedAt !== undefined) u.conducted_at = changes.completedAt
+  if (changes.startPhotoUrl !== undefined) u.start_photo_url = changes.startPhotoUrl || null
+  if (changes.instructions !== undefined) u.instructions = changes.instructions || null
   if (changes.photoUrl !== undefined) u.photo_url = changes.photoUrl || null
   if (changes.itemPhotos !== undefined) u.item_photos = (changes.itemPhotos || null) as unknown as Json
   return u

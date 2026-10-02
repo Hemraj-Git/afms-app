@@ -62,30 +62,36 @@ export interface InspectionDraft {
   notes: Record<string, string>
   // Which checkpoints have an uploaded photo.
   photos: Record<string, boolean>
+  // The photo at the asset before starting, and the one at the end.
+  startPhoto: boolean
+  endPhoto: boolean
   uploading: number
   failed: number
 }
 
 export interface InspectionProblem {
-  // A checkpoint id, or 'photos' for uploads in flight or failed.
+  // A checkpoint id; 'start' / 'end' for those photos; 'photos' for uploads
+  // in flight or failed.
   field: string
   message: string
 }
 
-// What stops a submit, in screen order. As before: every mandatory
-// checkpoint answered, and a photo wherever the checkpoint asks for one. New
-// with this screen: a FAIL says what is wrong -- it becomes the job the
-// maintenance team gets.
+// What stops a submit, in screen order: a photo at the asset before starting
+// and one at the end (proof the inspector was there, start to finish); every
+// mandatory checkpoint answered; a photo wherever a checkpoint asks for one;
+// and a FAIL says what is wrong -- it becomes the job the maintenance team gets.
 export function inspectionProblems(d: InspectionDraft): InspectionProblem[] {
   const problems: InspectionProblem[] = []
   if (d.uploading > 0) problems.push({ field: 'photos', message: 'Wait for the photos to finish uploading.' })
   if (d.failed > 0) problems.push({ field: 'photos', message: 'A photo did not upload. Retry it or retake it.' })
+  if (!d.startPhoto) problems.push({ field: 'start', message: 'Take the photo at the asset before starting.' })
   for (const item of d.items) {
     const answer = d.answers[item.id]
     if (item.mandatory && !answer) problems.push({ field: item.id, message: 'Choose PASS or FAIL.' })
     else if (answer === 'Fail' && !d.notes[item.id]?.trim()) problems.push({ field: item.id, message: 'Say what is wrong.' })
     if (item.photoRequired && !d.photos[item.id]) problems.push({ field: item.id, message: 'Take the photo for this checkpoint.' })
   }
+  if (!d.endPhoto) problems.push({ field: 'end', message: 'Take the photo at the end of the inspection.' })
   return problems
 }
 

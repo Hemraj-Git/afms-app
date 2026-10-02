@@ -271,6 +271,10 @@ export interface WorkOrder {
   issueLogged?: string
   solutionTaken?: string
   technicianRemarks?: string
+  // What the office told the technician when assigning the job (0052).
+  instructions?: string
+  // The technician's "Problem found" (0052). issueLogged stays as reported.
+  diagnosis?: string
   startPhotoUrl?: string
   completionPhotoUrl?: string
   executedBy?: 'In House' | 'Vendor'
@@ -305,6 +309,10 @@ export interface Inspection {
   // checklistResponses since that field's runtime shape is actually a
   // plain Record<string, 'Pass'|'Fail'>, not the {value,remarks,photoUrl}
   // object shape above.
+  // What the office told the inspector when assigning it (0052).
+  instructions?: string
+  // Taken on arrival, before the checkpoints (0052); photoUrl is the one at the end.
+  startPhotoUrl?: string
   photoUrl?: string
   itemPhotos?: Record<string, string>
   completedAt?: string

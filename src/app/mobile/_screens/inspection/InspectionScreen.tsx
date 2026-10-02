@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { CircleCheck, CircleX, ClipboardCheck, Lock, SearchX, Send, Wrench } from 'lucide-react'
+import { Camera, CircleCheck, CircleX, ClipboardCheck, Flag, Lock, SearchX, Send, Wrench } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
 import type { Inspection } from '@/types/afms'
 import { assetFor, dueFact, placeText, shortDate, whenText } from '@/lib/fieldTasks'
@@ -14,7 +14,7 @@ import {
   WorkStatusPill, cn,
 } from '@/components/field'
 import { usePhotoSlots } from '../usePhotoSlots'
-import { AssetSummary, PhotoView, StepError } from '../workOrder/Sections'
+import { AssetSummary, OfficeNotes, PhotoView, StepError } from '../workOrder/Sections'
 
 // An inspection on the phone (redesign canvas, "Inspection run" and
 // "Inspection result"). Until it is submitted: PASS or FAIL per checkpoint,
@@ -71,7 +71,9 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
   const [confirming, setConfirming] = useState(false)
 
   const answered = items.filter(i => answers[i.id]).length
-  const dirty = !readOnly && (answered > 0 || overall.trim() !== '' || Object.values(notes).some(n => n.trim()) || items.some(i => photos.has(i.id)) || photos.has('overall'))
+  // The checkpoints open once the photo at the asset has uploaded.
+  const started = !!photos.urlOf('start')
+  const dirty = !readOnly && (answered > 0 || overall.trim() !== '' || Object.values(notes).some(n => n.trim()) || items.some(i => photos.has(i.id)) || photos.has('start') || photos.has('end'))
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
 
   const draft = {
@@ -79,6 +81,8 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
     answers,
     notes,
     photos: Object.fromEntries(items.map(i => [i.id, !!photos.urlOf(i.id)])),
+    startPhoto: !!photos.urlOf('start'),
+    endPhoto: !!photos.urlOf('end'),
     uploading: photos.uploading,
     failed: photos.failed,
   }
@@ -109,8 +113,9 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
       result,
       inspectionRemarks(items, answers, notes, overall),
       responses,
-      photos.urlOf('overall') || undefined,
+      photos.urlOf('end') || undefined,
       Object.keys(itemPhotos).length ? itemPhotos : undefined,
+      photos.urlOf('start') || undefined,
     )
     onToast(`${insp.inspectionNumber} submitted`)
   }
@@ -141,6 +146,8 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
           ]}
         />
 
+        <OfficeNotes instructions={insp.instructions} />
+
         {lock ? (
           <Card className="flex-row items-start gap-3 border-fa-warning-weak bg-fa-warning-weak">
             <Lock className="mt-0.5 h-6 w-6 shrink-0 text-fa-warning-ink" strokeWidth={2.25} aria-hidden />
@@ -151,15 +158,36 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
           </Card>
         ) : null}
 
+        {!readOnly ? (
+          <Card id="insp-start" className="scroll-mt-4 gap-3">
+            <CardTitle icon={Camera}>1. Start at the asset</CardTitle>
+            <PhotoCapture
+              label="Photo at the asset"
+              required
+              note="Needed before you can start the checkpoints"
+              state={photos.stateOf('start')}
+              onTake={() => photos.take('start')}
+              onRetry={() => photos.retry('start')}
+            />
+            <StepError>{problemsFor('start').join(' ')}</StepError>
+          </Card>
+        ) : null}
+
         <div className="flex items-center gap-2">
           <ClipboardCheck className="h-5 w-5" strokeWidth={2} aria-hidden />
-          <h2 className="m-0 flex-1 text-lg font-bold">Checkpoints</h2>
+          <h2 className="m-0 flex-1 text-lg font-bold">2. Checkpoints</h2>
           <span className="text-[15px] font-semibold tabular-nums text-fa-text-2">
             {answered} of {items.length} answered
           </span>
         </div>
 
         {items.length === 0 ? <p className="m-0 text-[15px] text-fa-text-2">This inspection has no checkpoints. Add your observations below.</p> : null}
+        {!readOnly && !started && items.length ? (
+          <p className="m-0 flex items-center gap-1.5 rounded-lg bg-fa-sunken px-3 py-2.5 text-[15px] text-fa-text-2">
+            <Lock className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+            Take the photo at the asset above to start the checkpoints.
+          </p>
+        ) : null}
 
         {items.map((item, i) => {
           const answer = answers[item.id] ?? null
@@ -172,7 +200,7 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
                 label={item.itemText}
                 photoRequired={item.photoRequired}
                 result={answer}
-                disabled={readOnly}
+                disabled={readOnly || !started}
                 onResult={r => setAnswers(prev => ({ ...prev, [item.id]: r }))}
               >
                 {answer === 'Fail' ? (
@@ -186,7 +214,7 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
                     error={itemProblems.includes('Say what is wrong.') ? 'Say what is wrong.' : undefined}
                   />
                 ) : null}
-                {showPhoto && !readOnly ? (
+                {showPhoto && !readOnly && started ? (
                   <PhotoCapture
                     label="Photo of this checkpoint"
                     required={item.photoRequired}
@@ -201,8 +229,8 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
           )
         })}
 
-        <Card id="insp-photos" className="scroll-mt-4 gap-3">
-          <CardTitle>Overall observations</CardTitle>
+        <Card id="insp-end" className="scroll-mt-4 gap-3">
+          <CardTitle icon={Flag}>3. Finish</CardTitle>
           <TextAreaField
             label="Observations"
             rows={3}
@@ -211,8 +239,17 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
             placeholder="Anything else you noticed"
             disabled={readOnly}
           />
-          {!readOnly ? <PhotoCapture label="Overall photo" state={photos.stateOf('overall')} onTake={() => photos.take('overall')} onRetry={() => photos.retry('overall')} /> : null}
-          <StepError>{problemsFor('photos').join(' ')}</StepError>
+          {!readOnly ? (
+            <PhotoCapture
+              label="Photo at the end"
+              required
+              note="Needed to submit the inspection"
+              state={photos.stateOf('end')}
+              onTake={() => photos.take('end')}
+              onRetry={() => photos.retry('end')}
+            />
+          ) : null}
+          <StepError>{[...problemsFor('end'), ...problemsFor('photos')].join(' ')}</StepError>
         </Card>
       </main>
 
@@ -311,11 +348,20 @@ function InspectionResult({ insp, onBack }: { insp: Inspection; onBack: () => vo
           </Card>
         ) : null}
 
-        {insp.inspectorRemarks || insp.photoUrl ? (
+        {insp.startPhotoUrl || insp.photoUrl ? (
+          <Card>
+            <CardTitle as="h3" icon={Camera}>
+              Photos
+            </CardTitle>
+            <PhotoView label="At the start" url={insp.startPhotoUrl} />
+            <PhotoView label="At the end" url={insp.photoUrl} />
+          </Card>
+        ) : null}
+
+        {insp.inspectorRemarks ? (
           <Card>
             <CardTitle as="h3">Observations</CardTitle>
             {insp.inspectorRemarks ? <p className="m-0 whitespace-pre-line text-[17px] leading-relaxed text-fa-text-2">{insp.inspectorRemarks}</p> : null}
-            {insp.photoUrl ? <PhotoView label="Overall photo" url={insp.photoUrl} /> : null}
           </Card>
         ) : null}
 

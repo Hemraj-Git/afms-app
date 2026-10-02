@@ -19,23 +19,30 @@ const pick = (what: string) => z.string().min(1, `Choose ${what}.`)
 const date = (label: string) => z.string().regex(isoDate, `Choose the ${label.toLowerCase()}.`)
 
 // ---------- Service request (desktop "Create Service Request") ----------
+// The same fields and rules as raising one on the phone (see
+// fieldRequests.newRequestProblems): Maintenance or Housekeeping; the room;
+// the equipment when the room has any; a description; the title is optional.
 
-export const REQUEST_TYPES = ['Maintenance', 'Cleaning', 'IT Support', 'General'] as const
+export const REQUEST_TYPES = ['Maintenance', 'Housekeeping'] as const
 
-export const serviceRequestSchema = z
-  .object({
-    title: text('Title', { min: 3, max: 150 }),
-    type: z.enum(REQUEST_TYPES),
-    priority: z.enum(PRIORITIES),
-    roomId: pick('the room or area'),
-    assetId: z.string(),
-    description: z.string().trim().max(2000, 'Keep the description under 2000 characters.'),
-  })
-  .superRefine((v, ctx) => {
-    if ((v.type === 'Maintenance' || v.type === 'IT Support') && !v.assetId) {
-      ctx.addIssue({ code: 'custom', path: ['assetId'], message: 'Choose the asset that needs attention.' })
-    }
-  })
+export const serviceRequestSchemaFor = (roomHasEquipment: (roomId: string) => boolean) =>
+  z
+    .object({
+      title: z.string().trim().max(150, 'Title can be at most 150 characters.'),
+      type: z.enum(REQUEST_TYPES),
+      priority: z.enum(PRIORITIES),
+      roomId: pick('the room or area'),
+      assetId: z.string(),
+      description: z.string().trim().min(1, 'Describe the problem.').max(2000, 'Keep the description under 2000 characters.'),
+    })
+    .superRefine((v, ctx) => {
+      if (v.type === 'Maintenance' && v.roomId && roomHasEquipment(v.roomId) && !v.assetId) {
+        ctx.addIssue({ code: 'custom', path: ['assetId'], message: 'Choose the equipment that needs attention.' })
+      }
+    })
+
+// Every room taken to have equipment: for tests and the default.
+export const serviceRequestSchema = serviceRequestSchemaFor(() => true)
 
 export type ServiceRequestForm = z.infer<typeof serviceRequestSchema>
 

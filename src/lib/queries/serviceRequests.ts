@@ -5,8 +5,9 @@ import { defineList, NO_ROWS } from './entity'
 
 export type NewServiceRequest = Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>
 
-// requestedByRole has no column, so a row reads back as 'Staff'; the context
-// replaces it with the requester's real role from their profile.
+// requestedByRole is stored by the database from the requester's profile
+// (0052); a row from before that reads back as 'Staff' until the context fills
+// it in from the people list.
 export function mapServiceRequestRow(sr: TableRow<'service_requests'>): ServiceRequest {
   return {
     id: sr.id,
@@ -17,7 +18,7 @@ export function mapServiceRequestRow(sr: TableRow<'service_requests'>): ServiceR
     roomId: sr.room_id ?? '',
     assetId: sr.asset_id ?? undefined,
     requestedBy: sr.requested_by_name,
-    requestedByRole: 'Staff',
+    requestedByRole: sr.requested_by_role || 'Staff',
     requestedByUserId: sr.requested_by_user_id || undefined,
     requestedByEmail: sr.requested_by_email || undefined,
     assignedTo: sr.assigned_to ?? undefined,
@@ -54,6 +55,8 @@ export function serviceRequestToInsert(sr: NewServiceRequest & { id: string }): 
     status: sr.status || 'Open',
     priority: sr.priority || 'Medium',
     requested_by_name: sr.requestedBy,
+    // The database replaces this with the role on the requester's profile.
+    requested_by_role: sr.requestedByRole || null,
     requested_by_user_id: sr.requestedByUserId ?? null,
     requested_by_email: sr.requestedByEmail || null,
     sla_due_date: sr.slaDueDate || null,
@@ -95,13 +98,14 @@ const serviceRequests = defineList<ServiceRequest, 'service_requests'>({
   fromRow: mapServiceRequestRow,
 })
 
-// A ticket has no requester-role column, so it reads back as "Staff". Show the
-// requester's real role from their profile instead (Guest, Faculty, ...).
+// A ticket from before the requester's role was stored reads back as "Staff":
+// show the role from their profile instead, when this person can see it.
 export function withRequesterRoles(requests: ServiceRequest[], users: UserProfile[]): ServiceRequest[] {
   const roleByUserId = new Map(users.map(u => [u.id, u.role]))
   return requests.map(sr => {
+    if (sr.requestedByRole !== 'Staff') return sr
     const role = sr.requestedByUserId ? roleByUserId.get(sr.requestedByUserId) : undefined
-    return role && role !== sr.requestedByRole ? { ...sr, requestedByRole: role } : sr
+    return role ? { ...sr, requestedByRole: role } : sr
   })
 }
 

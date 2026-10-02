@@ -115,8 +115,11 @@ export default function HousekeepingPage() {
     updateWorkOrderStatus(
       selectedWoForAssign.id,
       selectedWoForAssign.status,
-      assignRemarks || `Assigned to ${staff.fullName}`,
+      // The instructions go to the field in their own field; the technician's
+      // notes are left for the technician.
+      undefined,
       {
+        instructions: assignRemarks.trim() || undefined,
         assignedTechnicianId: staff.id,
         assignedTechnicianName: staff.fullName,
       }
@@ -351,7 +354,7 @@ export default function HousekeepingPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Remarks</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Instructions for the field (shown on their phone)</label>
                   <textarea
                     rows={2}
                     value={assignRemarks}

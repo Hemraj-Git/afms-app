@@ -7,7 +7,9 @@ import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { serviceRequestSchema, type ServiceRequestForm } from '@/lib/validation/forms'
+import { serviceRequestSchemaFor, type ServiceRequestForm } from '@/lib/validation/forms'
+import { requestTitle } from '@/lib/fieldRequests'
+import { CameraCaptureButton } from '@/components/ui/CameraCaptureButton'
 import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components/ui/FormField'
 import { showToast } from '@/lib/toast'
 import { lockedSlaPriority } from '@/lib/assetSlaPriority'
@@ -71,10 +73,22 @@ export default function ServiceRequestsPage() {
     title: '',
     description: '',
     type: 'Maintenance',
-    roomId: rooms[0]?.id || '',
-    assetId: assets[0]?.id || '',
+    roomId: '',
+    assetId: '',
     priority: 'Medium',
   })
+  // Whether a room has equipment to choose from -- read when the form is
+  // checked, so it always uses the asset list as it is then.
+  const assetsRef = useRef(assets)
+  useEffect(() => {
+    assetsRef.current = assets
+  }, [assets])
+  const [requestSchema] = useState(() =>
+    serviceRequestSchemaFor(roomId => assetsRef.current.some(a => a.roomId === roomId && a.status !== 'Retired')),
+  )
+  // The optional photo: uploaded as soon as it is taken or chosen.
+  const [requestPhoto, setRequestPhoto] = useState('')
+  const [photoUploading, setPhotoUploading] = useState(false)
   const {
     register,
     handleSubmit,
@@ -83,19 +97,22 @@ export default function ServiceRequestsPage() {
     reset,
     formState: { errors },
   } = useForm<ServiceRequestForm>({
-    resolver: zodResolver(serviceRequestSchema),
+    resolver: zodResolver(requestSchema),
     defaultValues: blankRequest(),
     mode: 'onTouched',
   })
   const newType = watch('type')
   const newAssetId = watch('assetId')
   const newPriority = watch('priority')
+  const newRoomId = watch('roomId')
+  const equipmentInRoom = assets.filter(a => a.roomId === newRoomId && a.status !== 'Retired').sort((a, b) => a.name.localeCompare(b.name))
   const createFormRef = useRef<HTMLFormElement>(null)
 
   // Fresh form each time, with the lists as they are now (they may have
   // finished loading after the page opened).
   const openCreateModal = () => {
     reset(blankRequest())
+    setRequestPhoto('')
     setShowCreateModal(true)
   }
 
@@ -163,6 +180,10 @@ export default function ServiceRequestsPage() {
   const handleCreateSubmit = handleSubmit(
     async values => {
       if (isSubmittingRef.current) return
+      if (photoUploading) {
+        showToast('error', 'Wait for the photo to finish uploading.')
+        return
+      }
       isSubmittingRef.current = true
       setIsSubmittingRequest(true)
       const finalPriority: SlaPriority = priorityLock?.priority || values.priority
@@ -173,12 +194,15 @@ export default function ServiceRequestsPage() {
       const slaDueDate = new Date(dueTimeMs).toISOString()
 
       try {
+        const asset = assets.find(a => a.id === values.assetId)
+        const room = rooms.find(r => r.id === values.roomId)
         await addServiceRequest({
-          title: values.title,
+          title: requestTitle(values.title, values.type, values.type === 'Maintenance' ? asset?.name : undefined, room?.name, values.description),
           description: values.description,
           requestType: values.type,
           roomId: values.roomId,
-          assetId: values.type === 'Maintenance' || values.type === 'IT Support' ? values.assetId : undefined,
+          assetId: values.type === 'Maintenance' ? values.assetId || undefined : undefined,
+          photoUrls: requestPhoto ? [requestPhoto] : [],
           requestedBy: currentUser.fullName,
           requestedByRole: currentUser.role,
           status: 'Open',
@@ -914,7 +938,7 @@ export default function ServiceRequestsPage() {
 
               <form ref={createFormRef} onSubmit={handleCreateSubmit} noValidate className="space-y-4 text-xs">
                 <div>
-                  <label htmlFor="sr-title" className="block font-semibold text-slate-700 mb-1">Issue Title / Subject *</label>
+                  <label htmlFor="sr-title" className="block font-semibold text-slate-700 mb-1">Title <span className="font-normal text-slate-400">(optional — the start of the description is used if blank)</span></label>
                   <input
                     id="sr-title"
                     type="text"
@@ -935,9 +959,7 @@ export default function ServiceRequestsPage() {
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20"
                     >
                       <option value="Maintenance">Maintenance</option>
-                      <option value="Cleaning">Cleaning</option>
-                      <option value="IT Support">IT Support</option>
-                      <option value="General">General</option>
+                      <option value="Housekeeping">Housekeeping</option>
                     </select>
                   </div>
 
@@ -970,12 +992,12 @@ export default function ServiceRequestsPage() {
                   <label htmlFor="sr-room" className="block font-semibold text-slate-700 mb-1">Room / Operational Area *</label>
                   <select
                     id="sr-room"
-                    {...register('roomId')}
+                    {...register('roomId', { onChange: () => setValue('assetId', '') })}
                     {...invalidProps('sr-room', errors.roomId?.message)}
                     className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
                   >
                     <option value="" disabled>Choose a room / area…</option>
-                    {rooms.map(r => (
+                    {[...rooms].sort((a, b) => a.name.localeCompare(b.name)).map(r => (
                       <option key={r.id} value={r.id}>
                         {r.name} ({r.roomNumber})
                       </option>
@@ -984,28 +1006,34 @@ export default function ServiceRequestsPage() {
                   <FieldError id="sr-room-error" message={errors.roomId?.message} />
                 </div>
 
-                {(newType === 'Maintenance' || newType === 'IT Support') && (
-                  <div>
-                    <label htmlFor="sr-asset" className="block font-semibold text-slate-700 mb-1">Target Asset *</label>
-                    <select
-                      id="sr-asset"
-                      {...register('assetId')}
-                      {...invalidProps('sr-asset', errors.assetId?.message)}
-                      className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
-                    >
-                      <option value="" disabled>Choose the asset…</option>
-                      {assets.map(a => (
-                        <option key={a.id} value={a.id}>
-                          {a.name} ({a.assetId})
-                        </option>
-                      ))}
-                    </select>
-                    <FieldError id="sr-asset-error" message={errors.assetId?.message} />
-                  </div>
-                )}
+                {newType === 'Maintenance' && newRoomId ? (
+                  equipmentInRoom.length ? (
+                    <div>
+                      <label htmlFor="sr-asset" className="block font-semibold text-slate-700 mb-1">Equipment *</label>
+                      <select
+                        id="sr-asset"
+                        {...register('assetId')}
+                        {...invalidProps('sr-asset', errors.assetId?.message)}
+                        className={`w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
+                      >
+                        <option value="" disabled>Choose the equipment…</option>
+                        {equipmentInRoom.map(a => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.assetId})
+                          </option>
+                        ))}
+                      </select>
+                      <FieldError id="sr-asset-error" message={errors.assetId?.message} />
+                    </div>
+                  ) : (
+                    <p className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-500">
+                      No equipment is listed for this room, so the request is for the room itself.
+                    </p>
+                  )
+                ) : null}
 
                 <div>
-                  <label htmlFor="sr-desc" className="block font-semibold text-slate-700 mb-1">Description / Observations</label>
+                  <label htmlFor="sr-desc" className="block font-semibold text-slate-700 mb-1">Description *</label>
                   <textarea
                     id="sr-desc"
                     rows={3}
@@ -1015,6 +1043,20 @@ export default function ServiceRequestsPage() {
                     className={`w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${INVALID}`}
                   ></textarea>
                   <FieldError id="sr-desc-error" message={errors.description?.message} />
+                </div>
+
+                <div>
+                  <p className="block font-semibold text-slate-700 mb-1">Photo <span className="font-normal text-slate-400">(optional)</span></p>
+                  <div className="flex items-center gap-3">
+                    <CameraCaptureButton
+                      onCapture={setRequestPhoto}
+                      onUploadingChange={setPhotoUploading}
+                      label={requestPhoto ? 'Change photo' : 'Add a photo'}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center gap-1.5"
+                    />
+                    {/* eslint-disable-next-line @next/next/no-img-element -- an uploaded photo */}
+                    {requestPhoto ? <img src={requestPhoto} alt="Attached" className="h-12 w-12 rounded-lg object-cover border border-slate-200" /> : null}
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -1027,7 +1069,7 @@ export default function ServiceRequestsPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmittingRequest}
+                    disabled={isSubmittingRequest || photoUploading}
                     className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-xs"
                   >
                     {isSubmittingRequest ? 'Submitting…' : 'Submit Service Request'}

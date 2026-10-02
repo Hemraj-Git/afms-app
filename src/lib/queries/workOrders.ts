@@ -28,6 +28,8 @@ export function mapWorkOrderRow(w: TableRow<'work_orders'>): WorkOrder {
     issueLogged: w.issue_logged ?? undefined,
     solutionTaken: w.solution_taken ?? undefined,
     technicianRemarks: w.technician_remarks ?? undefined,
+    instructions: w.instructions ?? undefined,
+    diagnosis: w.diagnosis ?? undefined,
     startPhotoUrl: w.start_photo_url || undefined,
     completionPhotoUrl: w.completion_photo_url || undefined,
     partsReplaced: (w.parts_replaced as unknown as WorkOrderPartItem[] | null) || undefined,
@@ -73,6 +75,8 @@ export function workOrderToInsert(wo: WorkOrder): TableInsert<'work_orders'> {
     issue_logged: wo.issueLogged || null,
     solution_taken: wo.solutionTaken || null,
     technician_remarks: wo.technicianRemarks || null,
+    instructions: wo.instructions || null,
+    diagnosis: wo.diagnosis || null,
     created_at: new Date().toISOString(),
   }
 }
@@ -90,6 +94,8 @@ export function workOrderToUpdate(c: Partial<WorkOrder>): TableUpdate<'work_orde
   if (c.issueLogged !== undefined) u.issue_logged = c.issueLogged
   if (c.solutionTaken !== undefined) u.solution_taken = c.solutionTaken
   if (c.technicianRemarks !== undefined) u.technician_remarks = c.technicianRemarks
+  if (c.instructions !== undefined) u.instructions = c.instructions
+  if (c.diagnosis !== undefined) u.diagnosis = c.diagnosis
   if (c.executedBy !== undefined) u.executed_by = c.executedBy
   if (c.completedAt !== undefined) u.completed_at = c.completedAt
   if (c.priority !== undefined) u.priority = c.priority

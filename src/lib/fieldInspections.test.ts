@@ -76,7 +76,7 @@ describe('submitting', () => {
     { id: 'h', itemText: 'Hose free of cracks', mandatory: true, photoRequired: false },
     { id: 'm', itemText: 'Mounted and visible', mandatory: false, photoRequired: false },
   ]
-  const base: InspectionDraft = { items, answers: {}, notes: {}, photos: {}, uploading: 0, failed: 0 }
+  const base: InspectionDraft = { items, answers: {}, notes: {}, photos: {}, uploading: 0, failed: 0, startPhoto: true, endPhoto: true }
   const fields = (d: Partial<InspectionDraft>) => inspectionProblems({ ...base, ...d }).map(p => `${p.field}:${p.message}`)
 
   it('needs every mandatory checkpoint answered and every required photo', () => {
@@ -87,6 +87,15 @@ describe('submitting', () => {
   it('needs a failure to say what is wrong', () => {
     expect(fields({ answers: { g: 'Pass', h: 'Fail' }, photos: { g: true } })).toEqual(['h:Say what is wrong.'])
     expect(fields({ answers: { g: 'Pass', h: 'Fail' }, notes: { h: 'Crack at the horn' }, photos: { g: true } })).toEqual([])
+  })
+
+  it('needs the photo at the start and the one at the end', () => {
+    const ok = { answers: { g: 'Pass' as const, h: 'Pass' as const }, photos: { g: true } }
+    expect(fields({ ...ok, startPhoto: false, endPhoto: false })).toEqual([
+      'start:Take the photo at the asset before starting.',
+      'end:Take the photo at the end of the inspection.',
+    ])
+    expect(fields(ok)).toEqual([])
   })
 
   it('waits for photos', () => {

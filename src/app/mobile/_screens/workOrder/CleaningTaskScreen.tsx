@@ -4,14 +4,14 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Camera, CheckCheck, CircleCheck, ClipboardList, Save, Sparkles } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
 import type { WorkOrder } from '@/types/afms'
-import { checklistProgress, draftProblems, dueFact, jobDateText, longDate, type ChecklistResponses, type DraftField, type SaveIntent } from '@/lib/fieldTasks'
+import { checklistProgress, draftProblems, dueFact, jobDateText, longDate, whenText, type ChecklistResponses, type DraftField, type SaveIntent } from '@/lib/fieldTasks'
 import { HK_CHECKLIST_ITEMS, HK_SOLUTION } from '@/lib/housekeeping'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import {
   Button, Card, ChecklistRow, ConfirmSheet, PhotoCapture, PriorityPill, ScreenHeader, StickyActionBar, TextAreaField, WorkStatusPill, type PhotoState,
 } from '@/components/field'
 import { usePhotoSlots } from '../usePhotoSlots'
-import { AssetSummary, NoteSheet, PhotoView, Step, StepError } from './Sections'
+import { AssetSummary, NoteSheet, OfficeNotes, PhotoView, ReportedIssue, Step, StepError } from './Sections'
 
 // One room to clean (redesign canvas, "Cleaning task"): a before photo, the
 // sanitation checklist with a note and photo per step, then the after photo --
@@ -37,11 +37,19 @@ export function CleaningTaskScreen({
   onToast: (message: string) => void
   onDirtyChange: (dirty: boolean) => void
 }) {
-  const { rooms, buildings, updateWorkOrderStatus } = useAFMS()
+  const { rooms, buildings, serviceRequests, updateWorkOrderStatus } = useAFMS()
   const room = rooms.find(r => r.id === wo.roomId)
   const building = buildings.find(b => b.id === room?.buildingId)?.name
   // The steps saved with the task, or the standard five for a new one.
-  const items = useMemo(() => [...(wo.checklistSnapshot?.length ? wo.checklistSnapshot : HK_CHECKLIST_ITEMS)].sort((a, b) => a.order - b.order), [wo.checklistSnapshot])
+  // A cleaning job raised from a request is about that request (a spill, a
+  // blocked sink), not the room's routine sanitation: it shows the request, not
+  // the standard checklist. Routine cleaning keeps the checklist it was saved with.
+  const sr = serviceRequests.find(s => (wo.sourceRefId && (s.ticketId === wo.sourceRefId || s.id === wo.sourceRefId)) || s.workOrderId === wo.id)
+  const fromRequest = wo.source === 'Service Request' && !wo.checklistSnapshot?.length
+  const items = useMemo(
+    () => (fromRequest ? [] : [...(wo.checklistSnapshot?.length ? wo.checklistSnapshot : HK_CHECKLIST_ITEMS)].sort((a, b) => a.order - b.order)),
+    [wo.checklistSnapshot, fromRequest],
+  )
   const readOnly = wo.status === 'Completed' || wo.status === 'Cancelled'
   const number = isPendingWorkOrder(wo.woNumber) ? 'Cleaning task' : wo.woNumber
 
@@ -95,8 +103,8 @@ export function CleaningTaskScreen({
       startPhotoUrl: photos.urlOf('start') || undefined,
       completionPhotoUrl: photos.urlOf('completion') || undefined,
       executedBy: 'In House',
-      checklistSnapshot: items,
-      checklistResponses: Object.fromEntries(items.map(i => [i.id, { ...responses[i.id], photoUrl: photos.urlOf(itemKey(i.id)) || undefined }])),
+      checklistSnapshot: fromRequest ? undefined : items,
+      checklistResponses: fromRequest ? undefined : Object.fromEntries(items.map(i => [i.id, { ...responses[i.id], photoUrl: photos.urlOf(itemKey(i.id)) || undefined }])),
     }
     if (intent === 'Completed') extra.solutionTaken = HK_SOLUTION
     setConfirming(false)
@@ -132,7 +140,7 @@ export function CleaningTaskScreen({
               {due?.overdue ? <WorkStatusPill value="Overdue" /> : null}
             </>
           }
-          facts={[dueFact(wo), { label: 'Checklist', value: `${items.length} steps` }]}
+          facts={[dueFact(wo), fromRequest ? { label: 'From', value: sr?.ticketId ?? 'A request' } : { label: 'Checklist', value: `${items.length} steps` }]}
         />
 
         {readOnly ? (
@@ -144,36 +152,49 @@ export function CleaningTaskScreen({
           </Card>
         ) : null}
 
+        {fromRequest && sr ? (
+          <ReportedIssue
+            ticket={sr.ticketId}
+            text={[sr.title, sr.description].filter(Boolean).join('\n')}
+            who={`${sr.requestedBy}${sr.requestedByRole ? ` · ${sr.requestedByRole}` : ''}`}
+            when={`Raised ${whenText(sr.createdAt)}`}
+            photos={sr.photoUrls}
+          />
+        ) : null}
+        <OfficeNotes scope={fromRequest && sr ? undefined : wo.issueLogged} instructions={wo.instructions} />
+
         <Step id="wo-startPhoto" icon={Camera} title="1. Before cleaning">
           {photoSlot('start', 'Before cleaning photo')}
         </Step>
 
-        <Step icon={ClipboardList} title="2. Checklist" aside={<span className="text-[15px] font-semibold tabular-nums text-fa-text-2">{progress.done} of {progress.total}</span>}>
-          <div role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100} aria-label="Checklist progress" className="h-2 rounded-full bg-fa-sunken">
-            <div className="h-2 rounded-full bg-fa-success transition-[width]" style={{ width: `${progress.percent}%` }} />
-          </div>
-          <div>
-            {items.map(item => {
-              const r = responses[item.id] ?? { value: false }
-              const key = itemKey(item.id)
-              return (
-                <ChecklistRow
-                  key={item.id}
-                  label={item.itemText}
-                  done={r.value === true}
-                  disabled={readOnly}
-                  onToggle={() => setResponses(prev => ({ ...prev, [item.id]: { ...prev[item.id], value: !(prev[item.id]?.value === true) } }))}
-                  note={r.remarks || undefined}
-                  photo={rowPhoto(photos.stateOf(key), () => photos.retry(key))}
-                  onNote={readOnly ? undefined : () => setNoteFor(item.id)}
-                  onPhoto={readOnly ? undefined : () => photos.take(key)}
-                />
-              )
-            })}
-          </div>
-        </Step>
+        {fromRequest ? null : (
+          <Step icon={ClipboardList} title="2. Checklist" aside={<span className="text-[15px] font-semibold tabular-nums text-fa-text-2">{progress.done} of {progress.total}</span>}>
+            <div role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100} aria-label="Checklist progress" className="h-2 rounded-full bg-fa-sunken">
+              <div className="h-2 rounded-full bg-fa-success transition-[width]" style={{ width: `${progress.percent}%` }} />
+            </div>
+            <div>
+              {items.map(item => {
+                const r = responses[item.id] ?? { value: false }
+                const key = itemKey(item.id)
+                return (
+                  <ChecklistRow
+                    key={item.id}
+                    label={item.itemText}
+                    done={r.value === true}
+                    disabled={readOnly}
+                    onToggle={() => setResponses(prev => ({ ...prev, [item.id]: { ...prev[item.id], value: !(prev[item.id]?.value === true) } }))}
+                    note={r.remarks || undefined}
+                    photo={rowPhoto(photos.stateOf(key), () => photos.retry(key))}
+                    onNote={readOnly ? undefined : () => setNoteFor(item.id)}
+                    onPhoto={readOnly ? undefined : () => photos.take(key)}
+                  />
+                )
+              })}
+            </div>
+          </Step>
+        )}
 
-        <Step id="wo-completionPhoto" icon={Sparkles} title="3. After cleaning">
+        <Step id="wo-completionPhoto" icon={Sparkles} title={fromRequest ? '2. After cleaning' : '3. After cleaning'}>
           {photoSlot('completion', 'After cleaning photo', true)}
           <StepError>{err('completionPhoto')}</StepError>
           {readOnly ? (
@@ -182,7 +203,13 @@ export function CleaningTaskScreen({
               <p className="m-0 whitespace-pre-line text-[17px] text-fa-text-2">{notes.trim() || '—'}</p>
             </div>
           ) : (
-            <TextAreaField label="Notes" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anything to report: damage, missing supplies, a leak" />
+            <TextAreaField
+              label={fromRequest ? 'What was done' : 'Notes'}
+              rows={3}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder={fromRequest ? 'e.g. Mopped and dried the floor, put up a wet-floor sign' : 'Anything to report: damage, missing supplies, a leak'}
+            />
           )}
         </Step>
       </main>

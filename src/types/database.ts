@@ -1,5 +1,5 @@
 // Generated from the live Supabase schema (Supabase MCP `generate_typescript_types`,
-// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043 added by hand). Do not edit by hand -- regenerate after a
+// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043, and 0052's columns and add_field_vendor added by hand). Do not edit by hand -- regenerate after a
 // migration changes a table, e.g. `npx supabase gen types typescript --project-id <id>`.
 // Convenience aliases (Row/Insert/Update by table name) live in src/lib/supabase/typed.ts.
 
@@ -410,10 +410,12 @@ export type Database = {
           created_at: string
           due_date: string
           id: string
+          instructions: string | null
           inspection_number: string
           item_photos: Json | null
           photo_url: string | null
           remarks: string | null
+          start_photo_url: string | null
           result: string | null
           status: string | null
           template_id: string | null
@@ -429,10 +431,12 @@ export type Database = {
           created_at: string
           due_date: string
           id?: string
+          instructions?: string | null
           inspection_number: string
           item_photos?: Json | null
           photo_url?: string | null
           remarks?: string | null
+          start_photo_url?: string | null
           result?: string | null
           status?: string | null
           template_id?: string | null
@@ -448,10 +452,12 @@ export type Database = {
           created_at?: string
           due_date?: string
           id?: string
+          instructions?: string | null
           inspection_number?: string
           item_photos?: Json | null
           photo_url?: string | null
           remarks?: string | null
+          start_photo_url?: string | null
           result?: string | null
           status?: string | null
           template_id?: string | null
@@ -966,6 +972,7 @@ export type Database = {
           priority: string | null
           requested_by_email: string | null
           requested_by_name: string
+          requested_by_role: string | null
           requested_by_phone: string | null
           requested_by_user_id: string | null
           resolution_notes: string | null
@@ -993,6 +1000,7 @@ export type Database = {
           priority?: string | null
           requested_by_email?: string | null
           requested_by_name: string
+          requested_by_role?: string | null
           requested_by_phone?: string | null
           requested_by_user_id?: string | null
           resolution_notes?: string | null
@@ -1020,6 +1028,7 @@ export type Database = {
           priority?: string | null
           requested_by_email?: string | null
           requested_by_name?: string
+          requested_by_role?: string | null
           requested_by_phone?: string | null
           requested_by_user_id?: string | null
           resolution_notes?: string | null
@@ -1157,9 +1166,11 @@ export type Database = {
           completion_photo_url: string | null
           created_at: string
           due_date: string
+          diagnosis: string | null
           executed_by: string | null
           frequency: string | null
           id: string
+          instructions: string | null
           issue_logged: string | null
           parts_replaced: Json | null
           priority: string | null
@@ -1193,9 +1204,11 @@ export type Database = {
           completion_photo_url?: string | null
           created_at: string
           due_date: string
+          diagnosis?: string | null
           executed_by?: string | null
           frequency?: string | null
           id?: string
+          instructions?: string | null
           issue_logged?: string | null
           parts_replaced?: Json | null
           priority?: string | null
@@ -1229,9 +1242,11 @@ export type Database = {
           completion_photo_url?: string | null
           created_at?: string
           due_date?: string
+          diagnosis?: string | null
           executed_by?: string | null
           frequency?: string | null
           id?: string
+          instructions?: string | null
           issue_logged?: string | null
           parts_replaced?: Json | null
           priority?: string | null
@@ -1310,6 +1325,10 @@ export type Database = {
       set_asset_status: {
         Args: { p_asset_id: string; p_status: string }
         Returns: undefined
+      }
+      add_field_vendor: {
+        Args: { p_name: string; p_phone: string; p_contact_person: string; p_category: string }
+        Returns: string
       }
     }
     Enums: {

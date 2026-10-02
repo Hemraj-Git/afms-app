@@ -11,18 +11,14 @@ import {
   Wrench,
   AlertTriangle,
   CheckCircle2,
-  Clock,
   User,
   UserCheck,
-  CheckSquare,
   ChevronRight,
   Filter,
   X,
   ArrowRight,
   Calendar,
   Eye,
-  FileText,
-  Image as ImageIcon,
   Lock,
 } from 'lucide-react'
 import { WorkOrder } from '@/types/afms'
@@ -32,6 +28,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, WO_STATUS_ORDER, sortByOrder, timeOf } from '@/components/ui/DataTable'
 
 import { Modal, DRAWER_OVERLAY, STACKED_OVERLAY } from '@/components/ui/Modal'
+import { WorkOrderRecord } from '@/components/workOrders/WorkOrderRecord'
 import { useAccountStatuses } from '@/lib/queries/accountStatus'
 import { firstAssignableId, orderForAssignment, PENDING_SUFFIX } from '@/lib/accountState'
 // A not-yet-assigned Preventive record has a 'PENDING-<uuid>' placeholder
@@ -69,8 +66,11 @@ export default function PreventiveMaintenancePage() {
     updateWorkOrderStatus(
       selectedWoForAssign.id,
       'Scheduled',
-      assignRemarks || `Assigned to ${techName}`,
+      // The instructions go to the field in their own field; the technician's
+      // notes are left for the technician.
+      undefined,
       {
+        instructions: assignRemarks.trim() || undefined,
         assignedTechnicianId: techId,
         assignedTechnicianName: techName,
       }
@@ -290,7 +290,7 @@ export default function PreventiveMaintenancePage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Servicing Instructions</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Instructions for the field (shown on their phone)</label>
                   <textarea
                     rows={2}
                     value={assignRemarks}
@@ -326,16 +326,10 @@ export default function PreventiveMaintenancePage() {
           const room = rooms.find(r => r.id === (wo.roomId || asset?.roomId) || r.roomNumber === (wo.roomId || asset?.roomId))
           const isCompleted = wo.status === 'Completed'
 
-          // Extract checklist definitions from snapshot or template or standard fallback
+          // The checklist the job was given (or its template's); none is invented.
           const checklistItems = (Array.isArray(wo.checklistSnapshot) && wo.checklistSnapshot.length > 0)
             ? wo.checklistSnapshot
-            : (checklistTemplates.find(t => t.id === wo.checklistTemplateId)?.items || [
-                { id: 'pm-item-1', order: 1, itemText: 'Inspect motor bearings and lubricate per manufacturer specifications', mandatory: true, photoRequired: false },
-                { id: 'pm-item-2', order: 2, itemText: 'Clean air filters, condenser coils, and check air flow ducts', mandatory: true, photoRequired: false },
-                { id: 'pm-item-3', order: 3, itemText: 'Check electrical terminations, earthing continuity, and voltage levels', mandatory: true, photoRequired: false },
-                { id: 'pm-item-4', order: 4, itemText: 'Verify operating pressure, refrigerant levels, and temperature differential', mandatory: true, photoRequired: false },
-                { id: 'pm-item-5', order: 5, itemText: 'Test safety interlocks, circuit breaker trip settings, and emergency stops', mandatory: true, photoRequired: false },
-              ])
+            : (checklistTemplates.find(t => t.id === wo.checklistTemplateId)?.items ?? [])
 
           return (
               <Modal title="Work order details" onClose={() => setSelectedWoForDetails(null)} overlayClassName={DRAWER_OVERLAY} className="w-full max-w-lg bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
@@ -434,165 +428,25 @@ export default function PreventiveMaintenancePage() {
                       )}
                     </div>
 
-                    {/* IF COMPLETED: Checklist checked, Technician notes, Photo evidence */}
-                    {isCompleted ? (
-                      <div className="space-y-4 pt-2 border-t border-slate-100">
-                        {/* 1. Checklist Checked */}
-                        <div className="space-y-2">
-                          <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
-                            Preventive Maintenance Checklist Checked
-                          </p>
+                    <WorkOrderRecord wo={wo} checklistItems={checklistItems} />
 
-                          <div className="divide-y divide-slate-100 bg-slate-50 rounded-xl border border-slate-200/80 overflow-hidden">
-                            {checklistItems.map((item, idx) => {
-                              const response = wo.checklistResponses?.[item.id]
-                              const isChecked = response?.value !== undefined ? !!response.value : true
-                              const itemRemarks = response?.remarks
-
-                              return (
-                                <div key={item.id || idx} className="p-3 bg-white space-y-1">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-start gap-2">
-                                      <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                      </span>
-                                      <span className="font-medium text-slate-800 text-xs leading-snug">
-                                        {item.itemText}
-                                      </span>
-                                    </div>
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                                      {isChecked ? 'Passed / Done' : 'Inspected'}
-                                    </span>
-                                  </div>
-                                  {itemRemarks && (
-                                    <p className="text-[11px] text-slate-500 pl-6 italic">
-                                      Notes: {itemRemarks}
-                                    </p>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-
-                        {/* 2. Technician Servicing Notes */}
-                        <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-1">
-                          <p className="font-bold text-[11px] text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-                            <FileText className="w-3.5 h-3.5 text-blue-600" />
-                            Technician Servicing Notes
-                          </p>
-                          <p className="text-slate-800 text-xs leading-relaxed">
-                            {wo.technicianRemarks || wo.solutionTaken || 'All scheduled preventive maintenance tasks performed according to standard equipment maintenance procedures. System tested and fully operational.'}
-                          </p>
-                        </div>
-
-                        {/* Start of Work Evidence -- proof-of-presence photo
-                            captured before servicing began */}
-                        <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                          <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-                            Start of Work Evidence
-                          </p>
-                          {wo.startPhotoUrl ? (
-                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                              <img
-                                src={wo.startPhotoUrl}
-                                alt="PM Start Photo Evidence"
-                                className="w-full h-44 object-cover"
-                              />
-                              <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
-                                <span>Technician On-Site Photo Verification</span>
-                                <span className="font-mono text-emerald-700 font-bold">✓ Attached</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
-                              <ImageIcon className="w-5 h-5 text-slate-300" />
-                              <span>No start-of-work photo attached to this record.</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 3. Photo Evidence */}
-                        <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                          <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-                            Completion Photo Evidence
-                          </p>
-                          {wo.completionPhotoUrl ? (
-                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
-                              <img
-                                src={wo.completionPhotoUrl}
-                                alt="PM Servicing Photo Evidence"
-                                className="w-full h-44 object-cover"
-                              />
-                              <div className="p-2 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between">
-                                <span>Technician On-Site Photo Verification</span>
-                                <span className="font-mono text-emerald-700 font-bold">✓ Attached</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
-                              <ImageIcon className="w-5 h-5 text-slate-300" />
-                              <span>No digital photo attached to this completed servicing record.</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      /* IF NOT COMPLETED: Show current status and planned checklist (NO execute button) */
-                      <div className="space-y-4 pt-2 border-t border-slate-100">
-                        <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-[11px] text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              Current Status: {wo.status}
-                            </span>
-                            <span className="text-[10px] text-amber-700 font-bold">
-                              Due: {formatDateDisplay(wo.dueDate)}
-                            </span>
-                          </div>
-                          <p className="text-slate-700 text-xs">
-                            This preventive maintenance cycle is assigned to <strong>{wo.assignedTechnicianName || 'technician'}</strong>. Servicing and checklist verification are executed on-site by the assigned technician.
-                          </p>
-                        </div>
-
-                        {/* Planned Checklist Preview */}
-                        <div className="space-y-2">
-                          <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
-                            Planned Preventive Checklist Items ({checklistItems.length})
-                          </p>
-                          <div className="divide-y divide-slate-100 bg-slate-50 rounded-xl border border-slate-200/80 overflow-hidden">
-                            {checklistItems.map((item, idx) => (
-                              <div key={item.id || idx} className="p-2.5 bg-white flex items-center gap-2 text-xs">
-                                <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                  {idx + 1}
-                                </span>
-                                <span className="text-slate-700 flex-1">{item.itemText}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Reassign Technician Button */}
-                        <div className="pt-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedWoForAssign(wo)
-                              setSelectedTechnicianId(wo.assignedTechnicianId || firstAssignableId(technicians, isPending))
-                              setAssignRemarks('')
-                            }}
-                            className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold transition flex items-center justify-center gap-1.5 text-xs shadow-2xs"
-                          >
-                            <UserCheck className="w-4 h-4 text-slate-500" />
-                            <span>Reassign Technician</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    {/* Reassign Technician Button */}
+                    {!isCompleted ? (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWoForAssign(wo)
+                          setSelectedTechnicianId(wo.assignedTechnicianId || firstAssignableId(technicians, isPending))
+                          setAssignRemarks('')
+                        }}
+                        className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold transition flex items-center justify-center gap-1.5 text-xs shadow-2xs"
+                      >
+                        <UserCheck className="w-4 h-4 text-slate-500" />
+                        <span>Reassign Technician</span>
+                      </button>
+                    </div>
+                    ) : null}
                   </div>
                 </div>
 

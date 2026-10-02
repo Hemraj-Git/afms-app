@@ -11,6 +11,7 @@ import {
   BottomSheet, Button, Card, CardTitle, PhotoCapture, SegmentedControl, SelectField, TextAreaField, TextButton, TextField, Timeline, cn,
 } from '@/components/field'
 import { usePhotoSlots } from '../usePhotoSlots'
+import { VendorPicker } from './Sections'
 
 const inr = (n?: number) => (n === undefined ? '' : `₹${n.toLocaleString('en-IN')}`)
 const amount = (v: string) => (v.trim() === '' ? undefined : Number(v))
@@ -122,7 +123,7 @@ export function OutsideRepairCard({ workOrder, readOnly, onToast }: { workOrder:
 }
 
 function SendSheet({ workOrder, onClose, onDone }: { workOrder: WorkOrder; onClose: () => void; onDone: () => void }) {
-  const { vendors, sendOutsideRepair } = useAFMS()
+  const { sendOutsideRepair } = useAFMS()
   const today = getLocalDateStr()
   const byVendor = workOrder.executedBy === 'Vendor'
   const [scope, setScope] = useState<OutsideRepair['scope']>('Component')
@@ -179,14 +180,7 @@ function SendSheet({ workOrder, onClose, onDone }: { workOrder: WorkOrder; onClo
       />
       {scope === 'Component' ? <TextField label="Part name" required value={componentName} onChange={e => setComponentName(e.target.value)} placeholder="e.g. Compressor control PCB" /> : null}
       <TextAreaField label="Fault found" rows={2} value={fault} onChange={e => setFault(e.target.value)} placeholder="What is wrong with it" />
-      <SelectField
-        label="Repair vendor"
-        required
-        placeholder="Choose the vendor"
-        value={vendorId}
-        onChange={e => setVendorId(e.target.value)}
-        options={vendors.map(v => ({ value: v.id, label: v.name }))}
-      />
+      <VendorPicker label="Repair vendor" required value={vendorId} onChange={setVendorId} />
       <SegmentedControl
         label="Who took it"
         value={sentBy}

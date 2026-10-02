@@ -12,11 +12,11 @@ import {
 import { completionBlockedMessage } from '@/lib/outsideRepairState'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import {
-  Button, Card, ChecklistRow, ConfirmSheet, ContractPill, EmptyState, PhotoCapture, PriorityPill, ScreenHeader, SegmentedControl, SelectField,
+  Button, Card, ChecklistRow, ConfirmSheet, ContractPill, EmptyState, PhotoCapture, PriorityPill, ScreenHeader, SegmentedControl,
   StickyActionBar, TextAreaField, TextField, WorkStatusPill, type PhotoState,
 } from '@/components/field'
 import { usePhotoSlots } from '../usePhotoSlots'
-import { AssetSummary, NoteSheet, PartsList, PhotoView, ReportedIssue, Step, StepError } from './Sections'
+import { AssetSummary, NoteSheet, OfficeNotes, PartsList, PhotoView, ReportedIssue, Step, StepError, VendorPicker } from './Sections'
 import { OutsideRepairCard } from './OutsideRepairCard'
 import { CleaningTaskScreen } from './CleaningTaskScreen'
 
@@ -91,7 +91,7 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
     Object.fromEntries(items.map(i => [i.id, { value: wo.checklistResponses?.[i.id]?.value === true, remarks: wo.checklistResponses?.[i.id]?.remarks ?? '' }])),
   )
   const [remarks, setRemarks] = useState(wo.technicianRemarks ?? '')
-  const [issue, setIssue] = useState(wo.issueLogged ?? '')
+  const [diagnosis, setDiagnosis] = useState(wo.diagnosis ?? '')
   const [solution, setSolution] = useState(wo.solutionTaken ?? '')
   const [parts, setParts] = useState<WorkOrderPartItem[]>(wo.partsReplaced ?? [])
   const [vendorId, setVendorId] = useState(wo.vendorId || asset?.maintenanceVendorId || '')
@@ -120,7 +120,7 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
 
   // Unsaved changes: everything typed or photographed, compared with the job as opened.
   const draftKey = JSON.stringify([
-    mode, responses, remarks, issue, solution, parts, vendorId, ticket, engineer, engineerPhone, visitDate, cost, vendorRemarks,
+    mode, responses, remarks, diagnosis, solution, parts, vendorId, ticket, engineer, engineerPhone, visitDate, cost, vendorRemarks,
     ['start', 'completion', 'jobSheet', ...items.map(i => itemKey(i.id))].map(photos.urlOf),
   ])
   const [openedKey] = useState(draftKey)
@@ -159,7 +159,7 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
       startPhotoUrl: photos.urlOf('start') || undefined,
       completionPhotoUrl: photos.urlOf('completion') || undefined,
       executedBy: wo.type === 'Corrective' ? mode : 'In House',
-      issueLogged: issue.trim(),
+      diagnosis: diagnosis.trim(),
       solutionTaken: solution.trim(),
       partsReplaced: parts,
     }
@@ -272,10 +272,14 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
             text={sr.description || sr.title}
             who={`${sr.requestedBy}${sr.requestedByRole ? ` · ${sr.requestedByRole}` : ''}`}
             when={`Raised ${whenText(sr.createdAt)}${sr.slaDueDate ? ` · fix by ${whenText(sr.slaDueDate)}` : ''}`}
+            photos={sr.photoUrls}
           />
         ) : failedInspection ? (
           <ReportedIssue ticket={failedInspection.inspectionNumber} text={wo.issueLogged || wo.title || 'Raised by a failed inspection.'} who="Failed inspection" />
         ) : null}
+        {/* The scope the office wrote (when there is no request or inspection
+            card saying it already), and the instructions given at assignment. */}
+        <OfficeNotes scope={sr || failedInspection ? undefined : wo.issueLogged} instructions={wo.instructions} />
 
         {preventive ? (
           <>
@@ -361,15 +365,7 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
             {vendorJob ? (
               <Step id="wo-vendorId" icon={Truck} title="Vendor">
                 {readOnly ? null : (
-                  <SelectField
-                    label="Vendor"
-                    required
-                    placeholder="Choose the vendor"
-                    value={vendorId}
-                    onChange={e => setVendorId(e.target.value)}
-                    error={err('vendorId')}
-                    options={vendors.map(v => ({ value: v.id, label: v.name }))}
-                  />
+                  <VendorPicker label="Vendor" required value={vendorId} onChange={setVendorId} error={err('vendorId')} />
                 )}
                 {vendor ? (
                   <div className="flex flex-col gap-2.5 rounded-xl bg-fa-sunken p-3">
@@ -442,7 +438,7 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
             </div>
 
             <Step id="wo-completionPhoto" icon={CircleCheck} title="Resolution">
-              {textArea('Problem found', issue, setIssue, 'e.g. Capacitor blown, drain line blocked')}
+              {textArea('Problem found', diagnosis, setDiagnosis, 'e.g. Capacitor blown, drain line blocked')}
               <div id="wo-solution" className="scroll-mt-4">
                 {textArea('Solution taken', solution, setSolution, 'What was repaired, replaced or adjusted', true, err('solution'))}
               </div>

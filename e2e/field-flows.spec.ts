@@ -143,6 +143,9 @@ test('technician passes the scheduled inspection; the Admin sees PASS', async ({
   const inspectionNumber = await currentInspectionNumber(tech.page)
   await tech.page.locator('article', { hasText: inspectionNumber }).getByRole('button', { name: 'Start inspection' }).click()
 
+  // A photo at the asset first: it opens the checkpoints.
+  await attachPhoto(tech.page, tech.page.getByRole('button', { name: /Photo at the asset/ }))
+  await expect(tech.page.getByRole('button', { name: 'PASS', exact: true }).first()).toBeEnabled()
   for (const pass of await tech.page.getByRole('button', { name: 'PASS', exact: true }).all()) await pass.click()
   // Checkpoints that require a photo.
   for (let left = await photoSlots(tech.page); left > 0; left--) {
@@ -150,6 +153,8 @@ test('technician passes the scheduled inspection; the Admin sees PASS', async ({
     await expect.poll(() => photoSlots(tech.page)).toBe(left - 1)
   }
   await tech.page.getByLabel('Observations').fill(`${E2E} all good`)
+  await attachPhoto(tech.page, tech.page.getByRole('button', { name: /Photo at the end/ }))
+  await expect(tech.page.getByText(/Uploaded · /).last()).toBeVisible()
   await tech.page.getByRole('button', { name: /Submit & complete/ }).click()
   await tech.page.getByRole('dialog').getByRole('button', { name: /Submit & complete/ }).click()
   await expect(tech.page.getByRole('heading', { name: 'PASSED' })).toBeVisible()

@@ -6,6 +6,7 @@ import {
   canBeAssigned,
   fieldErrors,
   serviceRequestSchema,
+  serviceRequestSchemaFor,
   workOrderSchema,
   nameSchema,
   roomSchema,
@@ -17,25 +18,25 @@ import {
   reservationSchema,
 } from './forms'
 
-describe('service request form', () => {
-  const ok = { title: 'AC not cooling', type: 'Maintenance', priority: 'High', roomId: 'r1', assetId: 'a1', description: '' } as const
+describe('service request form (same rules as the phone)', () => {
+  const ok = { title: 'AC not cooling', type: 'Maintenance', priority: 'High', roomId: 'r1', assetId: 'a1', description: 'Water dripping' } as const
 
   it('accepts a complete request and trims the title', () => {
     const r = serviceRequestSchema.parse({ ...ok, title: '  AC not cooling  ' })
     expect(r.title).toBe('AC not cooling')
   })
 
-  it('explains every missing field at once', () => {
-    expect(fieldErrors(serviceRequestSchema, { ...ok, title: ' a ', roomId: '', assetId: '' })).toEqual({
-      title: 'Title needs at least 3 characters.',
+  it('lets the title be blank but needs the room and a description', () => {
+    expect(fieldErrors(serviceRequestSchema, { ...ok, title: '', roomId: '', description: ' ' })).toEqual({
       roomId: 'Choose the room or area.',
-      assetId: 'Choose the asset that needs attention.',
+      description: 'Describe the problem.',
     })
   })
 
-  it('needs an asset only for Maintenance and IT Support', () => {
-    expect(fieldErrors(serviceRequestSchema, { ...ok, type: 'Cleaning', assetId: '' })).toEqual({})
-    expect(fieldErrors(serviceRequestSchema, { ...ok, type: 'IT Support', assetId: '' })).toHaveProperty('assetId')
+  it('needs the equipment for Maintenance only when the room has some', () => {
+    expect(fieldErrors(serviceRequestSchema, { ...ok, assetId: '' })).toEqual({ assetId: 'Choose the equipment that needs attention.' })
+    expect(fieldErrors(serviceRequestSchemaFor(() => false), { ...ok, assetId: '' })).toEqual({})
+    expect(fieldErrors(serviceRequestSchema, { ...ok, type: 'Housekeeping', assetId: '' })).toEqual({})
   })
 })
 
