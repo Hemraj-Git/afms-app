@@ -26,8 +26,10 @@ import {
   AppNotification,
   OutsideRepair,
 } from '@/types/afms'
-import { formatId, formatYearlyId, getNextSequence, addIntervalToDate, makePendingWoNumber, isPendingWorkOrder } from '@/lib/idGenerator'
+import { formatId, formatYearlyId, getNextSequence, makePendingWoNumber, isPendingWorkOrder } from '@/lib/idGenerator'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
+import { subCategoryTemplateIds, type AssetScheduleRequest, type ScheduleResult } from '@/lib/assetSchedules'
+import type { FirstScheduleMode } from '@/lib/firstSchedule'
 import { getLocalDateStr } from '@/lib/dateUtils'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
@@ -111,7 +113,12 @@ interface AFMSContextType {
   
   // Assets (AST-#### automatically generated, unchangeable)
   assets: Asset[]
-  addAsset: (asset: Omit<Asset, 'id' | 'assetId' | 'createdAt'>) => Promise<Asset>
+  // schedules: the PM / inspection schedules to start (the create form's
+  // choices); left out, the sub-category's templates start from today.
+  addAsset: (asset: Omit<Asset, 'id' | 'assetId' | 'createdAt'>, schedules?: AssetScheduleRequest[]) => Promise<Asset>
+  // Starts one template's schedule on one or more assets (migration 0053).
+  // Resolves each asset's outcome, or null when the call failed (toasted).
+  scheduleMaintenance: (assetIds: string[], templateId: string, mode: FirstScheduleMode, firstDue?: string) => Promise<ScheduleResult[] | null>
   addBulkAssets: (
     assetsData: Array<Omit<Asset, 'id' | 'assetId' | 'createdAt'>>
   ) => Promise<{ success: boolean; createdCount: number; createdAssets: Asset[] }>
@@ -898,11 +905,57 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     deleteSubCategoryMutation.mutate(id)
   }
 
+  // PM / inspection schedules: the database makes the first job (0053) and
+  // each next one on completion (0050). Several templates may run on one
+  // asset, never the same one twice; the first date can't be changed later.
+  const scheduleMaintenance = async (
+    assetIds: string[],
+    templateId: string,
+    mode: FirstScheduleMode,
+    firstDue?: string,
+  ): Promise<ScheduleResult[] | null> => {
+    const template = checklistTemplates.find(t => t.id === templateId)
+    const results: ScheduleResult[] = []
+    // In batches: the database takes at most 500 assets a call.
+    for (let i = 0; i < assetIds.length; i += 200) {
+      const { data, error } = await supabase.rpc('schedule_asset_maintenance', {
+        p_asset_ids: assetIds.slice(i, i + 200),
+        p_template_id: templateId,
+        p_mode: mode,
+        ...(mode === 'date' && firstDue ? { p_first_due: firstDue } : {}),
+      })
+      if (error) {
+        showToast('error', `Could not schedule ${template?.title ?? 'the template'}: ${error.message}`)
+        if (results.length) break
+        return null
+      }
+      for (const r of data ?? []) {
+        results.push({ assetId: r.asset_id, dueDate: r.due_date ?? undefined, status: r.status === 'scheduled' ? 'scheduled' : 'skipped', reason: r.reason ?? undefined })
+      }
+    }
+    const kind = template?.type === 'Inspection' ? 'Inspection' : 'PM'
+    const done = results.filter(r => r.status === 'scheduled')
+    if (done.length) {
+      addAssetLogs(
+        done.map(r => ({
+          assetId: r.assetId,
+          action: `${kind} Schedule Added`,
+          byUser: currentUser.fullName,
+          source: 'Manual' as const,
+          remarks: `${template?.title ?? 'Template'} (${template?.interval ?? ''}), first due ${r.dueDate}.`,
+        })),
+      )
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: workOrderKeys.list(currentUser.id) }),
+      queryClient.invalidateQueries({ queryKey: inspectionKeys.list(currentUser.id) }),
+    ])
+    return results
+  }
+
   // 7. Asset: AST-#### (Immutable ID)
-  const addAsset = async (assetData: Omit<Asset, 'id' | 'assetId' | 'createdAt'>): Promise<Asset> => {
-    const today = getLocalDateStr()
+  const addAsset = async (assetData: Omit<Asset, 'id' | 'assetId' | 'createdAt'>, schedules?: AssetScheduleRequest[]): Promise<Asset> => {
     const [createdAsset] = await allocateAssets([assetData], assets)
-    const newUuid = createdAsset.id
     const newId = createdAsset.assetId
 
     // Awaited deliberately: work_orders/inspections/documents/asset_activity_logs
@@ -916,68 +969,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // rejects (after the list is rolled back and a toast shown), so none of
     // the follow-on records are created for an asset that does not exist.
     await addAssetsMutation.mutateAsync([createdAsset])
-
-    const sub = subCategories.find(s => s.id === assetData.subCategoryId)
-    if (sub) {
-      // Anchor the first PM/inspection cycle to Last Serviced Date (for a
-      // legacy asset installed long ago but only entered into the system
-      // now) or to today — never to a backdated Installation Date, which
-      // would make the first cycle appear already overdue.
-      const installDate = assetData.lastServicedDate || today
-
-      // woNumber is a unique 'PENDING-<uuid>' placeholder here, not a
-      // minted WO-PM-#### number -- a real number is only minted once a
-      // technician is assigned (see updateWorkOrderStatus), so this
-      // scheduled-but-unassigned record doesn't count as a real Work
-      // Order until then.
-      const pmIds = Array.from(new Set(sub.pmTemplateIds && sub.pmTemplateIds.length > 0 ? sub.pmTemplateIds : (sub.pmTemplateId ? [sub.pmTemplateId] : []))).filter(Boolean)
-      const newPmWorkOrders: WorkOrder[] = pmIds.map((pmTmplId) => {
-        const tmpl = checklistTemplates.find(t => t.id === pmTmplId)
-        const interval = tmpl?.interval || 'Quarterly'
-        const nextPmDueDate = addIntervalToDate(installDate, interval)
-        const pmWoUuid = generateUUID()
-        return {
-          id: pmWoUuid,
-          woNumber: makePendingWoNumber(pmWoUuid),
-          title: tmpl ? `${tmpl.title} (${interval})` : `${assetData.name} ${interval} PM`,
-          type: 'Preventive',
-          assetId: newUuid,
-          source: 'Scheduled',
-          frequency: interval,
-          dueDate: nextPmDueDate,
-          status: 'Scheduled',
-          checklistTemplateId: pmTmplId,
-          checklistSnapshot: tmpl?.items,
-          createdAt: today,
-        }
-      })
-      if (newPmWorkOrders.length > 0) addWorkOrdersMutation.mutate(newPmWorkOrders)
-
-      const inspIds = Array.from(new Set(sub.inspectionTemplateIds && sub.inspectionTemplateIds.length > 0 ? sub.inspectionTemplateIds : (sub.inspectionTemplateId ? [sub.inspectionTemplateId] : []))).filter(Boolean)
-      let inspSeq = getNextSequence(inspections.map(i => i.inspectionNumber), 'INSP')
-      const newInspections: Inspection[] = inspIds.map((inspTmplId) => {
-        const tmpl = checklistTemplates.find(t => t.id === inspTmplId)
-        const interval = tmpl?.interval || 'Quarterly'
-        const nextInspDueDate = addIntervalToDate(installDate, interval)
-        const inspNumber = formatYearlyId('INSP', inspSeq++)
-        return {
-          id: generateUUID(),
-          inspectionNumber: inspNumber,
-          assetId: newUuid,
-          templateId: inspTmplId,
-          templateVersion: 1,
-          dueDate: nextInspDueDate,
-          status: 'Scheduled',
-          checklistSnapshot: tmpl?.items,
-          createdAt: today,
-        }
-      })
-      // inspection_number is re-minted server-side by a DB trigger (see
-      // supabase/migrations/0014_server_side_ticket_numbering.sql), which
-      // ignores whatever is sent -- the number above is only the on-screen
-      // guess; the list is re-read as soon as the write settles.
-      if (newInspections.length > 0) addInspectionsMutation.mutate(newInspections)
-    }
 
     // Must use the real UUID (createdAsset.id), not the formatted display
     // code (newId) -- asset_activity_logs.asset_id has a live FK to
@@ -996,6 +987,22 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       remarks: `Asset ${createdAsset.name} registered under ID ${newId}.`,
     })
 
+    // The schedules start once the asset exists (their jobs carry a foreign
+    // key on it), one template at a time, by the database. One that fails is
+    // toasted; the asset then shows under "Not scheduled" to try again.
+    const sub = subCategories.find(s => s.id === assetData.subCategoryId)
+    const toStart: AssetScheduleRequest[] =
+      schedules ??
+      [...subCategoryTemplateIds(sub, 'pm'), ...subCategoryTemplateIds(sub, 'inspection')].map(templateId => ({ templateId, mode: 'today' as const }))
+    for (const sch of toStart) {
+      const res = await scheduleMaintenance([createdAsset.id], sch.templateId, sch.mode, sch.date)
+      const skipped = res?.find(r => r.status === 'skipped')
+      if (skipped) {
+        const title = checklistTemplates.find(t => t.id === sch.templateId)?.title ?? 'A schedule'
+        showToast('error', `Asset saved, but ${title} was not scheduled: ${skipped.reason}. Schedule it from the asset page.`)
+      }
+    }
+
     return createdAsset
   }
 
@@ -1006,7 +1013,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       return { success: false, createdCount: 0, createdAssets: [] }
     }
 
-    const today = getLocalDateStr()
     // Numbering continues from the highest AST-#### seen on screen or stored
     // (it once restarted at AST-0001 on every import).
     const createdAssets = await allocateAssets(assetsData, assets)
@@ -1021,69 +1027,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       return { success: false, createdCount: 0, createdAssets: [] }
     }
 
-    let inspSeq = getNextSequence(inspections.map(i => i.inspectionNumber), 'INSP')
-
-    const newWorkOrders: WorkOrder[] = []
-    const newInspections: Inspection[] = []
     const newLogs: Omit<AssetActivityLog, 'id' | 'timestamp'>[] = []
 
     for (const createdAsset of createdAssets) {
       const newUuid = createdAsset.id
       const displayId = createdAsset.assetId
-
-      const sub = subCategories.find(s => s.id === createdAsset.subCategoryId)
-      if (sub) {
-        // Same anchor rule as addAsset: Last Serviced Date, else today —
-        // never a backdated Installation Date.
-        const installDate = createdAsset.lastServicedDate || today
-
-        const pmIds = sub.pmTemplateIds || (sub.pmTemplateId ? [sub.pmTemplateId] : [])
-        pmIds.forEach((pmTmplId) => {
-          const tmpl = checklistTemplates.find(t => t.id === pmTmplId)
-          const interval = tmpl?.interval || 'Quarterly'
-          const nextPmDueDate = addIntervalToDate(installDate, interval)
-          const woUuid = generateUUID()
-          const woNumber = makePendingWoNumber(woUuid)
-
-          const newPmWO: WorkOrder = {
-            id: woUuid,
-            woNumber,
-            title: tmpl ? `${tmpl.title} (${interval})` : `${createdAsset.name} ${interval} PM`,
-            type: 'Preventive',
-            assetId: newUuid,
-            source: 'Scheduled',
-            frequency: interval,
-            dueDate: nextPmDueDate,
-            status: 'Scheduled',
-            checklistTemplateId: pmTmplId,
-            checklistSnapshot: tmpl?.items,
-            createdAt: today,
-          }
-          newWorkOrders.push(newPmWO)
-        })
-
-        const inspIds = sub.inspectionTemplateIds || (sub.inspectionTemplateId ? [sub.inspectionTemplateId] : [])
-        inspIds.forEach((inspTmplId) => {
-          const tmpl = checklistTemplates.find(t => t.id === inspTmplId)
-          const interval = tmpl?.interval || 'Quarterly'
-          const nextInspDueDate = addIntervalToDate(installDate, interval)
-          const inspUuid = generateUUID()
-          const inspNumber = formatYearlyId('INSP', inspSeq++)
-
-          const newInsp: Inspection = {
-            id: inspUuid,
-            inspectionNumber: inspNumber,
-            assetId: newUuid,
-            templateId: inspTmplId,
-            templateVersion: 1,
-            dueDate: nextInspDueDate,
-            status: 'Scheduled',
-            checklistSnapshot: tmpl?.items,
-            createdAt: today,
-          }
-          newInspections.push(newInsp)
-        })
-      }
 
       newLogs.push({
         // Real UUID, not the formatted display code -- same reasoning as
@@ -1096,17 +1044,18 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
-    if (newWorkOrders.length > 0) {
-      // One insert for all of them, after the assets have saved.
-      addWorkOrdersMutation.mutate(newWorkOrders)
-    }
-    if (newInspections.length > 0) {
-      // One insert for all of them; numbers are re-minted by the database and the
-      // list is re-read when the write settles.
-      addInspectionsMutation.mutate(newInspections)
-    }
     addAssetLogs(newLogs)
 
+    // Each sub-category template starts from today on its assets: one call
+    // per template, after the assets have saved.
+    const assetsByTemplate = new Map<string, string[]>()
+    for (const a of createdAssets) {
+      const sub = subCategories.find(s => s.id === a.subCategoryId)
+      for (const t of [...subCategoryTemplateIds(sub, 'pm'), ...subCategoryTemplateIds(sub, 'inspection')]) {
+        assetsByTemplate.set(t, [...(assetsByTemplate.get(t) ?? []), a.id])
+      }
+    }
+    for (const [templateId, ids] of assetsByTemplate) await scheduleMaintenance(ids, templateId, 'today')
 
     return { success: true, createdCount: createdAssets.length, createdAssets }
   }
@@ -2147,6 +2096,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         vendors,
         addVendor,
         addFieldVendor,
+        scheduleMaintenance,
         updateVendor,
         deleteVendor,
         documents,

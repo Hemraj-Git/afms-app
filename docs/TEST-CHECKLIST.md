@@ -148,6 +148,15 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - **New request on the desktop:** same as the phone — Maintenance / Housekeeping, the room, the equipment (only that room's, required only if it has any), priority from the asset's SLA, title optional, description required, optional photo.
   - **Guest role:** a request raised by a guest shows *Guest* (not *Staff*) under their name everywhere.
   - **Cleaning from a request:** a housekeeping job made from a request shows the request (and its photos) instead of the 5-step room checklist; routine cleaning still has the checklist.
+- [ ] **6.36 PM & inspection schedules on assets** (migration 0053 must be applied first) —
+  - **Add asset, no templates yet:** pick a sub-category without PM / inspection templates → the Review step says so; the asset saves with no schedule. *Last Serviced Date* is gone.
+  - **Add asset with templates:** the Review step lists each template with its own first date — *From the installation date* (greyed out with the reason when the asset was installed too long ago), *From today*, or *Pick the date*. *+ Add PM / + Add inspection* adds any other template (e.g. a Monthly **and** a Quarterly PM). Confirm shows each first date and the warning that first dates can't be changed. The jobs then appear on the Preventive / Inspections pages with those dates.
+  - **Templates added later:** add templates to a sub-category that already has assets → *Schedule existing assets?* → *Schedule now* lists them; tick, choose *From today* or a date → "N scheduled, M skipped" with each reason. *Later* leaves them under the amber **Not scheduled** banner on the Preventive and Inspections pages.
+  - **Asset page:** the *PM & inspection schedule* card shows each running schedule with its next date, and the sub-category's templates not scheduled yet. *Add a schedule* can't pick a template already running there.
+  - **Rules:** a first date in the past, more than 2 years ahead, or before the installation date is refused. A template with no checklist items can't be scheduled. A template still used by a scheduled job can't be deleted.
+  - **Retire an asset:** its PM jobs not started become *Cancelled*, its inspections not started disappear, and finishing a job already under way schedules nothing after it.
+  - **One-off preventive job** (Work Orders hub → Create, type Preventive): completing it no longer starts a quarterly repeat.
+  - Known behaviour: editing a template's interval later changes an inspection schedule from its next completion, but a PM schedule keeps the interval it started with.
 
 ---
 

@@ -36,6 +36,7 @@ import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { getAssetQrUrl } from '@/lib/qrUrls'
 import { lockedSlaPriority } from '@/lib/assetSlaPriority'
 import { OutsideRepairStatusPill } from '@/components/outsideRepair/OutsideRepairPanel'
+import { AssetScheduleCard } from '@/components/maintenance/AssetScheduleCard'
 import { daysOut, isOutForRepair, isOverdueReturn, repairItemLabel } from '@/lib/outsideRepairState'
 
 export default function AssetDetailPage() {
@@ -262,6 +263,8 @@ export default function AssetDetailPage() {
             </div>
           </div>
         </div>
+
+        <AssetScheduleCard asset={asset} />
 
         {/* Main Content Layout: Left Tabs & Tables (8 cols) + Right Sidebars (4 cols) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

@@ -30,6 +30,7 @@ export default function InspectionTemplatesPage() {
     checklistTemplates,
     subCategories,
     assets,
+    inspections,
     addChecklistTemplate,
     updateChecklistTemplate,
     deleteChecklistTemplate,
@@ -161,6 +162,14 @@ export default function InspectionTemplatesPage() {
       return
     }
 
+    // Still running on assets (scheduled on an asset directly, or kept after
+    // its sub-category dropped it): the database refuses too (0053).
+    const runningOn = inspections.filter(i => i.templateId === id && i.status !== 'Completed').length
+    if (runningOn > 0) {
+      showToast('error', `Template "${name}" is used by ${runningOn} scheduled job(s) and can't be deleted.`)
+      return
+    }
+
     if (await confirmAction(`Are you sure you want to delete inspection template "${name}"?`)) {
       deleteChecklistTemplate(id)
     }
@@ -223,7 +232,7 @@ export default function InspectionTemplatesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filtered.map(tmpl => {
-            const linkedSubCount = subCategories.filter(s => s.inspectionTemplateId === tmpl.id).length
+            const linkedSubCount = subCategories.filter(s => s.inspectionTemplateId === tmpl.id || s.inspectionTemplateIds?.includes(tmpl.id)).length
 
             return (
               <div key={tmpl.id} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4 hover:border-slate-300 transition group">

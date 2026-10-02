@@ -16,7 +16,6 @@ import {
   Plus,
   ShieldCheck,
   Layers,
-  Sparkles,
   X,
   PlusCircle,
   Trash2,
@@ -35,6 +34,16 @@ import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components
 import { assetBasicsSchema, assetLocationSchema, fieldErrors, nameSchema } from '@/lib/validation/forms'
 import { useFormCheck } from '@/lib/useFormCheck'
 import { showToast } from '@/lib/toast'
+import { confirmAction } from '@/lib/confirm'
+import { getLocalDateStr } from '@/lib/dateUtils'
+import { FIRST_SCHEDULE_WARNING } from '@/lib/firstSchedule'
+import {
+  NewAssetSchedules,
+  checkNewSchedules,
+  newScheduleRows,
+  scheduleConfirmLines,
+  type ScheduleChoice,
+} from '@/components/maintenance/NewAssetSchedules'
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
 
 export default function AddAssetPage() {
@@ -63,6 +72,7 @@ function AddAssetForm() {
     vendors,
     documents,
     users,
+    checklistTemplates,
     addAsset,
     updateAsset,
     addVendor,
@@ -105,7 +115,6 @@ function AddAssetForm() {
   const [assetPrice, setAssetPrice] = useState('') // optional
   const [purchaseDate, setPurchaseDate] = useState('')
   const [installationDate, setInstallationDate] = useState('')
-  const [lastServicedDate, setLastServicedDate] = useState('')
   const [warrantyTill, setWarrantyTill] = useState('')
   const [maintenanceBy, setMaintenanceBy] = useState<'In House' | 'Vendor'>('In House')
   const [purchasedFromId, setPurchasedFromId] = useState('')
@@ -140,6 +149,12 @@ function AddAssetForm() {
   const [docSearchQuery, setDocSearchQuery] = useState('')
   const [docTypeFilter, setDocTypeFilter] = useState<string>('All')
 
+  // Step 5: the PM & inspection schedules a new asset starts with. Only what
+  // the person changed is kept; each row's default comes from its template.
+  const [today] = useState(getLocalDateStr)
+  const [scheduleChoices, setScheduleChoices] = useState<Record<string, ScheduleChoice>>({})
+  const [extraTemplateIds, setExtraTemplateIds] = useState<string[]>([])
+
   // Load existing asset details when in Edit mode
   useEffect(() => {
     if (!existingAsset) return
@@ -161,7 +176,6 @@ function AddAssetForm() {
     setAssetPrice(existingAsset.price ? String(existingAsset.price) : '')
     setPurchaseDate(existingAsset.purchaseDate || '')
     setInstallationDate(existingAsset.installationDate || '')
-    setLastServicedDate(existingAsset.lastServicedDate || '')
     setWarrantyTill(existingAsset.warrantyTill || '')
     setMaintenanceBy(existingAsset.maintenanceBy || 'In House')
     setPurchasedFromId(existingAsset.purchaseVendorId || '')
@@ -213,6 +227,14 @@ function AddAssetForm() {
 
   const activeSubCategory = subCategories.find(s => s.id === selectedSubCategoryId)
   const activeCategory = categories.find(c => c.id === selectedCategoryId)
+  const scheduleRows = newScheduleRows({
+    subCategory: activeSubCategory,
+    extraTemplateIds,
+    choices: scheduleChoices,
+    templates: checklistTemplates,
+    installationDate,
+    today,
+  })
 
   // Step 4 Filtered Documents list
   const filteredDocuments = documents.filter(doc => {
@@ -409,7 +431,6 @@ function AddAssetForm() {
         modelNumber,
         purchaseDate,
         installationDate,
-        lastServicedDate,
         warrantyTill,
         purchasedFromId,
         maintenanceBy,
@@ -479,7 +500,6 @@ function AddAssetForm() {
         price: assetPrice ? parseFloat(assetPrice) : undefined,
         purchaseDate,
         installationDate,
-        lastServicedDate: lastServicedDate || undefined,
         warrantyTill,
         maintenanceBy,
         maintenanceVendorId: maintenanceBy === 'Vendor' ? amcVendorId : undefined,
@@ -494,6 +514,20 @@ function AddAssetForm() {
       })
       router.push(`/assets/${existingAsset.assetId}`)
     } else {
+      const checked = checkNewSchedules(scheduleRows, installationDate, today)
+      if (!checked.ok) {
+        showToast('error', checked.error)
+        return
+      }
+      if (checked.schedules.length > 0) {
+        const ok = await confirmAction(`${scheduleConfirmLines(checked.schedules)}
+
+⚠ ${FIRST_SCHEDULE_WARNING}`, {
+          title: 'Start these schedules?',
+          confirmLabel: 'Create asset & schedules',
+        })
+        if (!ok) return
+      }
       let created: Awaited<ReturnType<typeof addAsset>>
       try {
         created = await addAsset({
@@ -507,7 +541,6 @@ function AddAssetForm() {
           price: assetPrice ? parseFloat(assetPrice) : undefined,
           purchaseDate,
           installationDate,
-          lastServicedDate: lastServicedDate || undefined,
           warrantyTill,
           maintenanceBy,
           maintenanceVendorId: maintenanceBy === 'Vendor' ? amcVendorId : undefined,
@@ -520,7 +553,7 @@ function AddAssetForm() {
           imageUrl: finalImageUrl,
           notes: note || undefined,
           status: 'Operational',
-        })
+        }, checked.schedules.map(({ templateId, mode, date }) => ({ templateId, mode, date })))
       } catch {
         // The asset wasn't saved (a toast already says why). Stay on the form so nothing typed is lost.
         return
@@ -744,7 +777,6 @@ function AddAssetForm() {
                       // longer valid once it changes — clear them rather
                       // than silently leaving a now-impossible ordering.
                       if (installationDate && v && installationDate < v) setInstallationDate('')
-                      if (lastServicedDate && v && lastServicedDate < v) setLastServicedDate('')
                       if (warrantyTill && v && warrantyTill < v) setWarrantyTill('')
                     }}
                     className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
@@ -753,7 +785,7 @@ function AddAssetForm() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Installation Date * (PM Anchor)</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Installation Date *</label>
                   <input
                     type="date"
                     {...invalidProps('asset-installationDate', stepErrors.installationDate)}
@@ -765,26 +797,8 @@ function AddAssetForm() {
                   />
                   <FieldError id="asset-installationDate-error" message={stepErrors.installationDate} />
                   {isEditMode && (
-                    <p className="text-[10px] text-slate-400 mt-1">Locked after creation — used to schedule PM/Inspection cycles.</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Locked after creation.</p>
                   )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Last Serviced Date <span className="text-slate-400 font-normal">(Optional — for legacy/backdated assets)</span>
-                  </label>
-                  <input
-                    type="date"
-                    {...invalidProps('asset-lastServicedDate', stepErrors.lastServicedDate)}
-                    value={lastServicedDate}
-                    min={purchaseDate || undefined}
-                    onChange={e => setLastServicedDate(e.target.value)}
-                    className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 ${INVALID}`}
-                  />
-                  <FieldError id="asset-lastServicedDate-error" message={stepErrors.lastServicedDate} />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    If this asset was already installed and serviced before being entered here, set this so the first PM/Inspection cycle is scheduled from this date instead of today.
-                  </p>
                 </div>
 
                 {/* Row 6: Warranty Till & Maintenance By */}
@@ -1333,10 +1347,9 @@ function AddAssetForm() {
                   {serialNumber && <p><span className="text-slate-500">Serial No:</span> {serialNumber}</p>}
                   {assetPrice && <p><span className="text-slate-500">Price:</span> ₹{assetPrice}</p>}
                   <p><span className="text-slate-500">Installation Date:</span> {installationDate}</p>
-                  {lastServicedDate && <p><span className="text-slate-500">Last Serviced Date:</span> {lastServicedDate}</p>}
                   {!isEditMode && (
                     <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-1">
-                      Installation Date cannot be changed after this asset is created — it is used to schedule the first Preventive Maintenance and Inspection due dates. Please double-check it before submitting.
+                      Installation Date cannot be changed after this asset is created. Please double-check it before submitting.
                     </p>
                   )}
                   <p><span className="text-slate-500">Maintenance By:</span> {maintenanceBy}</p>
@@ -1346,17 +1359,22 @@ function AddAssetForm() {
                   <p><span className="text-slate-500">Attached Documents:</span> <strong>{selectedDocIds.length} file(s)</strong></p>
                 </div>
 
-                <div className="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-200/80">
-                  <p className="font-bold text-slate-900">Auto-Scheduled Compliance Work</p>
-                  <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-800 text-[11px] flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <span>Quarterly Quality Inspection will be generated automatically.</span>
+                {isEditMode ? (
+                  <div className="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-200/80">
+                    <p className="font-bold text-slate-900">PM & inspection schedule</p>
+                    <p className="text-slate-500">Schedules are added on the asset&apos;s page.</p>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-blue-50 text-blue-800 text-[11px] flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-600" />
-                    <span>Preventive Maintenance (PM) work order will be created.</span>
-                  </div>
-                </div>
+                ) : (
+                  <NewAssetSchedules
+                    rows={scheduleRows}
+                    templates={checklistTemplates}
+                    installationDate={installationDate}
+                    today={today}
+                    onChoice={(id, choice) => setScheduleChoices(prev => ({ ...prev, [id]: choice }))}
+                    onAdd={id => setExtraTemplateIds(prev => (prev.includes(id) ? prev : [...prev, id]))}
+                    onRemove={id => setExtraTemplateIds(prev => prev.filter(x => x !== id))}
+                  />
+                )}
               </div>
             </div>
           )}

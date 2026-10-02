@@ -71,4 +71,12 @@ describe('addIntervalToDate', () => {
     expect(addIntervalToDate('15-01-2026', 'Weekly')).toBe('2026-01-22')
     expect(addIntervalToDate('2026-01-15', 'whenever')).toBe('2026-04-15')
   })
+
+  it('stops at the end of a shorter month, like the database', () => {
+    expect(addIntervalToDate('2026-01-31', 'Monthly')).toBe('2026-02-28')
+    expect(addIntervalToDate('2028-01-31', 'Monthly')).toBe('2028-02-29')
+    expect(addIntervalToDate('2026-08-31', 'Quarterly')).toBe('2026-11-30')
+    expect(addIntervalToDate('2028-02-29', 'Annually')).toBe('2029-02-28')
+    expect(addIntervalToDate('2026-12-31', 'Monthly')).toBe('2027-01-31')
+  })
 })

@@ -24,6 +24,7 @@ import {
   Search,
 } from 'lucide-react'
 import { Inspection } from '@/types/afms'
+import { ScheduleGapsBanner } from '@/components/maintenance/ScheduleGapsPanel'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
@@ -296,7 +297,7 @@ export default function InspectionsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Statutory &amp; Quality Inspections</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Auto-scheduled Pass/Fail compliance checks &amp; inspector assignment</p>
+            <p className="text-xs text-slate-500 mt-0.5">Each asset&apos;s inspection schedules: Pass/Fail checks &amp; inspector assignment</p>
           </div>
 
           <Link
@@ -307,6 +308,8 @@ export default function InspectionsPage() {
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
+
+        <ScheduleGapsBanner kind="inspection" />
 
         {/* Top Compliance Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

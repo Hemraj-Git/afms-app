@@ -36,7 +36,7 @@ export function ConfirmHost() {
         </div>
         <div className="space-y-1 pt-0.5">
           <h3 className="text-base font-bold text-slate-900">{request.title}</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">{request.message}</p>
+          <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{request.message}</p>
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-2">

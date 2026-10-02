@@ -98,20 +98,30 @@ export function addIntervalToDate(baseDateStr: string, interval: string = 'Quart
     date = new Date()
   }
 
+  // Months stop at the month's last day (31 Jan + 1 month = 28/29 Feb), as
+  // Postgres does in next_schedule_date -- the date shown is the date saved.
+  const addMonths = (months: number) => {
+    const day = date.getDate()
+    date.setDate(1)
+    date.setMonth(date.getMonth() + months)
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+    date.setDate(Math.min(day, lastDay))
+  }
+
   const normalized = interval.toLowerCase()
   if (normalized.includes('week')) {
     date.setDate(date.getDate() + 7)
   } else if (normalized.includes('month') && !normalized.includes('half')) {
-    date.setMonth(date.getMonth() + 1)
+    addMonths(1)
   } else if (normalized.includes('quat') || normalized.includes('quarter')) {
-    date.setMonth(date.getMonth() + 3)
+    addMonths(3)
   } else if (normalized.includes('half')) {
-    date.setMonth(date.getMonth() + 6)
+    addMonths(6)
   } else if (normalized.includes('annual') || normalized.includes('year')) {
-    date.setFullYear(date.getFullYear() + 1)
+    addMonths(12)
   } else {
     // Default quarterly (3 months)
-    date.setMonth(date.getMonth() + 3)
+    addMonths(3)
   }
 
   // Not .toISOString().split('T')[0] -- that serializes the UTC calendar

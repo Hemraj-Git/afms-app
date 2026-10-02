@@ -90,7 +90,6 @@ export const assetBasicsSchema = z
     modelNumber: text('Model number', { max: 120 }),
     purchaseDate: date('Purchase date'),
     installationDate: date('Installation date'),
-    lastServicedDate: z.string(),
     warrantyTill: date('Warranty expiry date'),
     purchasedFromId: pick('the vendor it was bought from'),
     maintenanceBy: z.enum(['In House', 'Vendor']),
@@ -103,9 +102,6 @@ export const assetBasicsSchema = z
     const bought = isoDate.test(v.purchaseDate) ? v.purchaseDate : ''
     if (bought && isoDate.test(v.installationDate) && v.installationDate < bought) {
       issue('installationDate', 'Installation can’t be before the purchase date.')
-    }
-    if (bought && v.lastServicedDate && v.lastServicedDate < bought) {
-      issue('lastServicedDate', 'Last service can’t be before the purchase date.')
     }
     if (bought && isoDate.test(v.warrantyTill) && v.warrantyTill < bought) {
       issue('warrantyTill', 'Warranty can’t end before the purchase date.')

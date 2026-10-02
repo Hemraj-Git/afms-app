@@ -29,6 +29,7 @@ export default function MaintenanceTemplatesPage() {
     checklistTemplates,
     subCategories,
     assets,
+    workOrders,
     addChecklistTemplate,
     updateChecklistTemplate,
     deleteChecklistTemplate,
@@ -160,6 +161,14 @@ export default function MaintenanceTemplatesPage() {
       return
     }
 
+    // Still running on assets (scheduled on an asset directly, or kept after
+    // its sub-category dropped it): the database refuses too (0053).
+    const runningOn = workOrders.filter(w => w.checklistTemplateId === id && w.status !== 'Completed' && w.status !== 'Cancelled').length
+    if (runningOn > 0) {
+      showToast('error', `Template "${name}" is used by ${runningOn} scheduled job(s) and can't be deleted.`)
+      return
+    }
+
     if (await confirmAction(`Are you sure you want to delete Preventive Maintenance template "${name}"?`)) {
       deleteChecklistTemplate(id)
     }
@@ -222,7 +231,7 @@ export default function MaintenanceTemplatesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filtered.map(tmpl => {
-            const linkedSubCount = subCategories.filter(s => s.pmTemplateId === tmpl.id).length
+            const linkedSubCount = subCategories.filter(s => s.pmTemplateId === tmpl.id || s.pmTemplateIds?.includes(tmpl.id)).length
 
             return (
               <div key={tmpl.id} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4 hover:border-slate-300 transition group">

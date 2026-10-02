@@ -71,7 +71,7 @@ describe('work order form', () => {
 describe('asset wizard', () => {
   const basics = {
     assetName: 'Chiller', categoryId: 'c1', subCategoryId: 's1', manufacturer: 'Carrier', modelNumber: 'X1',
-    purchaseDate: '2026-01-10', installationDate: '2026-01-20', lastServicedDate: '', warrantyTill: '2028-01-10',
+    purchaseDate: '2026-01-10', installationDate: '2026-01-20', warrantyTill: '2028-01-10',
     purchasedFromId: 'v1', maintenanceBy: 'In House', amcVendorId: '', amcStartDate: '', amcEndDate: '',
   } as const
 
@@ -90,9 +90,8 @@ describe('asset wizard', () => {
   })
 
   it('checks dates against the purchase date', () => {
-    expect(fieldErrors(assetBasicsSchema, { ...basics, installationDate: '2026-01-01', lastServicedDate: '2025-12-01', warrantyTill: '2025-01-01' })).toEqual({
+    expect(fieldErrors(assetBasicsSchema, { ...basics, installationDate: '2026-01-01', warrantyTill: '2025-01-01' })).toEqual({
       installationDate: 'Installation can’t be before the purchase date.',
-      lastServicedDate: 'Last service can’t be before the purchase date.',
       warrantyTill: 'Warranty can’t end before the purchase date.',
     })
   })

@@ -1,5 +1,5 @@
 // Generated from the live Supabase schema (Supabase MCP `generate_typescript_types`,
-// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043, and 0052's columns and add_field_vendor added by hand). Do not edit by hand -- regenerate after a
+// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043, 0052's columns and add_field_vendor, and 0053's schedule_asset_maintenance added by hand). Do not edit by hand -- regenerate after a
 // migration changes a table, e.g. `npx supabase gen types typescript --project-id <id>`.
 // Convenience aliases (Row/Insert/Update by table name) live in src/lib/supabase/typed.ts.
 
@@ -1329,6 +1329,10 @@ export type Database = {
       add_field_vendor: {
         Args: { p_name: string; p_phone: string; p_contact_person: string; p_category: string }
         Returns: string
+      }
+      schedule_asset_maintenance: {
+        Args: { p_asset_ids: string[]; p_template_id: string; p_mode: string; p_first_due?: string }
+        Returns: { asset_id: string; due_date: string | null; status: string; reason: string | null }[]
       }
     }
     Enums: {

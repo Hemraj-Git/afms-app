@@ -22,6 +22,7 @@ import {
   Lock,
 } from 'lucide-react'
 import { WorkOrder } from '@/types/afms'
+import { ScheduleGapsBanner } from '@/components/maintenance/ScheduleGapsPanel'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -212,7 +213,7 @@ export default function PreventiveMaintenancePage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Preventive Maintenance (PM) Schedule</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Auto-scheduled maintenance cycles anchored to asset installation dates — Assign technician to generate official Work Order</p>
+            <p className="text-xs text-slate-500 mt-0.5">Each asset&apos;s PM schedules — the next job of each. Assign a technician to make it an official Work Order.</p>
           </div>
 
           <Link
@@ -223,6 +224,8 @@ export default function PreventiveMaintenancePage() {
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
+
+        <ScheduleGapsBanner kind="pm" />
 
         {/* Work Orders Table */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
@@ -240,7 +243,7 @@ export default function PreventiveMaintenancePage() {
                 <Wrench className="w-8 h-8 text-slate-300 stroke-1" />
                 <p className="text-xs font-semibold text-slate-600">No Scheduled Preventive Maintenance</p>
                 <p className="text-[11px] text-slate-400 max-w-sm">
-                  Preventive maintenance work orders are automatically scheduled when assets with PM checklist templates are registered.
+                  PM jobs appear here once a schedule is started — when adding an asset, on the asset&apos;s page, or from &ldquo;Not scheduled&rdquo; above.
                 </p>
               </div>
             }

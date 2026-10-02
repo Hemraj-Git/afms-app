@@ -35,6 +35,8 @@ import { subCategorySchema, templateSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/DataTable'
+import { scheduleGaps } from '@/lib/assetSchedules'
+import { PM_AND_INSPECTIONS, ScheduleGapsPanel } from '@/components/maintenance/ScheduleGapsPanel'
 
 export default function SubCategoriesPage() {
   const {
@@ -42,6 +44,8 @@ export default function SubCategoriesPage() {
     categories,
     checklistTemplates,
     assets,
+    workOrders,
+    inspections,
     addSubCategory,
     updateSubCategory,
     deleteSubCategory,
@@ -51,6 +55,10 @@ export default function SubCategoriesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingSub, setEditingSub] = useState<SubCategory | null>(null)
+  // After templates are added to a sub-category that has assets: those
+  // assets' missing schedules, to start now (or later, from the PM /
+  // Inspections pages).
+  const [scheduleSubId, setScheduleSubId] = useState<string | null>(null)
 
   // 5-Step Wizard State (1 to 5)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1)
@@ -257,6 +265,27 @@ export default function SubCategoriesPage() {
         inspectionTemplateIds: uniqueInspIds,
         inspectionTemplateId: uniqueInspIds[0] || undefined,
       })
+      // Its assets that don't run every template it now has.
+      const patched = { ...editingSub, pmTemplateIds: uniquePmIds, inspectionTemplateIds: uniqueInspIds }
+      const lists = {
+        assets: assets.filter(a => a.subCategoryId === editingSub.id),
+        subCategories: [patched],
+        templates: checklistTemplates,
+        workOrders,
+        inspections,
+      }
+      const missing = new Set([...scheduleGaps('pm', lists), ...scheduleGaps('inspection', lists)].map(g => g.asset.id)).size
+      setShowModal(false)
+      if (
+        missing > 0 &&
+        (await confirmAction(
+          `${missing} existing asset${missing === 1 ? '' : 's'} in "${patched.name}" ${missing === 1 ? 'has' : 'have'} no schedule for ${missing === 1 ? 'its' : 'their'} PM or inspection templates. Schedule now?`,
+          { title: 'Schedule existing assets?', confirmLabel: 'Schedule now', cancelLabel: 'Later' },
+        ))
+      ) {
+        setScheduleSubId(editingSub.id)
+      }
+      return
     } else {
       try {
         await addSubCategory({
@@ -1113,6 +1142,8 @@ export default function SubCategoriesPage() {
             </Modal>
         )}
       </div>
+
+      {scheduleSubId ? <ScheduleGapsPanel kinds={PM_AND_INSPECTIONS} subCategoryId={scheduleSubId} onClose={() => setScheduleSubId(null)} /> : null}
     </AppLayout>
   )
 }
