@@ -25,6 +25,7 @@ import { DataTable, timeOf } from '@/components/ui/DataTable'
 import type { Asset, Room } from '@/types/afms'
 
 import { Modal } from '@/components/ui/Modal'
+import { labelName, placardTitle } from '@/lib/brand'
 import { showToast } from '@/lib/toast'
 export default function QrDashboardPage() {
   const { assets, rooms, buildings, campuses, updateAsset, updateRoom } = useAFMS()
@@ -628,8 +629,8 @@ export default function QrDashboardPage() {
                             {/* Card Top Branding */}
                             <div className="border-b-2 border-slate-800 pb-2 flex items-center justify-between">
                               <div>
-                                <h4 className="text-[12px] font-black tracking-wider text-slate-900 uppercase">
-                                  Hemraj Marines Facility Management
+                                <h4 className="text-[12px] font-black tracking-wider text-slate-900 uppercase line-clamp-2">
+                                  {placardTitle()}
                                 </h4>
                                 <p className="text-[10px] text-slate-600 font-semibold">
                                   {camp?.name || 'Main Campus'} • {bld?.name || 'Building'}
@@ -765,7 +766,7 @@ export default function QrDashboardPage() {
                       >
                         {/* 5cm x 5cm Header */}
                         <div className="w-full border-b border-slate-300 pb-0.5 flex items-center justify-between text-[7px] font-black tracking-tight text-slate-800 uppercase">
-                          <span>HEMRAJ MARINES</span>
+                          <span className="truncate">{labelName()}</span>
                           <span className="text-blue-700 font-mono font-bold">AssetNXG</span>
                         </div>
 

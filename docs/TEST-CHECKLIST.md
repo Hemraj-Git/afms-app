@@ -159,6 +159,7 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - Known behaviour: editing a template's interval later changes an inspection schedule from its next completion, but a PM schedule keeps the interval it started with.
 - [ ] **6.37 AssetNXG name and cosmetics** —
   - The browser tab, sign-in page, sidebar, field app header, installed-app name, bulk-upload template and QR labels say **AssetNXG** (not AFMS).
+  - QR codes (preview and downloaded PDF): room placards are headed with the client's full name; 5 cm asset labels show the short name (SoMS). No "Hemraj Marines" anywhere. The browser tab reads "AssetNXG | <client name>".
   - Sidebar top: the client's logo (SOMS) when `NEXT_PUBLIC_CLIENT_LOGO_URL` is set, else the client's name, else AssetNXG. Collapsed: the crest.
   - Sidebar bottom: the AssetNXG logo, the version (v1.0.0) and *About*. Collapsed: the AssetNXG icon (opens About).
   - *About* (from the sidebar or the header's help icon) opens over the whole page: what AssetNXG does, version and build date, "Licensed to" the client, the support email (support@assetnxg.app) with a copy button, then "A product of" with the PMV logo and *Pinnacle Marine Ventures*, and "Powered by" with the HMS logo and *HMS - Digital Solutions*.

@@ -4,6 +4,7 @@
 // With none set, the app shows AssetNXG itself.
 //
 //   NEXT_PUBLIC_CLIENT_NAME            e.g. "School of Maritime Studies, Centurion University"
+//   NEXT_PUBLIC_CLIENT_SHORT_NAME      e.g. "SoMS" (as in soms.assetnxg.app), for the small QR labels
 //   NEXT_PUBLIC_CLIENT_LOGO_URL        wide logo, e.g. "/images/client-logo.png" (put the file in public/images)
 //   NEXT_PUBLIC_CLIENT_LOGO_MARK_URL   square mark for the collapsed sidebar, e.g. "/images/client-logo-mark.png"
 
@@ -26,6 +27,14 @@ export const BUILD_DATE = process.env.NEXT_PUBLIC_BUILD_DATE ?? ''
 export const CLIENT_NAME = (process.env.NEXT_PUBLIC_CLIENT_NAME ?? '').trim()
 export const CLIENT_LOGO_URL = (process.env.NEXT_PUBLIC_CLIENT_LOGO_URL ?? '').trim()
 export const CLIENT_LOGO_MARK_URL = (process.env.NEXT_PUBLIC_CLIENT_LOGO_MARK_URL ?? '').trim()
+export const CLIENT_SHORT_NAME = (process.env.NEXT_PUBLIC_CLIENT_SHORT_NAME ?? '').trim()
+
+/** The name across the top of a room's QR placard: the client's, else AssetNXG. */
+export const placardTitle = (clientName = CLIENT_NAME) => clientName || PRODUCT_NAME
+
+/** The name on a 5 cm asset label: the short name, else the client's name if it is short, else nothing. */
+export const labelName = (shortName = CLIENT_SHORT_NAME, clientName = CLIENT_NAME) =>
+  shortName || (clientName.length <= 18 ? clientName : '')
 
 /** Up to two initials, for a square mark when there is no logo. */
 export function initialsOf(name: string): string {

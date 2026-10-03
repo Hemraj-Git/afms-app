@@ -44,7 +44,8 @@ Confirm these **environment variables** exist for Production (Settings → Envir
 
 **Client branding (optional, per deployment).** The top of the sidebar shows the client's logo; with nothing set it shows *AssetNXG*. Redeploy after changing any of these (they are read at build time):
 
-- `NEXT_PUBLIC_CLIENT_NAME` — shown in About as "Licensed to", and with its initials when there is no logo.
+- `NEXT_PUBLIC_CLIENT_NAME` — shown in About as "Licensed to", on the sign-in page, in the browser tab, across the top of each room's QR placard, and with its initials when there is no logo.
+- `NEXT_PUBLIC_CLIENT_SHORT_NAME` — e.g. `SoMS` (as in the subdomain). Printed on the small 5 cm asset QR labels, where the full name doesn't fit.
 - `NEXT_PUBLIC_CLIENT_LOGO_URL` — the wide logo (put the file in `public/images/`, or a full https link). Shown up to 196 × 48 px.
 - `NEXT_PUBLIC_CLIENT_LOGO_MARK_URL` — the square mark for the collapsed sidebar (40 × 40 px).
 
@@ -52,6 +53,7 @@ For the School of Maritime Studies deployment (the logo files are already in `pu
 
 ```
 NEXT_PUBLIC_CLIENT_NAME=School of Maritime Studies, Centurion University
+NEXT_PUBLIC_CLIENT_SHORT_NAME=SoMS
 NEXT_PUBLIC_CLIENT_LOGO_URL=/images/client-logo.png
 NEXT_PUBLIC_CLIENT_LOGO_MARK_URL=/images/client-logo-mark.png
 ```

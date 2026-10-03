@@ -2,6 +2,7 @@
 import QRCode from 'qrcode'
 import { Room, Asset, Building, Campus } from '@/types/afms'
 import { getLocalDateStr } from '@/lib/dateUtils'
+import { labelName, placardTitle } from '@/lib/brand'
 
 /**
  * Generate a PDF for Room QR Placards
@@ -58,11 +59,18 @@ export async function generateRoomPlacardsPdf(
     doc.setLineWidth(0.4)
     doc.line(x, y + 16, x + cardWidth, y + 16)
 
-    // Facility Title
+    // The client's name, smaller if it is long (the room tag sits to its right)
+    const title = placardTitle().toUpperCase()
+    const titleWidth = cardWidth - 4 - 32
+    let titleSize = 8.5
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
+    doc.setFontSize(titleSize)
+    while (doc.getTextWidth(title) > titleWidth && titleSize > 6) {
+      titleSize -= 0.5
+      doc.setFontSize(titleSize)
+    }
     doc.setTextColor(15, 23, 42)
-    doc.text('HEMRAJ MARINES FACILITY MANAGEMENT', x + 4, y + 6)
+    doc.text(title, x + 4, y + 6, { maxWidth: titleWidth })
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
@@ -202,7 +210,7 @@ export async function generateAssetLabelsPdf(
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6)
     doc.setTextColor(15, 23, 42)
-    doc.text('HEMRAJ MARINES', x + 2.5, y + 4.5)
+    doc.text(labelName().toUpperCase(), x + 2.5, y + 4.5, { maxWidth: labelSize - 16 })
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(5.5)

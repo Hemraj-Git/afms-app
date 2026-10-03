@@ -4,10 +4,11 @@ import { AFMSProvider } from "@/context/AFMSContext";
 import { Toaster } from "@/components/ui/Toaster";
 import { ConfirmHost } from "@/components/ui/ConfirmHost";
 import { QueryProvider } from "@/components/QueryProvider";
+import { CLIENT_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "AssetNXG - Asset & Facility Management System | Hemraj Marines Services",
-  description: "Quality compliance-ready digital asset & facility management system for Maritime Training Institutes.",
+  title: CLIENT_NAME ? `AssetNXG | ${CLIENT_NAME}` : "AssetNXG - Asset & Facility Management",
+  description: "AssetNXG (Asset Next Generation): cloud-based asset & facility management that keeps the organisation compliance-ready.",
   // iPhone "Add to Home Screen" uses these (the manifest covers other phones).
   icons: { apple: "/icons/apple-touch-icon.png" },
   appleWebApp: { capable: true, title: "AssetNXG", statusBarStyle: "default" },
