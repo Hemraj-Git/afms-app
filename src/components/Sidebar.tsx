@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -28,16 +28,26 @@ import {
   Package,
   PackageOpen,
   X,
+  Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { showToast } from '@/lib/toast'
-import { CLIENT_LOGO_MARK_URL, CLIENT_LOGO_URL, CLIENT_NAME, PRODUCT_NAME, initialsOf } from '@/lib/brand'
+import { AboutDialog } from '@/components/AboutDialog'
+import {
+  APP_VERSION,
+  CLIENT_LOGO_MARK_URL,
+  CLIENT_LOGO_URL,
+  CLIENT_NAME,
+  PRODUCT_LOGO_URL,
+  PRODUCT_MARK_URL,
+  PRODUCT_NAME,
+  initialsOf,
+} from '@/lib/brand'
 
 // The square mark: the client's mark, else their initials, else AssetNXG's bars.
 function BrandMark() {
   if (CLIENT_LOGO_MARK_URL) {
     // eslint-disable-next-line @next/next/no-img-element -- a logo set per deployment, of any size
-    return <img src={CLIENT_LOGO_MARK_URL} alt={CLIENT_NAME || PRODUCT_NAME} className="w-8 h-8 object-contain shrink-0" />
+    return <img src={CLIENT_LOGO_MARK_URL} alt={CLIENT_NAME || PRODUCT_NAME} className="w-10 h-10 object-contain shrink-0" />
   }
   return (
     <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
@@ -60,7 +70,7 @@ function SidebarBrand({ collapsed }: { collapsed: boolean }) {
   if (collapsed) return <BrandMark />
   if (CLIENT_LOGO_URL) {
     // eslint-disable-next-line @next/next/no-img-element -- a logo set per deployment, of any size
-    return <img src={CLIENT_LOGO_URL} alt={CLIENT_NAME || PRODUCT_NAME} className="h-10 w-auto max-w-[176px] object-contain object-left" />
+    return <img src={CLIENT_LOGO_URL} alt={CLIENT_NAME || PRODUCT_NAME} className="h-12 w-auto max-w-[196px] object-contain object-left" />
   }
   return (
     <div className="flex items-center gap-3 min-w-0">
@@ -165,8 +175,10 @@ export function Sidebar({
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname()
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   return (
+    <>
     <aside
       className={cn(
         'bg-white border-r border-slate-200 flex flex-col h-screen select-none transition-all duration-300 ease-in-out shrink-0 z-50 print:hidden',
@@ -238,23 +250,30 @@ export function Sidebar({
         ))}
       </div>
 
-      {/* Footer Branding / Collapsed Toggle Banner */}
+      {/* Bottom: AssetNXG, its version and About (who makes it, support). */}
       <div className="p-3 border-t border-slate-100 bg-slate-50/50 shrink-0">
         {!collapsed ? (
-          <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-slate-400">
-            <span>
-              Powered by <strong className="font-semibold text-slate-600">{PRODUCT_NAME}</strong>
-            </span>
-            <button
-              type="button"
-              onClick={() => showToast('info', 'Support line: support@hemrajmarines.com | Tel: +91 22 6600 4400')}
-              className="font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-            >
-              Support
-            </button>
+          <div className="flex items-center justify-between gap-2 px-2 py-1">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a static brand file at a fixed height */}
+            <img src={PRODUCT_LOGO_URL} alt={PRODUCT_NAME} className="h-5 w-auto" />
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+              {APP_VERSION ? <span>v{APP_VERSION}</span> : null}
+              <button
+                type="button"
+                onClick={() => setAboutOpen(true)}
+                className="inline-flex items-center gap-1 font-semibold text-slate-500 hover:text-blue-600 transition"
+              >
+                <Info className="w-3.5 h-3.5" />
+                About
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="flex justify-center py-1">
+          <div className="flex flex-col items-center gap-2 py-1">
+            <button type="button" onClick={() => setAboutOpen(true)} title={`About ${PRODUCT_NAME}`} aria-label={`About ${PRODUCT_NAME}`} className="p-1 rounded-lg hover:bg-slate-100 transition">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a static brand file at a fixed height */}
+              <img src={PRODUCT_MARK_URL} alt="" className="h-6 w-auto" />
+            </button>
             <button
               onClick={onToggle}
               className="p-2 rounded-xl bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-500 transition"
@@ -265,6 +284,10 @@ export function Sidebar({
           </div>
         )}
       </div>
+
     </aside>
+    {/* Outside the aside: its slide transform would trap a fixed overlay inside it. */}
+    {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
+    </>
   )
 }

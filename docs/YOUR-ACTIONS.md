@@ -44,9 +44,19 @@ Confirm these **environment variables** exist for Production (Settings → Envir
 
 **Client branding (optional, per deployment).** The top of the sidebar shows the client's logo; with nothing set it shows *AssetNXG*. Redeploy after changing any of these (they are read at build time):
 
-- `NEXT_PUBLIC_CLIENT_NAME` — e.g. `Hemraj Maritime Training Institute`. Shown with its initials when there is no logo.
-- `NEXT_PUBLIC_CLIENT_LOGO_URL` — the wide logo, e.g. `/images/client-logo.svg` (put the file in `public/images/`) or a full https link. Shown up to 176 × 40 px.
-- `NEXT_PUBLIC_CLIENT_LOGO_MARK_URL` — optional square mark for the collapsed sidebar (32 × 32 px).
+- `NEXT_PUBLIC_CLIENT_NAME` — shown in About as "Licensed to", and with its initials when there is no logo.
+- `NEXT_PUBLIC_CLIENT_LOGO_URL` — the wide logo (put the file in `public/images/`, or a full https link). Shown up to 196 × 48 px.
+- `NEXT_PUBLIC_CLIENT_LOGO_MARK_URL` — the square mark for the collapsed sidebar (40 × 40 px).
+
+For the School of Maritime Studies deployment (the logo files are already in `public/images/`):
+
+```
+NEXT_PUBLIC_CLIENT_NAME=School of Maritime Studies, Centurion University
+NEXT_PUBLIC_CLIENT_LOGO_URL=/images/client-logo.png
+NEXT_PUBLIC_CLIENT_LOGO_MARK_URL=/images/client-logo-mark.png
+```
+
+The version shown in About comes from `package.json` (now 1.0.0); raise it for each release.
 
 Also check the **Supabase email templates** (Authentication → Emails: invite and password reset) and the sender name: change any "AFMS" there to "AssetNXG".
 

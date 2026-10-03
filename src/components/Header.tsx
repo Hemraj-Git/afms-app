@@ -22,6 +22,8 @@ import {
   ArrowUp,
   CircleX,
   CalendarClock,
+  LifeBuoy,
+  Info,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { AppNotification } from '@/types/afms'
@@ -30,7 +32,8 @@ import { PushToggle } from '@/components/ui/PushToggle'
 import { playNotificationSound } from '@/lib/notificationSound'
 import { useNewItemAlert } from '@/lib/useNewItemAlert'
 import { GlobalSearch } from '@/components/GlobalSearch'
-import { initialsOf } from '@/lib/brand'
+import { PRODUCT_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, initialsOf } from '@/lib/brand'
+import { AboutDialog, CopyLine } from '@/components/AboutDialog'
 
 // How each kind of database alert looks and where it leads on the desktop.
 const ALERT_ICONS: Record<AppNotification['type'], React.ReactNode> = {
@@ -82,6 +85,8 @@ export function Header({
   const hydrated = useSyncExternalStore(noSubscribe, () => true, () => false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
+  const [showHelpMenu, setShowHelpMenu] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
 
   // New service requests with status 'Open'
@@ -105,6 +110,7 @@ export function Header({
   })
 
   return (
+    <>
     <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-all duration-300 print:hidden">
       {/* Left: Hamburger / Collapse Sidebar Toggle + Breadcrumbs */}
       <div className="flex items-center gap-3">
@@ -182,12 +188,52 @@ export function Header({
           </div>
         )}
 
+        {/* Help: how to reach support, and About */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setShowHelpMenu(!showHelpMenu)
+              setShowNotificationMenu(false)
+              setShowUserMenu(false)
+            }}
+            aria-haspopup="menu"
+            aria-expanded={showHelpMenu}
+            aria-label="Help and support"
+            title="Help & support"
+            className="p-2 rounded-xl transition border border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+          >
+            <LifeBuoy className="w-4 h-4" />
+          </button>
+          {showHelpMenu && (
+            <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs animate-in fade-in">
+              <div className="px-3 pt-2 pb-3 border-b border-slate-100 space-y-1.5">
+                <p className="font-bold text-slate-900">Contact support</p>
+                <CopyLine label="Email" value={SUPPORT_EMAIL} />
+                <CopyLine label="Phone" value={SUPPORT_PHONE} />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHelpMenu(false)
+                  setShowAbout(true)
+                }}
+                className="w-full mt-1 px-3 py-2 rounded-xl text-left font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+              >
+                <Info className="w-3.5 h-3.5 text-slate-400" />
+                About {PRODUCT_NAME}
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Notification Bell Dropdown */}
         <div className="relative">
           <button
             onClick={() => {
               setShowNotificationMenu(!showNotificationMenu)
               setShowUserMenu(false)
+              setShowHelpMenu(false)
             }}
             className={`relative p-2 rounded-xl transition border ${
               bellCount > 0
@@ -354,7 +400,11 @@ export function Header({
           <div className="relative">
             <button
               type="button"
-              onClick={() => setShowUserMenu(!showUserMenu)}
+              onClick={() => {
+                setShowUserMenu(!showUserMenu)
+                setShowHelpMenu(false)
+                setShowNotificationMenu(false)
+              }}
               aria-haspopup="menu"
               aria-expanded={showUserMenu}
               aria-label={`Account: ${currentUser.fullName}`}
@@ -402,5 +452,8 @@ export function Header({
         )}
       </div>
     </header>
+    {/* Outside the header: its stacking layer would put the dialog under the sidebar. */}
+    {showAbout ? <AboutDialog onClose={() => setShowAbout(false)} /> : null}
+    </>
   )
 }

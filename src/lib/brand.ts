@@ -3,11 +3,26 @@
 // environment variables, e.g. on Vercel), and lead at the top of the sidebar.
 // With none set, the app shows AssetNXG itself.
 //
-//   NEXT_PUBLIC_CLIENT_NAME            e.g. "Hemraj Maritime Training Institute"
-//   NEXT_PUBLIC_CLIENT_LOGO_URL        wide logo, e.g. "/images/client-logo.svg" (put the file in public/images)
-//   NEXT_PUBLIC_CLIENT_LOGO_MARK_URL   optional square mark for the collapsed sidebar
+//   NEXT_PUBLIC_CLIENT_NAME            e.g. "School of Maritime Studies, Centurion University"
+//   NEXT_PUBLIC_CLIENT_LOGO_URL        wide logo, e.g. "/images/client-logo.png" (put the file in public/images)
+//   NEXT_PUBLIC_CLIENT_LOGO_MARK_URL   square mark for the collapsed sidebar, e.g. "/images/client-logo-mark.png"
 
 export const PRODUCT_NAME = 'AssetNXG'
+export const PRODUCT_LOGO_URL = '/images/assetnxg-logo.svg'
+export const PRODUCT_MARK_URL = '/images/assetnxg-mark.svg'
+
+// Shown in the About dialog: who makes AssetNXG and who runs it.
+export const MAKER_NAME = 'PMV'
+export const MAKER_LOGO_URL = '/images/pmv-logo.svg'
+export const POWERED_BY_NAME = 'HMS - Digital Solutions'
+export const POWERED_BY_LOGO_URL = '/images/hms-logo.svg'
+
+export const SUPPORT_EMAIL = 'support@hemrajmarines.com'
+export const SUPPORT_PHONE = '+91 22 6600 4400'
+
+// Set at build time from package.json (see next.config.ts).
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? ''
+export const BUILD_DATE = process.env.NEXT_PUBLIC_BUILD_DATE ?? ''
 
 export const CLIENT_NAME = (process.env.NEXT_PUBLIC_CLIENT_NAME ?? '').trim()
 export const CLIENT_LOGO_URL = (process.env.NEXT_PUBLIC_CLIENT_LOGO_URL ?? '').trim()

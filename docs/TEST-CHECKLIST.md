@@ -159,8 +159,10 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - Known behaviour: editing a template's interval later changes an inspection schedule from its next completion, but a PM schedule keeps the interval it started with.
 - [ ] **6.37 AssetNXG name and cosmetics** —
   - The browser tab, sign-in page, sidebar, field app header, installed-app name, bulk-upload template and QR labels say **AssetNXG** (not AFMS).
-  - Sidebar top: the client's logo when `NEXT_PUBLIC_CLIENT_LOGO_URL` is set, else the client's name, else AssetNXG. Collapsed: the square mark or initials. Bottom: "Powered by AssetNXG" and *Support* (the support contact).
-  - Header: no "Role: Admin" pill; the avatar opens a menu with name, email, role and *Sign Out*.
+  - Sidebar top: the client's logo (SOMS) when `NEXT_PUBLIC_CLIENT_LOGO_URL` is set, else the client's name, else AssetNXG. Collapsed: the crest.
+  - Sidebar bottom: the AssetNXG logo, the version (v1.0.0) and *About*. Collapsed: the AssetNXG icon (opens About).
+  - *About* (from the sidebar or the header's help icon) opens over the whole page: what AssetNXG does, version and build date, "Licensed to" the client, support email and phone with copy buttons, then "A product of" with the PMV logo and "Powered by" with the HMS logo and *HMS - Digital Solutions*.
+  - Header: a help icon (lifebuoy) with *Contact support* (email and phone, copy buttons) and *About AssetNXG*. No "Role: Admin" pill; the avatar opens a menu with name, email, role and *Sign Out*.
   - No "Work Orders Central Hub" button on the Preventive, Corrective and Inspections pages; no live clock under the asset title.
 
 ---
