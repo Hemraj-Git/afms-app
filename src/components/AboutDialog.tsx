@@ -100,11 +100,12 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-slate-100 border-t border-slate-100">
         <div className="bg-slate-50 px-6 py-5 flex flex-col items-center gap-2 text-center">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">A product of</p>
-          <img src={MAKER_LOGO_URL} alt={MAKER_NAME} className="h-20 w-auto" />
+          <img src={MAKER_LOGO_URL} alt="" className="h-14 w-auto" />
+          <p className="font-bold text-slate-800">{MAKER_NAME}</p>
         </div>
         <div className="bg-slate-50 px-6 py-5 flex flex-col items-center gap-2 text-center">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Powered by</p>
-          <img src={POWERED_BY_LOGO_URL} alt="" className="h-12 w-auto" />
+          <img src={POWERED_BY_LOGO_URL} alt="" className="h-14 w-auto" />
           <p className="font-bold text-slate-800">{POWERED_BY_NAME}</p>
         </div>
       </div>

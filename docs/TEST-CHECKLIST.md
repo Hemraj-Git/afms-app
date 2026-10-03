@@ -161,7 +161,7 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - The browser tab, sign-in page, sidebar, field app header, installed-app name, bulk-upload template and QR labels say **AssetNXG** (not AFMS).
   - Sidebar top: the client's logo (SOMS) when `NEXT_PUBLIC_CLIENT_LOGO_URL` is set, else the client's name, else AssetNXG. Collapsed: the crest.
   - Sidebar bottom: the AssetNXG logo, the version (v1.0.0) and *About*. Collapsed: the AssetNXG icon (opens About).
-  - *About* (from the sidebar or the header's help icon) opens over the whole page: what AssetNXG does, version and build date, "Licensed to" the client, support email and phone with copy buttons, then "A product of" with the PMV logo and "Powered by" with the HMS logo and *HMS - Digital Solutions*.
+  - *About* (from the sidebar or the header's help icon) opens over the whole page: what AssetNXG does, version and build date, "Licensed to" the client, support email and phone with copy buttons, then "A product of" with the PMV logo and *Pinnacle Marine Ventures*, and "Powered by" with the HMS logo and *HMS - Digital Solutions*.
   - Header: a help icon (lifebuoy) with *Contact support* (email and phone, copy buttons) and *About AssetNXG*. No "Role: Admin" pill; the avatar opens a menu with name, email, role and *Sign Out*.
   - No "Work Orders Central Hub" button on the Preventive, Corrective and Inspections pages; no live clock under the asset title.
   - Sign-in page: the white AssetNXG hexagon beside the name, the new ship photo behind, and the client's name at the bottom (nothing there when no client name is set).
