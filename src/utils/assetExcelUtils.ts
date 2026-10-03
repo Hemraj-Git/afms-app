@@ -88,7 +88,7 @@ export async function downloadAssetExcelTemplate({
   vendors: Vendor[]
 }) {
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'AFMS Asset Management'
+  workbook.creator = 'AssetNXG'
   workbook.created = new Date()
 
   // 1. Create Main Import Sheet
@@ -324,7 +324,7 @@ export async function downloadAssetExcelTemplate({
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = 'AFMS_Asset_Bulk_Upload_Template.xlsx'
+  anchor.download = 'AssetNXG_Asset_Bulk_Upload_Template.xlsx'
   document.body.appendChild(anchor)
   anchor.click()
   document.body.removeChild(anchor)

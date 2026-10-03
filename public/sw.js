@@ -14,7 +14,7 @@ self.addEventListener('push', event => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'AFMS alert', {
+    self.registration.showNotification(data.title || 'AssetNXG alert', {
       body: data.body || '',
       tag: data.tag,
       renotify: Boolean(data.tag),

@@ -157,6 +157,11 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - **Retire an asset:** its PM jobs not started become *Cancelled*, its inspections not started disappear, and finishing a job already under way schedules nothing after it.
   - **One-off preventive job** (Work Orders hub → Create, type Preventive): completing it no longer starts a quarterly repeat.
   - Known behaviour: editing a template's interval later changes an inspection schedule from its next completion, but a PM schedule keeps the interval it started with.
+- [ ] **6.37 AssetNXG name and cosmetics** —
+  - The browser tab, sign-in page, sidebar, field app header, installed-app name, bulk-upload template and QR labels say **AssetNXG** (not AFMS).
+  - Sidebar top: the client's logo when `NEXT_PUBLIC_CLIENT_LOGO_URL` is set, else the client's name, else AssetNXG. Collapsed: the square mark or initials. Bottom: "Powered by AssetNXG" and *Support* (the support contact).
+  - Header: no "Role: Admin" pill; the avatar opens a menu with name, email, role and *Sign Out*.
+  - No "Work Orders Central Hub" button on the Preventive, Corrective and Inspections pages; no live clock under the asset title.
 
 ---
 

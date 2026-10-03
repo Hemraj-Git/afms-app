@@ -42,6 +42,14 @@ Confirm these **environment variables** exist for Production (Settings → Envir
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` — **server-only; do not give it a `NEXT_PUBLIC_` prefix.** Needed for: inviting users, an Admin editing or deleting users, and the guest sign-in name lookup. Without it those features fail.
 
+**Client branding (optional, per deployment).** The top of the sidebar shows the client's logo; with nothing set it shows *AssetNXG*. Redeploy after changing any of these (they are read at build time):
+
+- `NEXT_PUBLIC_CLIENT_NAME` — e.g. `Hemraj Maritime Training Institute`. Shown with its initials when there is no logo.
+- `NEXT_PUBLIC_CLIENT_LOGO_URL` — the wide logo, e.g. `/images/client-logo.svg` (put the file in `public/images/`) or a full https link. Shown up to 176 × 40 px.
+- `NEXT_PUBLIC_CLIENT_LOGO_MARK_URL` — optional square mark for the collapsed sidebar (32 × 32 px).
+
+Also check the **Supabase email templates** (Authentication → Emails: invite and password reset) and the sender name: change any "AFMS" there to "AssetNXG".
+
 ## D. Getting the code live (when you are ready)
 
 The database is already ahead of production, so deploy soon after testing.

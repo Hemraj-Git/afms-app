@@ -73,7 +73,7 @@ async function main(): Promise<void> {
   const envFile = str(flags.env) ?? '.env.local'
 
   if (command === 'masters-template') {
-    const out = str(flags.out) ?? path.join(LOADS_DIR, 'AFMS-Masters-Workbook.xlsx')
+    const out = str(flags.out) ?? path.join(LOADS_DIR, 'AssetNXG-Masters-Workbook.xlsx')
     writeOut(out, await generateMastersWorkbook())
     console.log(`Masters workbook written to ${out}`)
     return
@@ -91,7 +91,7 @@ async function main(): Promise<void> {
       const { errors, warnings } = summarizeIssues(issues)
       if (issues.length) printIssues(issues)
       if (errors > 0) fail(`The Masters workbook has ${errors} error(s). Fix them (or ask the client to) before making the Assets workbook.`)
-      const out = str(flags.out) ?? path.join(LOADS_DIR, 'AFMS-Assets-Workbook.xlsx')
+      const out = str(flags.out) ?? path.join(LOADS_DIR, 'AssetNXG-Assets-Workbook.xlsx')
       const template = assetsContextFromMasters(data)
       writeOut(out, await generateAssetsWorkbook(template))
       const categories = new Set(template.subCategories.map(s => s.categoryName))
@@ -108,7 +108,7 @@ async function main(): Promise<void> {
     loadEnvFile(envFile)
     const { client, host } = connect()
     const { template } = await assetsContext(client)
-    const out = str(flags.out) ?? path.join(LOADS_DIR, 'AFMS-Assets-Workbook.xlsx')
+    const out = str(flags.out) ?? path.join(LOADS_DIR, 'AssetNXG-Assets-Workbook.xlsx')
     writeOut(out, await generateAssetsWorkbook(template))
     console.log(`Assets workbook written to ${out} (${template.subCategories.length} sub-categories, ${template.rooms.length} rooms, ${template.vendors.length} vendors, from ${host})`)
     return

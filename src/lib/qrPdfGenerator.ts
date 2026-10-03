@@ -207,7 +207,7 @@ export async function generateAssetLabelsPdf(
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(5.5)
     doc.setTextColor(29, 78, 216)
-    doc.text('AFMS TAG', x + labelSize - 2.5, y + 4.5, { align: 'right' })
+    doc.text('AssetNXG', x + labelSize - 2.5, y + 4.5, { align: 'right' })
 
     doc.setDrawColor(203, 213, 225)
     doc.setLineWidth(0.3)

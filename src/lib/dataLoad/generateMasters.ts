@@ -86,7 +86,7 @@ function addReadMe(wb: ExcelJS.Workbook, opts: Options): void {
     r += 1
   }
 
-  title('AFMS - Master Data Workbook')
+  title('AssetNXG - Master Data Workbook')
   line('Step 1 of 2. Fill in the tabs listed below, then send this file back. We load it into the system and then send you a second workbook (equipment list), already set up with your categories, rooms and custom fields.')
 
   heading('How to fill it in')
@@ -166,7 +166,7 @@ function addReadMe(wb: ExcelJS.Workbook, opts: Options): void {
 
 export async function generateMastersWorkbook(opts: Options = {}): Promise<Uint8Array> {
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'AFMS'
+  wb.creator = 'AssetNXG'
   wb.created = new Date()
 
   addReadMe(wb, opts)

@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useAFMS } from '@/context/AFMSContext'
 import { AppLayout } from '@/components/AppLayout'
 import { getLocalDateStr, formatDateDisplay } from '@/lib/dateUtils'
@@ -15,7 +14,6 @@ import {
   FileCheck,
   User,
   Calendar,
-  ChevronRight,
   TrendingUp,
   X,
   Plus,
@@ -299,14 +297,6 @@ export default function InspectionsPage() {
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Statutory &amp; Quality Inspections</h1>
             <p className="text-xs text-slate-500 mt-0.5">Each asset&apos;s inspection schedules: Pass/Fail checks &amp; inspector assignment</p>
           </div>
-
-          <Link
-            href="/maintenance/work-orders"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition"
-          >
-            <span>Work Orders Central Hub</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
         </div>
 
         <ScheduleGapsBanner kind="inspection" />

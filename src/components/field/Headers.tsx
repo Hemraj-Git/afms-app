@@ -14,7 +14,7 @@ export function BrandMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
       </span>
       <div className="flex flex-col">
         <span className={cn('font-bold leading-tight text-fa-text', lg ? 'text-2xl' : 'text-[17px]')}>Field Operations</span>
-        <span className={cn('text-fa-text-2', lg ? 'text-[15px]' : 'text-[13px]')}>AFMS · Campus facilities</span>
+        <span className={cn('text-fa-text-2', lg ? 'text-[15px]' : 'text-[13px]')}>AssetNXG · Campus facilities</span>
       </div>
     </div>
   )

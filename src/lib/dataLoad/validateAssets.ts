@@ -86,7 +86,7 @@ export function validateAssets(
 
   const meta = readMeta(sheets)
   if (!meta || meta.kind !== 'assets') {
-    err('Read Me', 0, 'This is not an Assets workbook made by AFMS (its hidden information tab is missing). Use the file we sent you.')
+    err('Read Me', 0, 'This is not an Assets workbook made by AssetNXG (its hidden information tab is missing). Use the file we sent you.')
     return { assets, issues }
   }
 

@@ -31,6 +31,48 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { showToast } from '@/lib/toast'
+import { CLIENT_LOGO_MARK_URL, CLIENT_LOGO_URL, CLIENT_NAME, PRODUCT_NAME, initialsOf } from '@/lib/brand'
+
+// The square mark: the client's mark, else their initials, else AssetNXG's bars.
+function BrandMark() {
+  if (CLIENT_LOGO_MARK_URL) {
+    // eslint-disable-next-line @next/next/no-img-element -- a logo set per deployment, of any size
+    return <img src={CLIENT_LOGO_MARK_URL} alt={CLIENT_NAME || PRODUCT_NAME} className="w-8 h-8 object-contain shrink-0" />
+  }
+  return (
+    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+      {CLIENT_NAME ? (
+        <span className="text-[11px] font-bold tracking-wide">{initialsOf(CLIENT_NAME)}</span>
+      ) : (
+        <div className="flex gap-0.5 items-end h-4">
+          <span className="w-1 h-2 bg-white rounded-full"></span>
+          <span className="w-1 h-4 bg-white rounded-full"></span>
+          <span className="w-1 h-3 bg-white rounded-full"></span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Top of the sidebar: the client's logo (set per deployment, see lib/brand),
+// else their name, else AssetNXG.
+function SidebarBrand({ collapsed }: { collapsed: boolean }) {
+  if (collapsed) return <BrandMark />
+  if (CLIENT_LOGO_URL) {
+    // eslint-disable-next-line @next/next/no-img-element -- a logo set per deployment, of any size
+    return <img src={CLIENT_LOGO_URL} alt={CLIENT_NAME || PRODUCT_NAME} className="h-10 w-auto max-w-[176px] object-contain object-left" />
+  }
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <BrandMark />
+      {CLIENT_NAME ? (
+        <span className="text-sm font-bold leading-tight text-slate-900 line-clamp-2">{CLIENT_NAME}</span>
+      ) : (
+        <span className="font-extrabold text-xl tracking-tight text-slate-900">{PRODUCT_NAME}</span>
+      )}
+    </div>
+  )
+}
 
 interface NavItem {
   title: string
@@ -140,19 +182,8 @@ export function Sidebar({
         'h-16 flex items-center border-b border-slate-100 transition-all px-4 shrink-0',
         collapsed ? 'justify-center' : 'justify-between px-6'
       )}>
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
-            <div className="flex gap-0.5 items-end h-4">
-              <span className="w-1 h-2 bg-white rounded-full"></span>
-              <span className="w-1 h-4 bg-white rounded-full"></span>
-              <span className="w-1 h-3 bg-white rounded-full"></span>
-            </div>
-          </div>
-          {!collapsed && (
-            <div className="flex items-center">
-              <span className="font-extrabold text-xl tracking-tight text-slate-900">AFMS</span>
-            </div>
-          )}
+        <Link href="/dashboard" className="flex items-center gap-3 min-w-0" aria-label={`${CLIENT_NAME || PRODUCT_NAME} — Dashboard`}>
+          <SidebarBrand collapsed={collapsed} />
         </Link>
 
         {/* Mobile close button */}
@@ -210,19 +241,16 @@ export function Sidebar({
       {/* Footer Branding / Collapsed Toggle Banner */}
       <div className="p-3 border-t border-slate-100 bg-slate-50/50 shrink-0">
         {!collapsed ? (
-          <div className="bg-slate-100/80 rounded-xl p-3.5 text-center space-y-2 border border-slate-200/60">
-            <p className="text-[10px] text-slate-400 uppercase font-semibold">A Product of</p>
-            <div className="flex justify-center">
-              <img src="/images/hms-logo.svg" alt="" className="h-10 w-auto" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800">HMS - Digital Solutions</p>
-            </div>
+          <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-slate-400">
+            <span>
+              Powered by <strong className="font-semibold text-slate-600">{PRODUCT_NAME}</strong>
+            </span>
             <button
+              type="button"
               onClick={() => showToast('info', 'Support line: support@hemrajmarines.com | Tel: +91 22 6600 4400')}
-              className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition text-white text-xs font-medium rounded-lg shadow-sm"
+              className="font-semibold text-blue-600 hover:text-blue-700 hover:underline"
             >
-              Contact for Support
+              Support
             </button>
           </div>
         ) : (

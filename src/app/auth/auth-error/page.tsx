@@ -21,7 +21,7 @@ export default function AuthErrorPage() {
           For your security, each link works once and only for {EMAIL_LINK_VALID_HOURS} hours. Ask for a new one below.
         </p>
         <p className="m-0 text-base leading-relaxed text-fa-text-2">
-          New to AFMS? Your administrator can resend your invite. Already set a password? Just sign in.
+          New to AssetNXG? Your administrator can resend your invite. Already set a password? Just sign in.
         </p>
       </div>
       <div className="flex flex-col gap-2.5">

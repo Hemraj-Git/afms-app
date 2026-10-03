@@ -169,9 +169,6 @@ export default function AssetDetailPage() {
                 {asset.assetId} - {asset.name}
               </h1>
             </div>
-            <p className="text-xs text-slate-500 mt-1 pl-7">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -718,7 +715,7 @@ export default function AssetDetailPage() {
                           onClick={() => {
                             // Generate mock downloadable file blob
                             const element = document.createElement('a')
-                            const fileContent = `AFMS Official Compliance Document\nDocument ID: ${doc.id}\nTitle: ${doc.title}\nType: ${doc.fileType}\nAsset: ${asset.assetId} - ${asset.name}\nUploaded By: ${doc.uploadedBy}\nDate: ${formatDateDisplay(doc.uploadedAt)}`
+                            const fileContent = `AssetNXG Official Compliance Document\nDocument ID: ${doc.id}\nTitle: ${doc.title}\nType: ${doc.fileType}\nAsset: ${asset.assetId} - ${asset.name}\nUploaded By: ${doc.uploadedBy}\nDate: ${formatDateDisplay(doc.uploadedAt)}`
                             const file = new Blob([fileContent], { type: 'text/plain;charset=utf-8' })
                             element.href = URL.createObjectURL(file)
                             element.download = `${doc.title.replace(/[^a-z0-9]/gi, '_')}.txt`

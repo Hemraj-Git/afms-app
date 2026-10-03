@@ -322,7 +322,7 @@ export default function LoginPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md">
             <Anchor className="h-6 w-6" />
           </div>
-          <span className="text-2xl font-extrabold tracking-tight">AFMS</span>
+          <span className="text-2xl font-extrabold tracking-tight">AssetNXG</span>
         </div>
 
         <div className="relative z-10 my-12 max-w-lg space-y-6">

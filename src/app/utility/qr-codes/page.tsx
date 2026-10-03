@@ -766,7 +766,7 @@ export default function QrDashboardPage() {
                         {/* 5cm x 5cm Header */}
                         <div className="w-full border-b border-slate-300 pb-0.5 flex items-center justify-between text-[7px] font-black tracking-tight text-slate-800 uppercase">
                           <span>HEMRAJ MARINES</span>
-                          <span className="text-blue-700 font-mono font-bold">AFMS TAG</span>
+                          <span className="text-blue-700 font-mono font-bold">AssetNXG</span>
                         </div>
 
                         {/* Centered QR Code */}

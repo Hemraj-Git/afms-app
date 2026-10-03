@@ -137,7 +137,7 @@ export async function generateAssetsWorkbook(ctx: AssetsTemplateContext): Promis
   const groups = groupByCategory(ctx.subCategories)
 
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'AFMS'
+  wb.creator = 'AssetNXG'
   wb.created = new Date()
 
   const names = tabNames(groups.map(g => g.name))
@@ -249,7 +249,7 @@ export async function generateAssetsWorkbook(ctx: AssetsTemplateContext): Promis
     readMe.getRow(r).height = height ?? Math.max(18, Math.ceil(text.length / 95) * 16)
     r += 1
   }
-  put('AFMS - Equipment (Assets) Workbook', { bold: true, size: 20, color: { argb: COLORS.ink } }, 32)
+  put('AssetNXG - Equipment (Assets) Workbook', { bold: true, size: 20, color: { argb: COLORS.ink } }, 32)
   put('Step 2 of 2. There is one tab per category of equipment. On every row, choose the sub-category in the first column, then fill in that asset.')
   r += 1
   put('How to fill it in', { bold: true, size: 13, color: { argb: 'FF0F766E' } })

@@ -30,6 +30,7 @@ import { PushToggle } from '@/components/ui/PushToggle'
 import { playNotificationSound } from '@/lib/notificationSound'
 import { useNewItemAlert } from '@/lib/useNewItemAlert'
 import { GlobalSearch } from '@/components/GlobalSearch'
+import { initialsOf } from '@/lib/brand'
 
 // How each kind of database alert looks and where it leads on the desktop.
 const ALERT_ICONS: Record<AppNotification['type'], React.ReactNode> = {
@@ -155,7 +156,7 @@ export function Header({
         <GlobalSearch />
       </div>
 
-      {/* Right: Role Switcher Demo Tool + Mobile QR Mode + Notifications + User Avatar */}
+      {/* Right: field app link, notifications, the user */}
       <div className="flex items-center gap-3">
         {/* Field (mobile) mode link */}
         <Link
@@ -343,56 +344,53 @@ export function Header({
           )}
         </div>
 
-        {/* User Menu */}
-        <div className="relative">
-          <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition"
-          >
-            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-            <span>Role: <strong className="text-slate-900">{currentUser.role}</strong></span>
-          </button>
-
-          {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs animate-in fade-in space-y-1">
-              <div className="px-3 py-2 border-b border-slate-100">
-                <p className="font-bold text-slate-900">{currentUser.fullName}</p>
-                <p className="text-[11px] text-slate-400">{currentUser.email}</p>
-              </div>
-
-              <div className="pt-2 space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    logout()
-                    setShowUserMenu(false)
-                    router.push('/login')
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl transition flex items-center gap-2 font-medium cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* User profile avatar or Sign In. Only after hydration: the sign-in
-            state comes from this browser's storage, which the server can't see,
-            so rendering it on the server made the page fail hydration. */}
+        {/* The user: avatar with a menu (name, email, role, sign out). Only
+            after hydration: the sign-in state comes from this browser's
+            storage, which the server can't see, so rendering it on the server
+            made the page fail hydration. */}
         {!hydrated ? (
           <div className="w-8 h-8" aria-hidden="true" />
         ) : isLoggedIn ? (
-          <div className="flex items-center gap-2">
+          <div className="relative">
             <button
               type="button"
               onClick={() => setShowUserMenu(!showUserMenu)}
+              aria-haspopup="menu"
+              aria-expanded={showUserMenu}
+              aria-label={`Account: ${currentUser.fullName}`}
               className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm hover:ring-2 hover:ring-blue-400 transition cursor-pointer"
               title={`${currentUser.fullName} (${currentUser.role})`}
             >
-              {currentUser.fullName ? currentUser.fullName.split(' ').map(n => n[0]).join('') : 'U'}
+              {currentUser.fullName ? initialsOf(currentUser.fullName) || 'U' : 'U'}
             </button>
+
+            {showUserMenu && (
+              <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs animate-in fade-in space-y-1">
+                <div className="px-3 py-2 border-b border-slate-100 space-y-1">
+                  <p className="font-bold text-slate-900">{currentUser.fullName}</p>
+                  <p className="text-[11px] text-slate-400 break-all">{currentUser.email}</p>
+                  <span className="inline-flex items-center gap-1.5 mt-0.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                    {currentUser.role}
+                  </span>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout()
+                      setShowUserMenu(false)
+                      router.push('/login')
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl transition flex items-center gap-2 font-medium cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <Link

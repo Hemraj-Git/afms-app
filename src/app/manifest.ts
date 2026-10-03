@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'AFMS - Asset & Facility Management System',
-    short_name: 'AFMS Field',
+    name: 'AssetNXG - Asset & Facility Management System',
+    short_name: 'AssetNXG',
     description: 'Maritime Institute Asset & Facility Management System',
     start_url: '/mobile',
     scope: '/',
