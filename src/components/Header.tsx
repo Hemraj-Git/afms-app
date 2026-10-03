@@ -32,7 +32,7 @@ import { PushToggle } from '@/components/ui/PushToggle'
 import { playNotificationSound } from '@/lib/notificationSound'
 import { useNewItemAlert } from '@/lib/useNewItemAlert'
 import { GlobalSearch } from '@/components/GlobalSearch'
-import { PRODUCT_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, initialsOf } from '@/lib/brand'
+import { PRODUCT_NAME, SUPPORT_EMAIL, initialsOf } from '@/lib/brand'
 import { AboutDialog, CopyLine } from '@/components/AboutDialog'
 
 // How each kind of database alert looks and where it leads on the desktop.
@@ -210,7 +210,6 @@ export function Header({
               <div className="px-3 pt-2 pb-3 border-b border-slate-100 space-y-1.5">
                 <p className="font-bold text-slate-900">Contact support</p>
                 <CopyLine label="Email" value={SUPPORT_EMAIL} />
-                <CopyLine label="Phone" value={SUPPORT_PHONE} />
               </div>
               <button
                 type="button"

@@ -18,7 +18,6 @@ import {
   PRODUCT_LOGO_URL,
   PRODUCT_NAME,
   SUPPORT_EMAIL,
-  SUPPORT_PHONE,
 } from '@/lib/brand'
 
 export function copyText(text: string, what: string) {
@@ -96,9 +95,8 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
             </>
           ) : null}
           <dt className="text-slate-400 font-semibold pt-1">Support</dt>
-          <dd className="space-y-0.5">
+          <dd>
             <CopyLine label="Email" value={SUPPORT_EMAIL} />
-            <CopyLine label="Phone" value={SUPPORT_PHONE} />
           </dd>
         </dl>
       </div>

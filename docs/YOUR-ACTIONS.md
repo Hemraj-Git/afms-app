@@ -58,6 +58,14 @@ NEXT_PUBLIC_CLIENT_LOGO_MARK_URL=/images/client-logo-mark.png
 
 The version shown in About comes from `package.json` (now 1.0.0); raise it for each release.
 
+**Each client gets its own address: `<short name>.assetnxg.app`** — for the School of Maritime Studies (SoMS): **`https://soms.assetnxg.app`**. To set one up:
+
+1. **Vercel** → the project → Settings → Domains → add `soms.assetnxg.app`.
+2. **DNS** for `assetnxg.app` (where the domain was bought): add the record Vercel shows, normally a `CNAME` from `soms` to `cname.vercel-dns.com`. Vercel issues the HTTPS certificate itself.
+3. **Supabase** → Authentication → URL Configuration: set **Site URL** to `https://soms.assetnxg.app` and add `https://soms.assetnxg.app/**` to **Redirect URLs**. Invite and password-reset emails link to the Site URL; with the old address there, those links open the wrong site.
+4. **Print the QR labels from `https://soms.assetnxg.app`.** Each QR code holds the address of the page it was printed from, so labels printed from any other address send phones there. (The in-app scanner reads either.)
+5. Staff who installed the app on their phones from the old address should install it again from the new one; push alerts are tied to the address too.
+
 Also check the **Supabase email templates** (Authentication → Emails: invite and password reset) and the sender name: change any "AFMS" there to "AssetNXG".
 
 ## D. Getting the code live (when you are ready)

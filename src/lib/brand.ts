@@ -17,8 +17,7 @@ export const MAKER_LOGO_URL = '/images/pmv-logo.svg'
 export const POWERED_BY_NAME = 'HMS - Digital Solutions'
 export const POWERED_BY_LOGO_URL = '/images/hms-logo.svg'
 
-export const SUPPORT_EMAIL = 'support@hemrajmarines.com'
-export const SUPPORT_PHONE = '+91 22 6600 4400'
+export const SUPPORT_EMAIL = 'support@assetnxg.app'
 
 // Set at build time from package.json (see next.config.ts).
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? ''
