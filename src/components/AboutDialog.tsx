@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- static brand files, shown at a fixed height */
 
+import { createPortal } from 'react-dom'
 import { Copy, X } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
@@ -51,7 +52,9 @@ export function CopyLine({ label, value }: { label: string; value: string }) {
 // What AssetNXG is, its version, who it is licensed to and how to reach
 // support; at the bottom, who makes it (PMV) and who runs it (HMS).
 export function AboutDialog({ onClose }: { onClose: () => void }) {
-  return (
+  // Into <body>: opened from the sidebar or the header, whose own layers
+  // (the sidebar's slide, the header's stacking) would otherwise hold it.
+  return createPortal(
     <Modal title={`About ${PRODUCT_NAME}`} onClose={onClose} closeOnOverlayClick className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden text-xs">
       <div className="p-6 space-y-5">
         <div className="flex items-start justify-between gap-4">
@@ -105,6 +108,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
           <p className="font-bold text-slate-800">{POWERED_BY_NAME}</p>
         </div>
       </div>
-    </Modal>
+    </Modal>,
+    document.body,
   )
 }

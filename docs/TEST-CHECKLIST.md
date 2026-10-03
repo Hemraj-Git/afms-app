@@ -164,6 +164,8 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - *About* (from the sidebar or the header's help icon) opens over the whole page: what AssetNXG does, version and build date, "Licensed to" the client, support email and phone with copy buttons, then "A product of" with the PMV logo and "Powered by" with the HMS logo and *HMS - Digital Solutions*.
   - Header: a help icon (lifebuoy) with *Contact support* (email and phone, copy buttons) and *About AssetNXG*. No "Role: Admin" pill; the avatar opens a menu with name, email, role and *Sign Out*.
   - No "Work Orders Central Hub" button on the Preventive, Corrective and Inspections pages; no live clock under the asset title.
+  - Sign-in page: the white AssetNXG hexagon beside the name, the new ship photo behind, and the client's name at the bottom (nothing there when no client name is set).
+  - Installed app (phone home screen) and browser tab: the AssetNXG hexagon icon and the name *AssetNXG*. Reinstall the app on a phone to see the new icon.
 
 ---
 

@@ -4,11 +4,12 @@ import React, { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAFMS } from '@/context/AFMSContext'
-import { Anchor, CheckCircle2, ChevronRight, CircleAlert, Eye, EyeOff, Lock, LogIn, Mail, Phone, ScanLine, ShieldCheck, UserRound } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CircleAlert, Eye, EyeOff, Lock, LogIn, Mail, Phone, ScanLine, ShieldCheck, UserRound } from 'lucide-react'
 import { signIn, guestSignIn } from '@/app/actions/auth'
 import { safeRedirectPath } from '@/lib/safeRedirect'
 import { supabase } from '@/lib/supabase'
 import { BrandMark, Button, IconButton, SegmentedControl, TextField } from '@/components/field'
+import { CLIENT_NAME } from '@/lib/brand'
 
 function LoginFormContent() {
   const router = useRouter()
@@ -312,16 +313,15 @@ export default function LoginPage() {
         {/* Photographic Cruise Ship Bow Background Image */}
         <div
           className="pointer-events-none absolute inset-0 z-0 bg-cover bg-[right_bottom] opacity-80"
-          style={{ backgroundImage: "url('/images/login-ship.jpg')" }}
+          style={{ backgroundImage: "url('/images/login-sea.jpg')" }}
         />
         {/* Deep Maritime Gradient Overlay for Text Readability */}
         <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-r from-[#031b48] via-[#052668]/90 to-[#07388e]/60" />
         <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-[#021333]/90 via-transparent to-[#031b48]/70" />
 
         <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md">
-            <Anchor className="h-6 w-6" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a static brand file at a fixed size */}
+          <img src="/images/assetnxg-hexagon-white.svg" alt="" className="h-11 w-11" />
           <span className="text-2xl font-extrabold tracking-tight">AssetNXG</span>
         </div>
 
@@ -343,10 +343,15 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-2 text-xs text-blue-200/80">
-          <ShieldCheck className="h-4 w-4" />
-          <span>Maritime Training Institute • Hemraj Marines Services</span>
-        </div>
+        {/* The client this deployment is for (set per deployment, see lib/brand). */}
+        {CLIENT_NAME ? (
+          <div className="relative z-10 flex items-center gap-2 text-xs text-blue-100/90">
+            <ShieldCheck className="h-4 w-4" />
+            <span>{CLIENT_NAME}</span>
+          </div>
+        ) : (
+          <div />
+        )}
       </div>
 
       <div className="flex w-full flex-1 justify-center px-5 pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,env(safe-area-inset-top))] md:w-1/2 md:items-center md:p-16">
