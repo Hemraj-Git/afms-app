@@ -60,18 +60,24 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1.5">
             <img src={PRODUCT_LOGO_URL} alt={PRODUCT_NAME} className="h-8 w-auto" />
-            <p className="text-slate-500 font-medium">Asset &amp; facility management</p>
+            <p className="text-slate-500 font-medium">Asset Next Generation</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <p className="text-sm leading-relaxed text-slate-600">
-          {PRODUCT_NAME} keeps a campus&apos;s assets and facilities in working order: the asset and spares register, preventive maintenance and
-          inspection schedules, breakdowns and service requests, outside repairs, room reservations and QR codes. The office works on the desktop; the
-          field team works on the phone.
-        </p>
+        <div className="space-y-3 text-sm leading-relaxed text-slate-600">
+          <p>
+            {PRODUCT_NAME} is a cloud-based platform for managing an organisation&apos;s assets and facilities in one place:
+            the asset and spares register, preventive maintenance and inspections, breakdowns and service requests, outside repairs, room reservations
+            and QR codes. The office works from the desktop and the field team from their phones, both always up to date.
+          </p>
+          <p>
+            It keeps the organisation compliance-ready. Maintenance and inspections run on fixed schedules, every job is recorded with its checklist,
+            photos and the name of the person who did it, and audit-ready reports are always a click away.
+          </p>
+        </div>
 
         <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2.5 border-y border-slate-100 py-4">
           {APP_VERSION ? (
