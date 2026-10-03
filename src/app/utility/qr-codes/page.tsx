@@ -270,7 +270,7 @@ export default function QrDashboardPage() {
               setSelectedRoomIds([room.id])
               setShowRoomPrintModal(true)
             }}
-            className="px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition inline-flex items-center gap-1"
+            className="btn btn-soft btn-sm"
           >
             <Printer className="w-3 h-3" />
             <span>Print Placard</span>
@@ -363,7 +363,7 @@ export default function QrDashboardPage() {
               setSelectedAssetIds([asset.id])
               setShowAssetPrintModal(true)
             }}
-            className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition inline-flex items-center gap-1"
+            className="btn btn-soft btn-sm"
           >
             <Printer className="w-3 h-3" />
             <span>Print 5x5cm</span>
@@ -405,7 +405,7 @@ export default function QrDashboardPage() {
                   setShowRoomPrintModal(true)
                 }}
                 disabled={selectedRoomIds.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-primary"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Room QR ({selectedRoomIds.length}) — 4 per A4</span>
@@ -420,7 +420,7 @@ export default function QrDashboardPage() {
                   setShowAssetPrintModal(true)
                 }}
                 disabled={selectedAssetIds.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-primary"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Asset QR ({selectedAssetIds.length}) — 5cm × 5cm</span>
@@ -500,7 +500,7 @@ export default function QrDashboardPage() {
                 </span>
                 <button
                   onClick={toggleSelectAllRooms}
-                  className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-amber-300 text-amber-800 rounded-lg hover:bg-amber-100"
+                  className="btn btn-secondary btn-sm"
                 >
                   {selectedRoomIds.length === filteredRooms.length && filteredRooms.length > 0
                     ? 'Deselect All'
@@ -545,7 +545,7 @@ export default function QrDashboardPage() {
                 </span>
                 <button
                   onClick={toggleSelectAllAssets}
-                  className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-blue-300 text-blue-800 rounded-lg hover:bg-blue-100"
+                  className="btn btn-secondary btn-sm"
                 >
                   {selectedAssetIds.length === filteredAssets.length && filteredAssets.length > 0
                     ? 'Deselect All'
@@ -692,14 +692,14 @@ export default function QrDashboardPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setShowRoomPrintModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 text-xs font-semibold hover:bg-slate-50"
+                    className="btn btn-secondary"
                   >
                     Close
                   </button>
                   <button
                     onClick={handleDownloadRoomPdf}
                     disabled={generatingPdf}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition disabled:opacity-50"
+                    className="btn btn-primary"
                   >
                     {generatingPdf ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -807,14 +807,14 @@ export default function QrDashboardPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setShowAssetPrintModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 text-xs font-semibold hover:bg-slate-50"
+                    className="btn btn-secondary"
                   >
                     Close
                   </button>
                   <button
                     onClick={handleDownloadAssetPdf}
                     disabled={generatingPdf}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition disabled:opacity-50"
+                    className="btn btn-primary"
                   >
                     {generatingPdf ? (
                       <Loader2 className="w-4 h-4 animate-spin" />

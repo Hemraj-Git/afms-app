@@ -942,7 +942,7 @@ function AddAssetForm() {
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploadingImage}
-                        className="px-3 py-1.5 text-xs font-semibold text-blue-600 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition cursor-pointer shadow-2xs disabled:opacity-60"
+                        className="btn btn-secondary btn-sm"
                       >
                         {isUploadingImage ? 'Uploading…' : 'Change Photo'}
                       </button>
@@ -965,7 +965,7 @@ function AddAssetForm() {
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
                           disabled={isUploadingImage}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-xl transition cursor-pointer shadow-2xs disabled:opacity-60"
+                          className="btn btn-secondary"
                         >
                           <UploadCloud className="w-4 h-4 text-blue-600" />
                           <span>{isUploadingImage ? 'Uploading…' : 'Upload Image'}</span>
@@ -1178,7 +1178,7 @@ function AddAssetForm() {
                 <button
                   type="button"
                   onClick={() => { vDoc.reset(); setShowDocModal(true) }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+                  className="btn btn-primary"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add New Document</span>
@@ -1357,7 +1357,7 @@ function AddAssetForm() {
               type="button"
               onClick={handleBack}
               disabled={currentStep === 1}
-              className="px-5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="btn btn-secondary"
             >
               Back
             </button>
@@ -1366,7 +1366,7 @@ function AddAssetForm() {
               <button
                 type="button"
                 onClick={() => router.push('/assets')}
-                className="px-5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
@@ -1375,7 +1375,7 @@ function AddAssetForm() {
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition"
+                  className="btn btn-primary"
                 >
                   Next
                 </button>
@@ -1384,7 +1384,7 @@ function AddAssetForm() {
                   type="button"
                   onClick={handleFinalSubmit}
                   disabled={isUploadingImage || isUploadingDoc}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/25 transition disabled:opacity-60"
+                  className="btn btn-primary"
                 >
                   {isUploadingImage || isUploadingDoc
                     ? 'Uploading…'
@@ -1480,13 +1480,13 @@ function AddAssetForm() {
                   <button
                     type="button"
                     onClick={() => setShowVendorModal(false)}
-                    className="px-4 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition"
+                    className="btn btn-primary"
                   >
                     Save &amp; Select Vendor
                   </button>
@@ -1570,14 +1570,14 @@ function AddAssetForm() {
                     type="button"
                     onClick={() => setShowDocModal(false)}
                     disabled={isUploadingDoc}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 disabled:opacity-40"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isUploadingDoc}
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs disabled:opacity-60"
+                    className="btn btn-primary"
                   >
                     {isUploadingDoc ? 'Uploading…' : 'Upload & Attach'}
                   </button>

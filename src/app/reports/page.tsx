@@ -1319,7 +1319,7 @@ export default function ReportsHubPage() {
           <div className="flex items-center gap-2.5">
             <button
               onClick={handleExportCSV}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-secondary"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>Export Excel (.csv)</span>
@@ -1327,7 +1327,7 @@ export default function ReportsHubPage() {
 
             <button
               onClick={handlePrintReport}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Printer className="w-4 h-4" />
               <span>Print / PDF</span>
@@ -1390,7 +1390,7 @@ export default function ReportsHubPage() {
                 type="button"
                 onClick={() => void refreshReport()}
                 disabled={reportStatus.isFetching}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 transition disabled:opacity-60"
+                className="btn btn-secondary btn-sm"
                 title="Re-read this report's data from the database"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${reportStatus.isFetching ? 'animate-spin' : ''}`} />

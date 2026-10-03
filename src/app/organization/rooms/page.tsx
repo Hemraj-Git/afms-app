@@ -314,7 +314,7 @@ export default function RoomsPage() {
         <div className="flex items-center justify-end gap-1">
           <Link
             href={roomHref(r)}
-            className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-600 hover:bg-blue-50 whitespace-nowrap"
+            className="btn btn-ghost btn-sm"
           >
             Room Hub
             <ChevronRight className="w-3 h-3" />
@@ -358,7 +358,7 @@ export default function RoomsPage() {
                 vType.reset()
                 setShowTypeModal(true)
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+              className="btn btn-secondary"
             >
               <Tag className="w-3.5 h-3.5 text-slate-500" />
               <span>Manage Room Types</span>
@@ -366,7 +366,7 @@ export default function RoomsPage() {
 
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>Add Room/Area</span>
@@ -462,14 +462,14 @@ export default function RoomsPage() {
                   setSearchQuery('')
                   setRoomTypeFilter('ALL')
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer"
+                className="btn btn-secondary"
               >
                 <span>Clear All Filters</span>
               </button>
             ) : (
               <button
                 onClick={openCreateModal}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition"
+                className="btn btn-primary"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add First Room</span>
@@ -633,13 +633,13 @@ export default function RoomsPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     {editingRoom ? 'Save Changes' : 'Create Room'}
                   </button>
@@ -677,7 +677,7 @@ export default function RoomsPage() {
                     {vType.error('name')}
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition shrink-0"
+                      className="btn btn-primary shrink-0"
                     >
                       Add Type
                     </button>
@@ -709,7 +709,7 @@ export default function RoomsPage() {
                 <button
                   type="button"
                   onClick={() => setShowTypeModal(false)}
-                  className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                  className="btn btn-secondary"
                 >
                   Done
                 </button>

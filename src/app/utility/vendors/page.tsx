@@ -159,7 +159,7 @@ export default function VendorsPage() {
 
           <button
             onClick={handleOpenAdd}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+            className="btn btn-primary"
           >
             <Plus className="w-4 h-4" />
             <span>Add Vendor</span>
@@ -195,7 +195,7 @@ export default function VendorsPage() {
             </p>
             <button
               onClick={handleOpenAdd}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition"
+              className="btn btn-primary"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add First Vendor</span>
@@ -405,13 +405,13 @@ export default function VendorsPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition"
+                    className="btn btn-primary"
                   >
                     {editingVendor ? 'Update Vendor Profile' : 'Add Vendor'}
                   </button>
@@ -460,14 +460,14 @@ export default function VendorsPage() {
                 <button
                   type="button"
                   onClick={() => setVendorToDelete(null)}
-                  className="px-4 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition"
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirmDelete}
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs transition"
+                  className="btn btn-danger"
                 >
                   Confirm Delete
                 </button>

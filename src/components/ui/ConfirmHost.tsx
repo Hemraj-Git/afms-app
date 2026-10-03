@@ -44,16 +44,14 @@ export function ConfirmHost() {
           ref={cancelRef}
           type="button"
           onClick={() => answerConfirm(false)}
-          className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50"
+          className="btn btn-secondary"
         >
           {request.cancelLabel}
         </button>
         <button
           type="button"
           onClick={() => answerConfirm(true)}
-          className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs ${
-            request.danger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'
-          }`}
+          className={`btn ${request.danger ? 'btn-danger' : 'btn-primary'}`}
         >
           {request.confirmLabel}
         </button>

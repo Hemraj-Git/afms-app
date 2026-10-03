@@ -166,6 +166,8 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - Asset page → Activity Timeline: the newest event is at the top, marked *Latest*.
   - Rooms/Areas: a sortable table (Room ID, room, building, floor, size, assets, reservable, status, Room Hub / edit / delete) with paging, instead of cards.
   - Reservations grid: each time column reads "9:00 AM" with "to 10:00 AM" beneath.
+  - Notifications: one notification centre, the bell. Its panel has a close (x) button and also closes with Escape or a click outside. The dashboard has no "Admin Notifications" button; its amber panel is "N new service requests waiting to be assigned" (the triage queue).
+  - Buttons look the same everywhere: 8px corners, 36px (or 32px small), one weight. Blue = the main action, white with a border = other actions, light blue = row actions (View details), red = delete or dismiss, green only for completing work (Complete, Log resolution & complete).
   - Sidebar top: the client's logo (SOMS) when `NEXT_PUBLIC_CLIENT_LOGO_URL` is set, else the client's name, else AssetNXG. Collapsed: the crest.
   - Sidebar bottom: the AssetNXG logo, the version (v1.0.0) and *About*. Collapsed: the AssetNXG icon (opens About).
   - *About* (from the sidebar or the header's help icon) opens over the whole page: what AssetNXG does, version and build date, "Licensed to" the client, the support email (support@assetnxg.app) with a copy button, then "A product of" with the PMV logo and *Pinnacle Marine Ventures*, and "Powered by" with the HMS logo and *HMS - Digital Solutions*.

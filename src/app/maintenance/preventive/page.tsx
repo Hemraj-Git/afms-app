@@ -188,7 +188,7 @@ export default function PreventiveMaintenancePage() {
               setSelectedTechnicianId(firstAssignableId(availableTechs, isPending))
               setAssignRemarks('')
             }}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5"
+            className="btn btn-primary btn-sm"
           >
             <User className="w-3.5 h-3.5" />
             <span>Assign Technician</span>
@@ -196,7 +196,7 @@ export default function PreventiveMaintenancePage() {
         ) : (
           <button
             onClick={() => setSelectedWoForDetails(wo)}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5"
+            className="btn btn-secondary btn-sm"
           >
             <Eye className="w-3.5 h-3.5 text-blue-600" />
             <span>View Details</span>
@@ -297,13 +297,13 @@ export default function PreventiveMaintenancePage() {
                   <button
                     type="button"
                     onClick={() => setSelectedWoForAssign(null)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition"
+                    className="btn btn-primary"
                   >
                     {selectedWoForAssign.assignedTechnicianName ? 'Confirm Reassignment' : 'Assign & Activate Work Order'}
                   </button>

@@ -25,7 +25,6 @@ import {
   ChevronRight,
   Inbox,
   ShieldCheck,
-  Bell,
   X,
 } from 'lucide-react'
 
@@ -91,37 +90,16 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Notification Option Button */}
-            <button
-              onClick={() => setShowNotificationBanner(!showNotificationBanner)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition ${
-                activeAdminNotifications.length > 0
-                  ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-2xs'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-              }`}
-              title="Toggle Admin Service Request Notifications"
-            >
-              <Bell className={`w-4 h-4 ${activeAdminNotifications.length > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
-              <span>Admin Notifications</span>
-              {activeAdminNotifications.length > 0 ? (
-                <span className="px-1.5 py-0.5 bg-amber-600 text-white text-[10px] font-bold rounded-full">
-                  {activeAdminNotifications.length} New
-                </span>
-              ) : (
-                <span className="w-2 h-2 rounded-full bg-emerald-500" title="All caught up"></span>
-              )}
-            </button>
-
             <Link
               href="/assets/create"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>Add Asset</span>
             </Link>
             <Link
               href="/service-requests"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs transition"
+              className="btn btn-secondary"
             >
               <Plus className="w-4 h-4 text-slate-400" />
               <span>Create Service Request</span>
@@ -129,25 +107,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Admin Notification Alert Banner for New Service Requests */}
+        {/* New service requests waiting to be assigned: the triage queue. (Alerts
+            themselves live in the header's bell -- one notification centre.) */}
         {showNotificationBanner && activeAdminNotifications.length > 0 && (
           <div className="bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 border border-amber-200/90 rounded-2xl p-5 shadow-xs space-y-4 animate-in fade-in slide-in-from-top-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/60">
               <div className="flex items-start sm:items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
-                  <Bell className="w-5 h-5" />
+                  <Inbox className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-sm font-bold text-amber-950">
-                      Admin Alert: {activeAdminNotifications.length} New Service Request{activeAdminNotifications.length > 1 ? 's' : ''} Received
+                      {activeAdminNotifications.length} new service request{activeAdminNotifications.length > 1 ? 's' : ''} waiting to be assigned
                     </h2>
-                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-200 text-amber-900 rounded-full border border-amber-300 uppercase tracking-wide">
-                      Action Required
-                    </span>
                   </div>
                   <p className="text-xs text-amber-900/80 mt-0.5">
-                    Incoming requests require review to assign a technician or dispatch a work order.
+                    Review each one and assign a technician, or turn it into a work order.
                   </p>
                 </div>
               </div>
@@ -155,22 +131,23 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 self-end sm:self-auto">
                 <Link
                   href="/service-requests"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+                  className="btn btn-primary btn-sm"
                 >
                   <span>Review All Requests</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </Link>
                 <button
                   onClick={() => setDismissedAlertIds(newServiceRequests.map(s => s.id))}
-                  className="px-2.5 py-1.5 text-amber-800 hover:text-amber-950 hover:bg-amber-200/60 rounded-xl text-xs font-medium transition"
-                  title="Acknowledge all alerts"
+                  className="btn btn-ghost btn-sm"
+                  title="Hide these requests here (they stay open on the Service Requests page)"
                 >
                   Dismiss All
                 </button>
                 <button
                   onClick={() => setShowNotificationBanner(false)}
                   className="p-1.5 text-amber-600 hover:text-amber-900 hover:bg-amber-200/50 rounded-xl transition"
-                  title="Hide banner"
+                  title="Hide"
+                  aria-label="Hide new service requests"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -225,7 +202,7 @@ export default function DashboardPage() {
 
                     <Link
                       href="/service-requests"
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition"
+                      className="btn btn-soft btn-sm"
                     >
                       <span>Assign</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -513,7 +490,7 @@ export default function DashboardPage() {
               <h2 className="text-base font-bold text-slate-900">Upcoming Preventive Maintenance</h2>
               <Link
                 href="/maintenance/preventive"
-                className="px-3 py-1 text-xs font-medium text-slate-600 hover:text-blue-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+                className="btn btn-secondary btn-sm"
               >
                 View all
               </Link>
@@ -570,7 +547,7 @@ export default function DashboardPage() {
               <h2 className="text-base font-bold text-slate-900">Open Service Requests</h2>
               <Link
                 href="/service-requests"
-                className="px-3 py-1 text-xs font-medium text-slate-600 hover:text-blue-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+                className="btn btn-secondary btn-sm"
               >
                 View all
               </Link>

@@ -197,7 +197,7 @@ export default function RoomDetailPage() {
           <p className="text-xs text-slate-500">The requested room could not be loaded or does not exist.</p>
           <Link
             href="/organization/rooms"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold shadow-xs"
+            className="btn btn-primary"
           >
             <span>Return to Rooms Directory</span>
           </Link>
@@ -226,14 +226,14 @@ export default function RoomDetailPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/assets/create"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-sm transition"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>Add Asset</span>
             </Link>
             <button
               onClick={() => router.push('/organization/rooms')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs transition"
+              className="btn btn-secondary"
             >
               <Pencil className="w-3.5 h-3.5 text-slate-400" />
               <span>Edit Room</span>
@@ -375,7 +375,7 @@ export default function RoomDetailPage() {
                     <h3 className="text-sm font-bold text-slate-900">Assets in this Space ({roomAssets.length})</h3>
                     <Link
                       href="/assets/create"
-                      className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition flex items-center gap-1"
+                      className="btn btn-soft btn-sm"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add Asset</span>
@@ -495,7 +495,7 @@ export default function RoomDetailPage() {
                         <button
                           type="button"
                           onClick={() => setAccessLogDate('')}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition"
+                          className="btn btn-secondary btn-sm"
                         >
                           <X className="w-3.5 h-3.5" />
                           <span>View All</span>
@@ -652,14 +652,14 @@ export default function RoomDetailPage() {
                   target="_blank"
                   rel="noreferrer"
                   download={`QR-${room.roomNumber}.png`}
-                  className="py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition"
+                  className="btn btn-primary"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download QR</span>
                 </a>
                 <button
                   onClick={() => window.print()}
-                  className="py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 transition"
+                  className="btn btn-secondary"
                 >
                   <Printer className="w-3.5 h-3.5 text-slate-400" />
                   <span>Print Label</span>

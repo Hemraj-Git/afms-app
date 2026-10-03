@@ -192,7 +192,7 @@ export default function InspectionTemplatesPage() {
 
           <button
             onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+            className="btn btn-primary"
           >
             <Plus className="w-4 h-4" />
             <span>Create Inspection Template</span>
@@ -223,7 +223,7 @@ export default function InspectionTemplatesPage() {
             </p>
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>Create First Inspection Template</span>
@@ -443,13 +443,13 @@ export default function InspectionTemplatesPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition"
+                    className="btn btn-primary"
                   >
                     {editingTmpl ? 'Save Changes' : 'Create Inspection Template'}
                   </button>

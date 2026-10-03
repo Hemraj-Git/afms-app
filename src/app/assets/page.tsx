@@ -367,7 +367,7 @@ export default function AssetsListPage() {
         cell: ({ row: { original: asset } }) => (
           <Link
             href={`/assets/${asset.assetId || asset.id}`}
-            className="p-1.5 px-3 rounded-lg border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition inline-flex items-center gap-1 text-xs font-semibold"
+            className="btn btn-secondary btn-sm"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>View Details</span>
@@ -402,7 +402,7 @@ export default function AssetsListPage() {
                   vendors,
                 })
               }
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs transition active:scale-[0.98] cursor-pointer"
+              className="btn btn-secondary"
               title="Download formatted Excel template (.xlsx) with master reference data"
             >
               <Download className="w-4 h-4 text-emerald-600" />
@@ -412,7 +412,7 @@ export default function AssetsListPage() {
             <button
               type="button"
               onClick={() => setIsBulkUploadOpen(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition cursor-pointer"
+              className="btn btn-secondary"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>Bulk Upload</span>
@@ -420,7 +420,7 @@ export default function AssetsListPage() {
 
             <Link
               href="/assets/create"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>Add New Asset</span>
@@ -467,7 +467,7 @@ export default function AssetsListPage() {
                 <button
                   type="button"
                   onClick={handleResetFilters}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-slate-500 hover:text-slate-800 text-xs font-semibold rounded-xl hover:bg-slate-100 transition"
+                  className="btn btn-ghost"
                   title="Reset all filters"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -632,7 +632,7 @@ export default function AssetsListPage() {
                 <button
                   type="button"
                   onClick={handleResetFilters}
-                  className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition text-center"
+                  className="btn btn-secondary w-full text-center"
                 >
                   Clear All Filters
                 </button>
@@ -668,7 +668,7 @@ export default function AssetsListPage() {
                 {(activeFilterCount > 0 || searchQuery) && (
                   <button
                     onClick={handleResetFilters}
-                    className="mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 font-semibold rounded-lg hover:bg-blue-100 transition"
+                    className="btn btn-soft btn-sm mt-2"
                   >
                     Reset Filters
                   </button>

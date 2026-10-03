@@ -159,7 +159,7 @@ export default function AssetDetailPage() {
           <p className="text-xs text-slate-500">The requested asset could not be loaded or does not exist.</p>
           <Link
             href="/assets"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold shadow-xs"
+            className="btn btn-primary"
           >
             <span>Return to Asset Register</span>
           </Link>
@@ -187,7 +187,7 @@ export default function AssetDetailPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push(`/assets/create?edit=${asset.assetId}`)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Pencil className="w-3.5 h-3.5" />
               <span>Edit</span>
@@ -510,7 +510,7 @@ export default function AssetDetailPage() {
                   </div>
                   <Link
                     href={`/reports?report=pm_maintenance&assetId=${asset.id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200/80 transition shadow-2xs"
+                    className="btn btn-soft btn-sm"
                   >
                     <FileText className="w-3.5 h-3.5" />
                     <span>Open in Reports Hub</span>
@@ -616,7 +616,7 @@ export default function AssetDetailPage() {
                   </div>
                   <Link
                     href={`/reports?report=inspections&assetId=${asset.id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200/80 transition shadow-2xs"
+                    className="btn btn-soft btn-sm"
                   >
                     <FileText className="w-3.5 h-3.5" />
                     <span>Open in Reports Hub</span>
@@ -698,7 +698,7 @@ export default function AssetDetailPage() {
                     </p>
                     <Link
                       href="/utility/documents"
-                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs transition"
+                      className="btn btn-primary btn-sm mt-2"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Open Document Library</span>
@@ -736,7 +736,7 @@ export default function AssetDetailPage() {
                             element.click()
                             document.body.removeChild(element)
                           }}
-                          className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-xs"
+                          className="btn btn-primary w-full"
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>Download File</span>
@@ -836,7 +836,7 @@ export default function AssetDetailPage() {
                   target="_blank"
                   rel="noreferrer"
                   download={`QR-${asset.assetId}.png`}
-                  className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-xs"
+                  className="btn btn-primary"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download QR</span>
@@ -845,7 +845,7 @@ export default function AssetDetailPage() {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="py-2.5 px-3 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                  className="btn btn-secondary"
                 >
                   <Printer className="w-3.5 h-3.5 text-slate-500" />
                   <span>Print Label</span>

@@ -365,7 +365,7 @@ function AddInventoryForm() {
 
           <button
             onClick={() => router.push('/inventory')}
-            className="px-3.5 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-semibold text-slate-600 transition inline-flex items-center gap-1.5"
+            className="btn btn-secondary"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Inventory Hub</span>
@@ -768,7 +768,7 @@ function AddInventoryForm() {
                 <button
                   type="button"
                   onClick={() => { vDoc.reset(); setShowDocModal(true) }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+                  className="btn btn-primary"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add New Document</span>
@@ -965,7 +965,7 @@ function AddInventoryForm() {
               type="button"
               onClick={handleBack}
               disabled={currentStep === 1}
-              className="px-5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="btn btn-secondary"
             >
               Back
             </button>
@@ -974,7 +974,7 @@ function AddInventoryForm() {
               <button
                 type="button"
                 onClick={() => router.push('/inventory')}
-                className="px-5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
@@ -983,7 +983,7 @@ function AddInventoryForm() {
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition"
+                  className="btn btn-primary"
                 >
                   Next Step
                 </button>
@@ -991,7 +991,7 @@ function AddInventoryForm() {
                 <button
                   type="button"
                   onClick={handleFinalSubmit}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/25 transition"
+                  className="btn btn-primary"
                 >
                   {isEditMode ? `Save & Update Spare (${inventoryId})` : `Confirm & Save to Inventory (${inventoryId})`}
                 </button>
@@ -1083,13 +1083,13 @@ function AddInventoryForm() {
                   <button
                     type="button"
                     onClick={() => setShowVendorModal(false)}
-                    className="px-4 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     Save &amp; Select Vendor
                   </button>
@@ -1171,13 +1171,13 @@ function AddInventoryForm() {
                   <button
                     type="button"
                     onClick={() => setShowDocModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     Upload &amp; Attach
                   </button>

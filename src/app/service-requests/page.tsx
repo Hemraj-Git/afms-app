@@ -436,7 +436,7 @@ export default function ServiceRequestsPage() {
       cell: ({ row: { original: req } }) => (
         <button
           onClick={() => setSelectedTicket(req)}
-          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-blue-500 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition inline-flex items-center gap-1 font-semibold text-xs shadow-2xs"
+          className="btn btn-secondary btn-sm"
         >
           <span>Action</span>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -474,14 +474,14 @@ export default function ServiceRequestsPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>Create Service Request</span>
             </button>
             <Link
               href="/maintenance/work-orders"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs transition"
+              className="btn btn-secondary"
             >
               <SlidersHorizontal className="w-4 h-4 text-slate-400" />
               <span>Configure SLA Rules</span>
@@ -730,7 +730,7 @@ export default function ServiceRequestsPage() {
                             ? '/maintenance/housekeeping'
                             : '/maintenance/corrective'
                           }
-                          className="px-3 py-1.5 bg-white hover:bg-blue-100/60 border border-blue-200 rounded-lg text-xs font-bold text-blue-700 shadow-2xs transition inline-flex items-center gap-1"
+                          className="btn btn-secondary btn-sm"
                         >
                           <span>View Work Order</span>
                           <ArrowRight className="w-3 h-3" />
@@ -807,11 +807,7 @@ export default function ServiceRequestsPage() {
                       type="button"
                       disabled={isActionTaken}
                       onClick={() => !isActionTaken && handleCreateCorrective(currentTicket)}
-                      className={`w-full py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-xs transition text-xs ${
-                        isActionTaken
-                          ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                          : 'bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white'
-                      }`}
+                      className="btn btn-primary w-full"
                       title={isActionTaken ? (
                         (linkedWo?.woNumber || currentTicket.workOrderNumber) === 'PENDING'
                           ? 'Corrective maintenance raised — pending technician assignment'
@@ -915,13 +911,13 @@ export default function ServiceRequestsPage() {
                   <button
                     type="button"
                     onClick={() => setShowDismissModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs transition"
+                    className="btn btn-danger"
                   >
                     Confirm & Dismiss
                   </button>
@@ -1056,7 +1052,7 @@ export default function ServiceRequestsPage() {
                       onCapture={setRequestPhoto}
                       onUploadingChange={setPhotoUploading}
                       label={requestPhoto ? 'Change photo' : 'Add a photo'}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center gap-1.5"
+                      className="btn btn-secondary"
                     />
                     {/* eslint-disable-next-line @next/next/no-img-element -- an uploaded photo */}
                     {requestPhoto ? <img src={requestPhoto} alt="Attached" className="h-12 w-12 rounded-lg object-cover border border-slate-200" /> : null}
@@ -1067,14 +1063,14 @@ export default function ServiceRequestsPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmittingRequest || photoUploading}
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     {isSubmittingRequest ? 'Submitting…' : 'Submit Service Request'}
                   </button>

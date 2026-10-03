@@ -225,7 +225,7 @@ export default function HousekeepingPage() {
                 setSelectedStaffId(wo.assignedTechnicianId || firstAssignableId(housekeepingStaff, isPending))
                 setAssignRemarks('')
               }}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
+              className="btn btn-secondary btn-sm"
             >
               <User className="w-3.5 h-3.5 text-slate-500" />
               <span>{wo.assignedTechnicianName ? 'Reassign' : 'Assign'}</span>
@@ -234,14 +234,14 @@ export default function HousekeepingPage() {
             {wo.status === 'Scheduled' || (wo.status as string) === 'Assigned' ? (
               <button
                 onClick={() => updateWorkOrderStatus(wo.id, 'In Progress')}
-                className="px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition"
+                className="btn btn-soft btn-sm"
               >
                 Start Cleaning
               </button>
             ) : (
               <button
                 onClick={() => updateWorkOrderStatus(wo.id, 'Completed', 'Sanitization completed.')}
-                className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1"
+                className="btn btn-success btn-sm"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Complete</span>
@@ -265,7 +265,7 @@ export default function HousekeepingPage() {
 
           <button
             onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-sm transition"
+            className="btn btn-primary"
           >
             <Plus className="w-4 h-4" />
             <span>Schedule Housekeeping</span>
@@ -301,7 +301,7 @@ export default function HousekeepingPage() {
                 </p>
                 <button
                   onClick={() => setShowModal(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs transition mt-1"
+                  className="btn btn-primary mt-1"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Schedule First Task</span>
@@ -368,13 +368,13 @@ export default function HousekeepingPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedWoForAssign(null)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     Confirm Assignment
                   </button>
@@ -475,13 +475,13 @@ export default function HousekeepingPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     Schedule Task
                   </button>

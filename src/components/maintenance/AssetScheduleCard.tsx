@@ -77,7 +77,7 @@ export function AssetScheduleCard({ asset }: { asset: Asset }) {
           <button
             type="button"
             onClick={() => open('pm')}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 font-semibold hover:bg-blue-100"
+            className="btn btn-soft btn-sm"
           >
             <Plus className="w-3.5 h-3.5" /> Add a schedule
           </button>
@@ -115,7 +115,7 @@ export function AssetScheduleCard({ asset }: { asset: Asset }) {
               <button
                 type="button"
                 onClick={() => open(kindOf(t), t.id)}
-                className="shrink-0 px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-amber-800 font-semibold hover:bg-amber-100"
+                className="btn btn-secondary btn-sm shrink-0"
               >
                 Schedule
               </button>
@@ -197,14 +197,14 @@ export function AssetScheduleCard({ asset }: { asset: Asset }) {
           ) : null}
 
           <div className="flex justify-end gap-2">
-            <button type="button" disabled={saving} onClick={() => setAdding(null)} className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-600 hover:bg-slate-50">
+            <button type="button" disabled={saving} onClick={() => setAdding(null)} className="btn btn-secondary">
               Cancel
             </button>
             <button
               type="button"
               disabled={saving || !chosen}
               onClick={save}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold disabled:opacity-60"
+              className="btn btn-primary"
             >
               {saving ? 'Scheduling…' : 'Start schedule'}
             </button>

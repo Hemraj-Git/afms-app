@@ -334,7 +334,7 @@ export default function WorkOrdersHubPage() {
         <div className="flex items-center justify-end gap-1.5">
           <button
             onClick={() => setSelectedWoForDetails(wo)}
-            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition inline-flex items-center gap-1 shadow-2xs"
+            className="btn btn-secondary btn-sm"
             title="View complete work order telemetry and records"
           >
             <Eye className="w-3.5 h-3.5 text-blue-600" />
@@ -402,7 +402,7 @@ export default function WorkOrdersHubPage() {
                 setTempSla(slaConfig)
                 setShowSlaModal(true)
               }}
-              className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs transition"
+              className="btn btn-secondary"
             >
               <SlidersHorizontal className="w-4 h-4 text-slate-500" />
               <span>Configure SLA Rules</span>
@@ -410,7 +410,7 @@ export default function WorkOrdersHubPage() {
 
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-sm transition"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>Create Work Order</span>
@@ -718,13 +718,13 @@ export default function WorkOrdersHubPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     Create Work Order
                   </button>
@@ -818,13 +818,13 @@ export default function WorkOrdersHubPage() {
                   <button
                     type="button"
                     onClick={() => setShowSlaModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     Save SLA Configuration
                   </button>

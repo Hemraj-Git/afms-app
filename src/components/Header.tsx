@@ -86,6 +86,30 @@ export function Header({
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showHelpMenu, setShowHelpMenu] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+
+  // Escape, or a click anywhere outside them, closes the header's menus.
+  const menusRef = React.useRef<HTMLDivElement>(null)
+  const anyMenuOpen = showUserMenu || showNotificationMenu || showHelpMenu
+  React.useEffect(() => {
+    if (!anyMenuOpen) return
+    const closeAll = () => {
+      setShowUserMenu(false)
+      setShowNotificationMenu(false)
+      setShowHelpMenu(false)
+    }
+    const onPointer = (e: PointerEvent) => {
+      if (menusRef.current && !menusRef.current.contains(e.target as Node)) closeAll()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeAll()
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [anyMenuOpen])
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
 
   // New service requests with status 'Open'
@@ -162,7 +186,7 @@ export function Header({
       </div>
 
       {/* Right: help, notifications, the user */}
-      <div className="flex items-center gap-3">
+      <div ref={menusRef} className="flex items-center gap-3">
         {/* Active Room Check-in indicator */}
         {activeCheckIn && (
           <div className="hidden lg:flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full text-xs font-medium animate-pulse">
@@ -206,7 +230,7 @@ export function Header({
                   setShowHelpMenu(false)
                   setShowAbout(true)
                 }}
-                className="w-full mt-1 px-3 py-2 rounded-xl text-left font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                className="w-full mt-1 px-3 py-2 rounded-lg text-left font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2"
               >
                 <Info className="w-3.5 h-3.5 text-slate-400" />
                 About {PRODUCT_NAME}
@@ -269,6 +293,15 @@ export function Header({
                     </button>
                   )}
                   <SoundToggle className="text-slate-400 hover:text-slate-700 hover:bg-slate-100" />
+                  <button
+                    type="button"
+                    onClick={() => setShowNotificationMenu(false)}
+                    aria-label="Close notifications"
+                    title="Close"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
@@ -421,7 +454,7 @@ export function Header({
                       setShowUserMenu(false)
                       router.push('/login')
                     }}
-                    className="w-full text-left px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl transition flex items-center gap-2 font-medium cursor-pointer"
+                    className="w-full text-left px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition flex items-center gap-2 font-medium cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Sign Out</span>
@@ -433,7 +466,7 @@ export function Header({
         ) : (
           <Link
             href="/login"
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs"
+            className="btn btn-primary btn-sm"
           >
             Sign In
           </Link>

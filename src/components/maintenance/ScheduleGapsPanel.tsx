@@ -121,7 +121,7 @@ export function ScheduleGapsPanel({ kinds, subCategoryId, onClose }: { kinds: re
             </ul>
           ) : null}
           <div className="flex justify-end">
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold">
+            <button type="button" onClick={onClose} className="btn btn-primary">
               Done
             </button>
           </div>
@@ -130,7 +130,7 @@ export function ScheduleGapsPanel({ kinds, subCategoryId, onClose }: { kinds: re
         <div className="space-y-3">
           <p className="text-slate-600">Every asset runs the templates of its sub-category.</p>
           <div className="flex justify-end">
-            <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-600">
+            <button type="button" onClick={onClose} className="btn btn-secondary">
               Close
             </button>
           </div>
@@ -210,10 +210,10 @@ export function ScheduleGapsPanel({ kinds, subCategoryId, onClose }: { kinds: re
           ) : null}
 
           <div className="flex justify-end gap-2">
-            <button type="button" disabled={saving} onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-600">
+            <button type="button" disabled={saving} onClick={onClose} className="btn btn-secondary">
               Later
             </button>
-            <button type="button" disabled={saving || chosen.length === 0} onClick={run} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold disabled:opacity-60">
+            <button type="button" disabled={saving || chosen.length === 0} onClick={run} className="btn btn-primary">
               {saving ? 'Scheduling…' : `Schedule selected (${chosen.length})`}
             </button>
           </div>
@@ -241,7 +241,7 @@ export function ScheduleGapsBanner({ kind }: { kind: ScheduleKind }) {
             {assetCount === 1 ? 'has' : 'have'} {kindWord(kind)} templates on {assetCount === 1 ? 'its' : 'their'} sub-category but no {kindWord(kind)} schedule ({gaps.length} not
             scheduled).
           </p>
-          <button type="button" onClick={() => setOpen(true)} className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-amber-300 font-semibold hover:bg-amber-100">
+          <button type="button" onClick={() => setOpen(true)} className="btn btn-secondary btn-sm shrink-0">
             Review & schedule
           </button>
         </div>

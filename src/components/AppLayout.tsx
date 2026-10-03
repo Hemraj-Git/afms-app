@@ -110,7 +110,7 @@ export function AppLayout({
                   <button
                     type="button"
                     onClick={() => void reloadData()}
-                    className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1 font-semibold text-amber-800 hover:bg-amber-100"
+                    className="btn btn-secondary btn-sm shrink-0"
                   >
                     Retry
                   </button>

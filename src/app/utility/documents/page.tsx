@@ -121,7 +121,7 @@ export default function DocumentLibraryPage() {
 
           <button
             onClick={openUploadModal}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition"
+            className="btn btn-primary"
           >
             <Upload className="w-4 h-4" />
             <span>Upload Document</span>
@@ -188,7 +188,7 @@ export default function DocumentLibraryPage() {
                   setSelectedTypeFilter('ALL')
                   setSelectedAssetFilter('ALL')
                 }}
-                className="px-2.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition"
+                className="btn btn-ghost"
                 title="Reset Filters"
               >
                 Clear
@@ -209,7 +209,7 @@ export default function DocumentLibraryPage() {
             </p>
             <button
               onClick={openUploadModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Upload className="w-4 h-4" />
               <span>Upload First Document</span>
@@ -230,7 +230,7 @@ export default function DocumentLibraryPage() {
                 setSelectedTypeFilter('ALL')
                 setSelectedAssetFilter('ALL')
               }}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+              className="btn btn-secondary"
             >
               Clear All Filters
             </button>
@@ -383,14 +383,14 @@ export default function DocumentLibraryPage() {
                     type="button"
                     onClick={() => setShowUploadModal(false)}
                     disabled={isUploadingFile}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium disabled:opacity-40"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isUploadingFile}
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs disabled:opacity-60"
+                    className="btn btn-primary"
                   >
                     {isUploadingFile ? 'Uploading…' : 'Upload Document'}
                   </button>

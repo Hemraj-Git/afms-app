@@ -253,7 +253,7 @@ export default function InspectionsPage() {
               setSelectedInspectorId(firstAssignableId(inspectors, isPending))
               setAssignRemarks('')
             }}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1"
+            className="btn btn-primary btn-sm"
           >
             <User className="w-3.5 h-3.5" />
             <span>Assign Inspector</span>
@@ -270,7 +270,7 @@ export default function InspectionsPage() {
           ) : (
             <button
               onClick={() => handleOpenInspection(insp)}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition"
+              className="btn btn-primary btn-sm"
             >
               Perform Inspection
             </button>
@@ -278,7 +278,7 @@ export default function InspectionsPage() {
         ) : (
           <button
             onClick={() => setSelectedInspForView(insp)}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 border border-slate-200 hover:border-blue-300 rounded-lg text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5"
+            className="btn btn-secondary btn-sm"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>View Details</span>
@@ -412,13 +412,13 @@ export default function InspectionsPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedInspForAssign(null)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition"
+                    className="btn btn-primary"
                   >
                     Confirm Inspector Assignment
                   </button>
@@ -491,13 +491,13 @@ export default function InspectionsPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedInspForPerform(null)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs"
+                    className="btn btn-primary"
                   >
                     Submit Inspection & Complete
                   </button>
@@ -667,7 +667,7 @@ export default function InspectionsPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedInspForView(null)}
-                  className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                  className="btn btn-secondary"
                 >
                   Close
                 </button>

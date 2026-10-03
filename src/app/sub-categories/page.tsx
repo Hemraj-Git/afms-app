@@ -454,7 +454,7 @@ export default function SubCategoriesPage() {
 
           <button
             onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold rounded-xl shadow-xs transition"
+            className="btn btn-primary"
           >
             <Plus className="w-4 h-4" />
             <span>Add Sub-Category</span>
@@ -485,7 +485,7 @@ export default function SubCategoriesPage() {
             </p>
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>Launch Sub-Category Wizard</span>
@@ -602,7 +602,7 @@ export default function SubCategoriesPage() {
                       <button
                         type="button"
                         onClick={handleAddMetadataField}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg font-semibold transition"
+                        className="btn btn-soft btn-sm"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
                         <span>Add Field</span>
@@ -700,7 +700,7 @@ export default function SubCategoriesPage() {
                       <button
                         type="button"
                         onClick={() => handleOpenNewTemplate('Preventive Maintenance')}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition shrink-0"
+                        className="btn btn-primary btn-sm shrink-0"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Add New PM Template</span>
@@ -790,7 +790,7 @@ export default function SubCategoriesPage() {
                       <button
                         type="button"
                         onClick={() => handleOpenNewTemplate('Inspection')}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition shrink-0"
+                        className="btn btn-secondary btn-sm shrink-0"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Add New Inspection Template</span>
@@ -947,7 +947,7 @@ export default function SubCategoriesPage() {
                   type="button"
                   onClick={handlePrevStep}
                   disabled={currentStep === 1}
-                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  className="btn btn-secondary"
                 >
                   Back
                 </button>
@@ -956,7 +956,7 @@ export default function SubCategoriesPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
@@ -965,7 +965,7 @@ export default function SubCategoriesPage() {
                     <button
                       type="button"
                       onClick={handleNextStep}
-                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition"
+                      className="btn btn-primary"
                     >
                       Next Step
                     </button>
@@ -973,7 +973,7 @@ export default function SubCategoriesPage() {
                     <button
                       type="button"
                       onClick={handleFinalPublish}
-                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/25 transition"
+                      className="btn btn-primary"
                     >
                       {editingSub ? 'Update Sub-Category' : `Publish Sub-Category (${previewSubCategoryId})`}
                     </button>
@@ -1103,13 +1103,13 @@ export default function SubCategoriesPage() {
                   <button
                     type="button"
                     onClick={() => setShowNewTemplateModal(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs"
+                    className="btn btn-primary"
                   >
                     Save & Select
                   </button>

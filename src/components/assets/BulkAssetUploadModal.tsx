@@ -254,14 +254,14 @@ export function BulkAssetUploadModal({
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="rounded-xl border border-slate-700 bg-slate-800 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 transition-colors"
+                  className="btn btn-primary"
                 >
                   Upload Another File
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 transition-colors"
+                  className="btn btn-primary"
                 >
                   Done & View Assets
                 </button>
@@ -552,7 +552,7 @@ export function BulkAssetUploadModal({
               type="button"
               onClick={handleReset}
               disabled={!selectedFile || isSubmitting}
-              className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-40"
+              className="btn btn-secondary"
             >
               Clear / Reset
             </button>
@@ -562,7 +562,7 @@ export function BulkAssetUploadModal({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
+                className="btn btn-primary"
               >
                 Cancel
               </button>
@@ -571,7 +571,7 @@ export function BulkAssetUploadModal({
                 type="button"
                 onClick={handleConfirmImport}
                 disabled={validRows.length === 0 || isSubmitting}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-40 cursor-pointer"
+                className="btn btn-primary"
               >
                 {isSubmitting ? (
                   <>
