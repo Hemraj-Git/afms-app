@@ -501,10 +501,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Bottom text */}
-              <p className="text-xs text-slate-500 font-medium mt-3">
-                <span className="text-slate-700 font-bold">+2.5%</span> from previous month
-              </p>
             </div>
           </div>
         </div>

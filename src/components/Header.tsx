@@ -7,7 +7,6 @@ import { formatDateDisplay } from '@/lib/dateUtils'
 import {
   Menu,
   PanelLeftOpen,
-  Smartphone,
   CheckCircle2,
   Bell,
   X,
@@ -162,18 +161,8 @@ export function Header({
         <GlobalSearch />
       </div>
 
-      {/* Right: field app link, notifications, the user */}
+      {/* Right: help, notifications, the user */}
       <div className="flex items-center gap-3">
-        {/* Field (mobile) mode link */}
-        <Link
-          href="/mobile"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition border border-blue-200/50"
-          title="Open the field operations app"
-        >
-          <Smartphone className="w-3.5 h-3.5 text-blue-600" />
-          <span className="hidden sm:inline">Field Mode</span>
-        </Link>
-
         {/* Active Room Check-in indicator */}
         {activeCheckIn && (
           <div className="hidden lg:flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full text-xs font-medium animate-pulse">

@@ -347,7 +347,7 @@ export default function ServiceRequestsPage() {
       header: 'Date',
       accessorFn: r => timeOf(r.createdAt),
       sortUndefined: 'last',
-      meta: { tdClassName: 'py-4 px-4 text-slate-500 font-medium' },
+      meta: { tdClassName: 'py-4 px-4 text-slate-500 font-medium whitespace-nowrap' },
       cell: ({ row: { original: req } }) => formatDateDisplay(req.createdAt),
     },
     {
@@ -375,7 +375,7 @@ export default function ServiceRequestsPage() {
         return (
           <>
             <p className="font-semibold text-slate-800">{room?.name || 'General Area'}</p>
-            <p className="text-[11px] text-slate-400">Room {room?.roomNumber}</p>
+            <p className="text-[11px] text-slate-400 whitespace-nowrap">Room {room?.roomNumber}</p>
           </>
         )
       },
@@ -396,16 +396,20 @@ export default function ServiceRequestsPage() {
       header: 'SLA Priority',
       accessorFn: r => r.priority,
       sortingFn: sortByOrder(PRIORITY_ORDER),
+      // The priority as a badge; its resolution time beneath.
       cell: ({ row: { original: req } }) => (
-        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-          req.priority === 'Critical'
-            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-            : req.priority === 'High'
-            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-            : 'bg-blue-50 text-blue-700 border border-blue-200'
-        }`}>
-          {req.priority} ({slaConfig[req.priority as SlaPriority] || 24}h SLA)
-        </span>
+        <div className="space-y-1">
+          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            req.priority === 'Critical'
+              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+              : req.priority === 'High'
+              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+              : 'bg-blue-50 text-blue-700 border border-blue-200'
+          }`}>
+            {req.priority}
+          </span>
+          <p className="text-[10px] font-medium text-slate-400 whitespace-nowrap">{slaConfig[req.priority as SlaPriority] || 24}h SLA</p>
+        </div>
       ),
     },
     {

@@ -87,6 +87,9 @@ export default function ReservationsPage() {
   const [userQuery, setUserQuery] = useState('')
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false)
 
+  // "9:00 AM", "1:00 PM": the start or end of a one-hour slot.
+  const hourLabel = (hour: number) => `${hour % 12 || 12}:00 ${hour < 12 || hour === 24 ? 'AM' : 'PM'}`
+
   // Defined Time Slots (1-hour slots from 09:00 AM to 05:00 PM)
   const standardTimeSlots = [
     { hour: 9, label: '09:00 AM - 10:00 AM', shortLabel: '09:00 AM' },
@@ -526,8 +529,9 @@ export default function ReservationsPage() {
                   <tr className="text-slate-400 bg-slate-50/50 border-b border-slate-100 font-medium">
                     <th className="py-3.5 px-6 min-w-[200px]">Facility / Room</th>
                     {standardTimeSlots.map(t => (
-                      <th key={t.hour} className="py-3.5 px-2 text-center min-w-[110px]">
-                        {t.shortLabel}
+                      <th key={t.hour} className="py-3 px-2 text-center min-w-[110px] whitespace-nowrap">
+                        <span className="block font-semibold text-slate-600">{hourLabel(t.hour)}</span>
+                        <span className="block text-[10px] font-normal">to {hourLabel(t.hour + 1)}</span>
                       </th>
                     ))}
                   </tr>

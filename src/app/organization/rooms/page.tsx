@@ -27,6 +27,8 @@ import { confirmAction } from '@/lib/confirm'
 import { useFormCheck } from '@/lib/useFormCheck'
 import { nameSchema, roomSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable } from '@/components/ui/DataTable'
 export default function RoomsPage() {
   const {
     rooms,
@@ -210,6 +212,136 @@ export default function RoomsPage() {
     return matchesSearch && matchesType
   })
 
+  // A table, not cards: an institute has hundreds of rooms.
+  const roomHref = (r: Room) => `/organization/rooms/${r.roomNumber || r.id}`
+  const roomColumns: ColumnDef<Room>[] = [
+    {
+      id: 'roomNumber',
+      header: 'Room ID',
+      accessorFn: r => r.roomNumber || r.id,
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-3.5 px-6' },
+      cell: ({ row: { original: r } }) => (
+        <Link href={roomHref(r)} className="font-mono font-bold text-blue-700 hover:underline whitespace-nowrap">
+          {r.roomNumber || r.id}
+        </Link>
+      ),
+    },
+    {
+      id: 'name',
+      header: 'Room / Area',
+      accessorFn: r => r.name,
+      cell: ({ row: { original: r } }) => (
+        <>
+          <Link href={roomHref(r)} className="font-bold text-slate-900 hover:text-blue-600">
+            {r.name}
+          </Link>
+          <p className="text-[11px] text-slate-400">{r.type}</p>
+        </>
+      ),
+    },
+    {
+      id: 'building',
+      header: 'Building / Campus',
+      accessorFn: r => buildings.find(b => b.id === r.buildingId)?.name || '',
+      cell: ({ row: { original: r } }) => {
+        const building = buildings.find(b => b.id === r.buildingId)
+        const campus = campuses.find(c => c.id === building?.campusId)
+        return (
+          <>
+            <p className="font-medium text-slate-700">{building?.name || '—'}</p>
+            <p className="text-[11px] text-slate-400">{campus?.name || ''}</p>
+          </>
+        )
+      },
+    },
+    {
+      id: 'floor',
+      header: 'Floor',
+      accessorFn: r => r.floor || 'Ground Floor',
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600 whitespace-nowrap' },
+    },
+    {
+      id: 'size',
+      header: 'Size',
+      accessorFn: r => Number(r.roomSizeSqft) || 0,
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600 whitespace-nowrap tabular-nums' },
+      cell: ({ row: { original: r } }) => (r.roomSizeSqft ? `${r.roomSizeSqft} sq ft` : '—'),
+    },
+    {
+      id: 'assets',
+      header: 'Assets',
+      accessorFn: r => assets.filter(a => a.roomId === r.id && a.status !== 'Retired').length,
+      meta: { tdClassName: 'py-3.5 px-4 font-semibold text-slate-700 tabular-nums' },
+    },
+    {
+      id: 'reservable',
+      header: 'Reservable',
+      accessorFn: r => (r.isReservable ? 'Yes' : 'No'),
+      meta: { tdClassName: 'py-3.5 px-4 text-slate-600' },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: r => r.status,
+      cell: ({ row: { original: r } }) => (
+        <div className="space-y-1">
+          <span
+            className={`inline-block whitespace-nowrap px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+              r.status === 'Occupied'
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : r.status === 'Under Maintenance'
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+            }`}
+          >
+            {r.status}
+          </span>
+          {r.currentOccupant ? (
+            <p className="flex items-center gap-1 text-[11px] text-slate-500">
+              <User className="w-3 h-3 text-amber-600" />
+              {r.currentOccupant}
+            </p>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-3.5 px-6' },
+      cell: ({ row: { original: r } }) => (
+        <div className="flex items-center justify-end gap-1">
+          <Link
+            href={roomHref(r)}
+            className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-600 hover:bg-blue-50 whitespace-nowrap"
+          >
+            Room Hub
+            <ChevronRight className="w-3 h-3" />
+          </Link>
+          <button
+            type="button"
+            onClick={() => openEditModal(r)}
+            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition"
+            title="Edit Room"
+            aria-label={`Edit ${r.name}`}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDelete(r.id, r.name, r.roomNumber)}
+            className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
+            title="Delete Room"
+            aria-label={`Delete ${r.name}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <AppLayout breadcrumbs={[{ label: 'Home', href: '/dashboard' }, { label: 'Organization' }, { label: 'Rooms/Areas' }]}>
       <div className="space-y-6 max-w-7xl mx-auto">
@@ -345,83 +477,17 @@ export default function RoomsPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredRooms.map(r => {
-            const building = buildings.find(b => b.id === r.buildingId)
-            return (
-              <div key={r.id} className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-3 hover:border-slate-300 transition group">
-                <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                    <DoorOpen className="w-5 h-5" />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                      r.status === 'Occupied'
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : r.status === 'Under Maintenance'
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}>
-                      {r.status}
-                    </span>
-                    <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition ml-1">
-                      <button
-                        onClick={() => openEditModal(r)}
-                        className="p-1 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition"
-                        title="Edit Room"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(r.id, r.name, r.roomNumber)}
-                        className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
-                        title="Delete Room"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                      {r.roomNumber || r.id}
-                    </span>
-                    <Link
-                      href={`/organization/rooms/${r.roomNumber || r.id}`}
-                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
-                    >
-                      <span>Room Hub</span>
-                      <ChevronRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                  <Link href={`/organization/rooms/${r.roomNumber || r.id}`}>
-                    <h3 className="font-bold text-sm text-slate-900 mt-1 hover:text-blue-600 transition">{r.name}</h3>
-                  </Link>
-                  <p className="text-xs text-slate-500 font-medium">{r.type} • {building?.name || 'Admin Block'}</p>
-                  <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-600">
-                    <span className="bg-slate-100 px-2 py-0.5 rounded font-medium">
-                      {r.floor || 'Ground Floor'}
-                    </span>
-                    <span className="bg-slate-100 px-2 py-0.5 rounded font-medium">
-                      {r.roomSizeSqft || 400} Sqft
-                    </span>
-                  </div>
-                  <p className="text-[11px] font-mono text-slate-400 mt-1">Tag: {r.qrCodeKey}</p>
-                </div>
-
-                {r.currentOccupant && (
-                  <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 text-xs text-slate-600">
-                    <User className="w-3.5 h-3.5 text-amber-600" />
-                    <span>In use by: <strong>{r.currentOccupant}</strong></span>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+            <DataTable
+              tableId="rooms"
+              data={filteredRooms}
+              columns={roomColumns}
+              getRowId={r => r.id}
+              resetKey={`${searchQuery}|${roomTypeFilter}`}
+              initialSorting={[{ id: 'roomNumber', desc: false }]}
+            />
+          </div>
+        )}
 
         {/* Modal 1: Add/Edit Room Modal */}
         {showModal && (

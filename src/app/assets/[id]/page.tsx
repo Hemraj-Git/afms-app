@@ -39,6 +39,16 @@ import { OutsideRepairStatusPill } from '@/components/outsideRepair/OutsideRepai
 import { AssetScheduleCard } from '@/components/maintenance/AssetScheduleCard'
 import { daysOut, isOutForRepair, isOverdueReturn, repairItemLabel } from '@/lib/outsideRepairState'
 
+// When a log entry happened, for sorting: its epoch, else its stored
+// "DD/MM/YYYY, HH:mm:ss" text, else as old as possible.
+function logTime(l: { timestampEpoch?: number; timestamp: string }): number {
+  if (l.timestampEpoch != null) return l.timestampEpoch
+  const m = /^(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(l.timestamp || '')
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +(m[6] ?? 0)).getTime()
+  const t = Date.parse(l.timestamp)
+  return Number.isNaN(t) ? 0 : t
+}
+
 export default function AssetDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -86,9 +96,12 @@ export default function AssetDetailPage() {
     ? inspections.filter(i => i.assetId === asset.id || i.assetId === asset.assetId)
     : []
 
-  // Associated Activity Timeline
+  // Associated Activity Timeline: the latest event first (an event just added
+  // on this screen is otherwise appended at the end of the list).
   const assetTimeline = asset
-    ? assetActivityLogs.filter(l => l.assetId === asset.id || l.assetId === asset.assetId)
+    ? assetActivityLogs
+        .filter(l => l.assetId === asset.id || l.assetId === asset.assetId)
+        .sort((a, b) => logTime(b) - logTime(a))
     : []
 
   // Calculate Next Scheduled Maintenance Date & Days Remaining
@@ -754,32 +767,34 @@ export default function AssetDetailPage() {
                     <p className="text-[11px] text-slate-400 mt-1">Lifecycle events (installation, maintenance, inspections) will appear here as they occur.</p>
                   </div>
                 ) : (
-                  <div className="space-y-6 pl-4 sm:pl-6 border-l-2 border-blue-200 my-4">
+                  <ol className="relative my-4 space-y-3 before:absolute before:left-[7px] before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
                     {assetTimeline.map((item, idx) => (
-                      <div key={item.id || idx} className="relative pl-6 group">
-                        <div className="absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full bg-blue-600 ring-4 ring-blue-100 group-hover:scale-110 transition"></div>
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-1.5 hover:border-blue-300 transition shadow-2xs">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                            <span className="font-bold text-xs text-slate-900">{item.action}</span>
+                      <li key={item.id || idx} className="relative pl-8">
+                        <span
+                          aria-hidden="true"
+                          className={`absolute left-0 top-4 h-4 w-4 rounded-full border-[3px] bg-white ${idx === 0 ? 'border-blue-600 ring-4 ring-blue-100' : 'border-slate-300'}`}
+                        />
+                        <div className={`rounded-xl border p-3.5 space-y-1.5 ${idx === 0 ? 'bg-blue-50/40 border-blue-200' : 'bg-white border-slate-200'}`}>
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                            <span className="font-bold text-xs text-slate-900">
+                              {item.action}
+                              {idx === 0 ? <span className="ml-2 align-middle px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wide">Latest</span> : null}
+                            </span>
+                            <time className="text-[11px] text-slate-500 whitespace-nowrap">
+                              {formatDateTimeDisplay(item.timestampEpoch != null ? new Date(item.timestampEpoch) : item.timestamp)}
+                            </time>
+                          </div>
+                          <p className="text-xs text-slate-600">{item.remarks || item.newValue || 'Lifecycle event recorded on asset.'}</p>
+                          <div className="flex flex-wrap items-center justify-between gap-x-3 text-[11px] text-slate-500">
+                            <span className="font-semibold text-slate-700">By {item.byUser || 'Authorized Staff'}</span>
                             {/* Only a real reference (work order / inspection / ticket number).
                                 Events without one -- created, updated -- show nothing. */}
-                            {item.referenceId && (
-                              <span className="text-[10px] font-mono text-slate-400 font-medium">
-                                Ref: #{item.referenceId}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-600">
-                            {item.remarks || item.newValue || 'Lifecycle event recorded on asset.'}
-                          </p>
-                          <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                            <span className="font-semibold text-slate-700">By {item.byUser || 'Authorized Staff'}</span>
-                            <span>{formatDateTimeDisplay(item.timestampEpoch != null ? new Date(item.timestampEpoch) : item.timestamp)}</span>
+                            {item.referenceId ? <span className="font-mono text-slate-400 whitespace-nowrap">Ref: #{item.referenceId}</span> : null}
                           </div>
                         </div>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ol>
                 )}
               </div>
             )}

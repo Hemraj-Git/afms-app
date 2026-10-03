@@ -160,6 +160,12 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
 - [ ] **6.37 AssetNXG name and cosmetics** —
   - The browser tab, sign-in page, sidebar, field app header, installed-app name, bulk-upload template and QR labels say **AssetNXG** (not AFMS).
   - QR codes (preview and downloaded PDF): room placards are headed with the client's full name; 5 cm asset labels show the short name (SoMS). No "Hemraj Marines" anywhere. The browser tab reads "AssetNXG | <client name>".
+  - Header: no *Field Mode* button. Dashboard: no "+2.5% from previous month" under the compliance score.
+  - Tables at a 1280–1440 px screen: no badge or ID breaks over two lines. Corrective *Trigger Source* shows the source badge with the SR / inspection number beneath; Service Requests *SLA Priority* shows the priority badge with "24h SLA" beneath.
+  - Add/edit asset, add/edit sub-category and add spare: the progress bar has evenly spaced steps, a tick on each done step, and the line fills in blue up to the current step. On a phone it reads "Step 2 of 5 · Location".
+  - Asset page → Activity Timeline: the newest event is at the top, marked *Latest*.
+  - Rooms/Areas: a sortable table (Room ID, room, building, floor, size, assets, reservable, status, Room Hub / edit / delete) with paging, instead of cards.
+  - Reservations grid: each time column reads "9:00 AM" with "to 10:00 AM" beneath.
   - Sidebar top: the client's logo (SOMS) when `NEXT_PUBLIC_CLIENT_LOGO_URL` is set, else the client's name, else AssetNXG. Collapsed: the crest.
   - Sidebar bottom: the AssetNXG logo, the version (v1.0.0) and *About*. Collapsed: the AssetNXG icon (opens About).
   - *About* (from the sidebar or the header's help icon) opens over the whole page: what AssetNXG does, version and build date, "Licensed to" the client, the support email (support@assetnxg.app) with a copy button, then "A product of" with the PMV logo and *Pinnacle Marine Ventures*, and "Powered by" with the HMS logo and *HMS - Digital Solutions*.

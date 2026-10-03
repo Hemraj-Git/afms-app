@@ -141,16 +141,20 @@ export default function CorrectiveMaintenancePage() {
       id: 'woNumber',
       header: 'WO Number',
       accessorFn: wo => displayWoNumber(wo.woNumber),
-      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6 font-mono font-bold text-rose-600' },
+      meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6 font-mono font-bold text-rose-600 whitespace-nowrap' },
     },
     {
       id: 'source',
       header: 'Trigger Source',
       accessorFn: wo => wo.source,
+      // The kind of trigger as a badge; the request or inspection it came from beneath.
       cell: ({ row: { original: wo } }) => (
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-          {wo.source} ({wo.sourceRefId || 'SR'})
-        </span>
+        <div className="space-y-1">
+          <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            {wo.source}
+          </span>
+          {wo.sourceRefId ? <p className="font-mono text-[11px] font-semibold text-slate-500 whitespace-nowrap">{wo.sourceRefId}</p> : null}
+        </div>
       ),
     },
     {
@@ -597,7 +601,7 @@ export default function CorrectiveMaintenancePage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Trigger Source:</span>
-                        <span className="font-semibold text-slate-800">{wo.source} ({wo.sourceRefId || 'SR'})</span>
+                        <span className="font-semibold text-slate-800">{wo.source}{wo.sourceRefId ? ` · ${wo.sourceRefId}` : ''}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Due Date / SLA:</span>

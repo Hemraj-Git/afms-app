@@ -28,6 +28,7 @@ import { SubCategory, MetadataFieldDef, ChecklistTemplate, ChecklistItemDef } fr
 import { formatSubCategoryId } from '@/lib/idGenerator'
 
 import { Modal } from '@/components/ui/Modal'
+import { WizardStepper } from '@/components/ui/WizardStepper'
 import { showToast } from '@/lib/toast'
 import { confirmAction } from '@/lib/confirm'
 import { useFormCheck } from '@/lib/useFormCheck'
@@ -342,7 +343,7 @@ export default function SubCategoriesPage() {
       header: 'Code',
       meta: { thClassName: 'py-3.5 px-6', tdClassName: 'py-4 px-6' },
       cell: ({ row: { original: sub } }) => (
-        <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">{sub.code}</span>
+        <span className="whitespace-nowrap text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">{sub.code}</span>
       ),
     },
     {
@@ -523,32 +524,7 @@ export default function SubCategoriesPage() {
               </div>
 
               {/* Stepper Wizard Bar */}
-              <div className="flex items-center justify-between px-2 shrink-0">
-                {wizardSteps.map(st => {
-                  const isDone = currentStep > st.number
-                  const isCurrent = currentStep === st.number
-
-                  return (
-                    <div key={st.number} className="flex items-center gap-2">
-                      <div
-                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition ${
-                          isCurrent
-                            ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                            : isDone
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-400'
-                        }`}
-                      >
-                        {isDone ? <Check className="w-3.5 h-3.5" /> : st.number}
-                      </div>
-                      <span className={`text-xs font-medium hidden sm:inline ${isCurrent ? 'font-bold text-slate-900' : 'text-slate-400'}`}>
-                        {st.title}
-                      </span>
-                      {st.number < 5 && <div className="w-6 h-0.5 bg-slate-200 hidden md:block"></div>}
-                    </div>
-                  )
-                })}
-              </div>
+              <WizardStepper steps={wizardSteps} current={currentStep} className="shrink-0" />
 
               {/* Wizard Content Body */}
               <div className="flex-1 overflow-y-auto pr-1 text-xs space-y-5">

@@ -183,3 +183,12 @@ body {
 .animate-pulse-subtle {
   animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* In tables, badges, IDs and buttons keep to one line: a badge or an ID like
+   WO-CR-2026-0001 broken over two lines reads as two things. */
+td :is(span, p, div)[class*="rounded"][class*="px-"],
+td .font-mono,
+td.font-mono,
+td button {
+  white-space: nowrap;
+}

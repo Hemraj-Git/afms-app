@@ -30,6 +30,7 @@ import { DocumentItem, SlaPriority } from '@/types/afms'
 import { uploadToStorage, validateUpload } from '@/lib/storageUpload'
 
 import { Modal } from '@/components/ui/Modal'
+import { WizardStepper } from '@/components/ui/WizardStepper'
 import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components/ui/FormField'
 import { assetBasicsSchema, assetLocationSchema, fieldErrors, nameSchema } from '@/lib/validation/forms'
 import { useFormCheck } from '@/lib/useFormCheck'
@@ -590,36 +591,7 @@ function AddAssetForm() {
         </div>
 
         {/* Stepper Wizard Indicator */}
-        <div className="relative flex items-center justify-between max-w-3xl mx-auto px-4">
-          <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -z-0"></div>
-          {steps.map(step => {
-            const isCompleted = currentStep > step.number
-            const isCurrent = currentStep === step.number
-
-            return (
-              <div key={step.number} className="relative z-10 flex flex-col items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs ${
-                    isCurrent
-                      ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                      : isCompleted
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-200 text-slate-500'
-                  }`}
-                >
-                  {isCompleted ? <Check className="w-4 h-4" /> : step.number}
-                </div>
-                <span
-                  className={`mt-2 text-xs font-medium ${
-                    isCurrent ? 'text-slate-900 font-bold' : 'text-slate-400'
-                  }`}
-                >
-                  {step.title}
-                </span>
-              </div>
-            )
-          })}
-        </div>
+        <WizardStepper steps={steps} current={currentStep} className="max-w-3xl mx-auto" />
 
         {/* Card Form Container */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-8 space-y-6">
