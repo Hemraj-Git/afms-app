@@ -35,8 +35,11 @@ export function formatDateDisplay(value?: string | Date | null): string {
   // parses as UTC midnight, and reading local components back can roll
   // the day backward/forward depending on the viewer's timezone offset.
   // Same care as getLocalDateStr() above.
+  // A full timestamp ("2026-10-04T21:42:00+00:00") is a moment, not a date:
+  // it goes through `new Date` below, so 3 AM in India reads as that day and
+  // not as the previous one in UTC.
   if (typeof value === 'string') {
-    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
     if (m) return `${m[3]}-${m[2]}-${m[1]}`
   }
   const date = typeof value === 'string' ? new Date(value) : value
