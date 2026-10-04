@@ -23,6 +23,7 @@ import {
   CalendarClock,
   LifeBuoy,
   Info,
+  KeyRound,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { AppNotification } from '@/types/afms'
@@ -33,6 +34,7 @@ import { useNewItemAlert } from '@/lib/useNewItemAlert'
 import { GlobalSearch } from '@/components/GlobalSearch'
 import { PRODUCT_NAME, SUPPORT_EMAIL, initialsOf } from '@/lib/brand'
 import { AboutDialog, CopyLine } from '@/components/AboutDialog'
+import { ChangePasswordDialog } from '@/components/auth/ChangePasswordDialog'
 
 // How each kind of database alert looks and where it leads on the desktop.
 const ALERT_ICONS: Record<AppNotification['type'], React.ReactNode> = {
@@ -86,6 +88,7 @@ export function Header({
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showHelpMenu, setShowHelpMenu] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
 
   // Escape, or a click anywhere outside them, closes the header's menus.
   const menusRef = React.useRef<HTMLDivElement>(null)
@@ -446,7 +449,18 @@ export function Header({
                   </span>
                 </div>
 
-                <div className="pt-1">
+                <div className="pt-1 space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      setShowChangePassword(true)
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-50 rounded-lg transition flex items-center gap-2 font-medium cursor-pointer"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Change password</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -475,6 +489,7 @@ export function Header({
     </header>
     {/* Outside the header: its stacking layer would put the dialog under the sidebar. */}
     {showAbout ? <AboutDialog onClose={() => setShowAbout(false)} /> : null}
+    {showChangePassword ? <ChangePasswordDialog email={currentUser.email} onClose={() => setShowChangePassword(false)} /> : null}
     </>
   )
 }

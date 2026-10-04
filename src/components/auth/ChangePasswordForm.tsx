@@ -7,8 +7,8 @@ import { PASSWORD_MIN_LENGTH, passwordMeetsPolicy } from '@/lib/authPolicy'
 import { PasswordChecklist } from './PasswordChecklist'
 
 // Change the password of the person signed in: current password first (the
-// server checks it), then the new one against the rules. Used on the field
-// app's Profile tab; `tone` matches the screen it sits on.
+// server checks it), then the new one against the rules. Used in the desktop
+// header's Change password dialog; `tone` matches the screen it sits on.
 export function ChangePasswordForm({
   onDone,
   onCancel,
@@ -134,7 +134,7 @@ export function ChangePasswordForm({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border ${dark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+            className={dark ? 'flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-700 text-slate-300 hover:bg-slate-800' : 'btn btn-secondary flex-1'}
           >
             Cancel
           </button>
@@ -142,7 +142,7 @@ export function ChangePasswordForm({
         <button
           type="submit"
           disabled={!ready || saving}
-          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2"
+          className="btn btn-primary flex-1"
         >
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
           <span>{saving ? 'Saving...' : 'Change password'}</span>
