@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { friendlyPasswordError, PASSWORD_MIN_LENGTH, passwordMeetsPolicy } from '@/lib/authPolicy'
 import type { UserRole } from '@/types/afms'
+import { exactIlikePattern, normaliseGuestEmail, STAFF_EMAIL_FOR_GUEST } from '@/lib/guestEmail'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key'
@@ -82,8 +83,29 @@ export async function guestSignIn(input: { fullName?: string; email: string; pho
   const trimmedName = input.fullName?.trim() || ''
   // Lower-cased so "John@x.com" and "john@x.com" are treated as the same
   // returning guest everywhere history is grouped/matched by email.
-  const email = input.email.trim().toLowerCase()
+  const email = normaliseGuestEmail(input.email)
   const phone = input.phone.trim()
+
+  // A staff member's email can't be used as a guest. Checked before any
+  // guest session is started, so a refusal leaves no account behind. Read with
+  // the server-side admin client: nobody signed in yet can see profiles.
+  try {
+    const { data: staff, error: lookupError } = await createAdminClient()
+      .from('profiles')
+      .select('id')
+      .ilike('email', exactIlikePattern(email))
+      .neq('role', 'Guest')
+      .limit(1)
+    if (lookupError) throw new Error(lookupError.message)
+    if (staff && staff.length > 0) {
+      return { success: false, error: STAFF_EMAIL_FOR_GUEST }
+    }
+  } catch (e) {
+    // Admin client not configured or the lookup failed: let the guest in
+    // rather than lock every visitor out; RLS (0054) still keeps a guest from
+    // seeing a staff member's requests.
+    console.error('Guest sign-in: staff email check skipped:', e instanceof Error ? e.message : e)
+  }
 
   // `handle_new_user()` (a SECURITY DEFINER trigger on auth.users) auto-creates
   // the matching `profiles` row from this metadata — passing role/full_name/

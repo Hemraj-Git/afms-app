@@ -167,6 +167,7 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - Rooms/Areas: a sortable table (Room ID, room, building, floor, size, assets, reservable, status, Room Hub / edit / delete) with paging, instead of cards.
   - Reservations grid: each time column reads "9:00 AM" with "to 10:00 AM" beneath.
   - Security (after migration 0054): a guest sees no vendors, documents, spares, departments, templates, asset history or reservations, but can still check in and raise a request with a photo. A signed-out QR scan shows the room/asset name on the sign-in page. A guest's 6th request within an hour is refused with "Please wait". Uploaded files land under a random folder name.
+  - Guest access with a staff member's email (any letter case) is refused: "This email belongs to a staff account. Use Staff sign in with your password instead." No guest session is created. An ordinary email still gets in.
   - Double submits: on a slow connection (DevTools → Network → Slow 3G), press Submit twice on any form (service request, vendor, reservation, add asset) — only one record is created; if the first try times out and you press again, still only one service request.
   - Offline: turn the network off — the desktop shows "You're offline" at the top.
   - Notifications: one notification centre, the bell. Its panel has a close (x) button and also closes with Escape or a click outside. The dashboard has no "Admin Notifications" button; its amber panel is "N new service requests waiting to be assigned" (the triage queue).
