@@ -33,6 +33,7 @@ import type { FirstScheduleMode } from '@/lib/firstSchedule'
 import { getLocalDateStr } from '@/lib/dateUtils'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
+import { DEFAULT_SLA_CONFIG, saveSlaSettings, slaSettingsKey, useSlaSettings } from '@/lib/queries/slaSettings'
 import { generateUUID } from '@/lib/uuid'
 import { allocateVendor, useAddVendor, useDeleteVendor, useUpdateVendor, useVendors, vendorKeys } from '@/lib/queries/vendors'
 import { allocateDepartment, departmentKeys, useAddDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from '@/lib/queries/departments'
@@ -209,7 +210,9 @@ interface AFMSContextType {
   
   // SLA Configuration (Hours per tier)
   slaConfig: SlaConfig
-  updateSlaConfig: (config: Partial<SlaConfig>) => void
+  // Saves the SLA hours for everyone (Admins only). They apply to service
+  // requests raised from then on; existing ones keep their own deadline.
+  updateSlaConfig: (config: SlaConfig) => Promise<boolean>
 
   // Clear data utilities
   clearAllData: () => void
@@ -536,23 +539,27 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   ]
   const [roomTypes, setRoomTypes] = useState<string[]>(defaultRoomTypes)
 
-  const defaultSlaConfig: SlaConfig = {
-    Critical: 4, // 4 hours
-    High: 12,    // 12 hours
-    Medium: 24,  // 24 hours
-    Low: 48,     // 48 hours
-  }
-  const [slaConfig, setSlaConfig] = useState<SlaConfig>(defaultSlaConfig)
+  // SLA hours: one setting for everyone, in the database (0055).
+  const slaSettingsQuery = useSlaSettings(queriesEnabled)
+  const slaConfig: SlaConfig = slaSettingsQuery.data ?? DEFAULT_SLA_CONFIG
 
-  const updateSlaConfig = (config: Partial<SlaConfig>) => {
-    setSlaConfig(prev => ({ ...prev, ...config }))
+  const updateSlaConfig = async (config: SlaConfig): Promise<boolean> => {
+    try {
+      await saveSlaSettings(config)
+      await queryClient.invalidateQueries({ queryKey: slaSettingsKey })
+      showToast('success', 'SLA hours saved. They apply to service requests raised from now on.')
+      return true
+    } catch (e) {
+      showToast('error', `Could not save the SLA hours: ${e instanceof Error ? e.message : 'unknown error'}`)
+      return false
+    }
   }
 
   // 1. Client startup initialization
   React.useEffect(() => {
     try {
-      const savedSla = localStorage.getItem('afms_sla_config')
-      if (savedSla) setSlaConfig(JSON.parse(savedSla))
+      // SLA hours used to be kept per browser; they live in the database now.
+      localStorage.removeItem('afms_sla_config')
 
       const savedRoomTypes = localStorage.getItem('afms_room_types')
       if (savedRoomTypes) setRoomTypes(JSON.parse(savedRoomTypes))
@@ -694,12 +701,11 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!isInitialized) return
     try {
-      localStorage.setItem('afms_sla_config', JSON.stringify(slaConfig))
       localStorage.setItem('afms_room_types', JSON.stringify(roomTypes))
     } catch (err) {
       console.warn('Could not persist AFMS settings to local storage:', err)
     }
-  }, [isInitialized, slaConfig, roomTypes])
+  }, [isInitialized, roomTypes])
 
   const clearAllData = () => {
     queryClient.setQueryData(campusKeys.list(currentUser.id), [])

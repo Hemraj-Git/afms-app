@@ -27,6 +27,7 @@ export function mapServiceRequestRow(sr: TableRow<'service_requests'>): ServiceR
     priority: (sr.priority || 'Medium') as ServiceRequest['priority'],
     createdAt: sr.created_at,
     slaDueDate: sr.sla_due_date ?? '',
+    slaHours: sr.sla_hours ?? undefined,
     photoUrls: sr.photo_urls || [],
     workOrderNumber: sr.work_order_number ?? undefined,
     workOrderId: sr.work_order_id ?? undefined,

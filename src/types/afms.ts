@@ -233,6 +233,9 @@ export interface ServiceRequest {
   priority: 'Low' | 'Medium' | 'High' | 'Critical'
   createdAt: string
   slaDueDate: string
+  // The SLA hours this request was given when it was raised (0055); later
+  // changes to the SLA settings don't alter it.
+  slaHours?: number
   photoUrls?: string[]
   workOrderNumber?: string
   workOrderId?: string

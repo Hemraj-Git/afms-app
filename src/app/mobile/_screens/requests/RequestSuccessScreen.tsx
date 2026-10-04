@@ -3,7 +3,7 @@
 import React from 'react'
 import { CircleCheck, Clock, MapPin } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
-import { slaHours } from '@/lib/fieldRequests'
+import { slaHoursOf } from '@/lib/queries/slaSettings'
 import { whenText } from '@/lib/fieldTasks'
 import { Button, Card, IdText } from '@/components/field'
 
@@ -34,7 +34,7 @@ export function RequestSuccessScreen({ requestId, onViewAll, onDone }: { request
           <span className="flex items-start gap-[7px] text-[15px]">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-fa-text-2" strokeWidth={2} aria-hidden />
             <span>
-              <b>Expected within {slaHours(sr.priority, slaConfig)} h</b>
+              <b>Expected within {slaHoursOf(sr, slaConfig)} h</b>
               <span className="block text-fa-text-2">
                 by {whenText(sr.slaDueDate)} · {sr.priority} SLA
               </span>

@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { serviceRequestSchemaFor, type ServiceRequestForm } from '@/lib/validation/forms'
 import { requestTitle } from '@/lib/fieldRequests'
+import { slaHoursOf } from '@/lib/queries/slaSettings'
 import { generateUUID } from '@/lib/uuid'
 import { CameraCaptureButton } from '@/components/ui/CameraCaptureButton'
 import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components/ui/FormField'
@@ -412,7 +413,7 @@ export default function ServiceRequestsPage() {
           }`}>
             {req.priority}
           </span>
-          <p className="text-[10px] font-medium text-slate-400 whitespace-nowrap">{slaConfig[req.priority as SlaPriority] || 24}h SLA</p>
+          <p className="text-[10px] font-medium text-slate-400 whitespace-nowrap">{slaHoursOf(req, slaConfig)}h SLA</p>
         </div>
       ),
     },
@@ -624,7 +625,7 @@ export default function ServiceRequestsPage() {
                       <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
                       <div>
                         <p className="font-bold text-rose-900">SLA Priority: {currentTicket.priority}</p>
-                        <p className="text-[11px] text-rose-700">Must be resolved within {slaConfig[currentTicket.priority as SlaPriority] || 24} hours</p>
+                        <p className="text-[11px] text-rose-700">Must be resolved within {slaHoursOf(currentTicket, slaConfig)} hours</p>
                       </div>
                     </div>
                     <span className="text-[10px] font-mono font-bold bg-white text-rose-700 px-2 py-1 rounded border border-rose-200">

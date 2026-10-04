@@ -345,10 +345,9 @@ export default function WorkOrdersHubPage() {
     },
   ]
 
-  const handleSaveSla = (e: React.FormEvent) => {
+  const handleSaveSla = async (e: React.FormEvent) => {
     e.preventDefault()
-    updateSlaConfig(tempSla)
-    setShowSlaModal(false)
+    if (await updateSlaConfig(tempSla)) setShowSlaModal(false)
   }
 
   const handleCreateSubmit = handleSubmit(
@@ -738,7 +737,7 @@ export default function WorkOrdersHubPage() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Configure SLA Resolution Hours</h3>
-                  <p className="text-xs text-slate-500">Define maximum allowable resolution time for Service Requests by priority tier</p>
+                  <p className="text-xs text-slate-500">Hours to resolve a service request, by priority. Saved for everyone; applies to requests raised from now on — existing requests keep their deadlines.</p>
                 </div>
                 <button onClick={() => setShowSlaModal(false)} className="text-slate-400 hover:text-slate-600">
                   <X className="w-5 h-5" />

@@ -1,5 +1,5 @@
 // Generated from the live Supabase schema (Supabase MCP `generate_typescript_types`,
-// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043, 0052's columns and add_field_vendor, and 0053's schedule_asset_maintenance added by hand). Do not edit by hand -- regenerate after a
+// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043, 0052's columns and add_field_vendor, and 0053's schedule_asset_maintenance, 0054's functions and 0055's sla_settings added by hand). Do not edit by hand -- regenerate after a
 // migration changes a table, e.g. `npx supabase gen types typescript --project-id <id>`.
 // Convenience aliases (Row/Insert/Update by table name) live in src/lib/supabase/typed.ts.
 
@@ -957,6 +957,27 @@ export type Database = {
           },
         ]
       }
+      sla_settings: {
+        Row: {
+          priority: string
+          hours: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          priority: string
+          hours: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          priority?: string
+          hours?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       service_requests: {
         Row: {
           asset_id: string | null
@@ -978,6 +999,7 @@ export type Database = {
           resolution_notes: string | null
           room_id: string | null
           sla_due_date: string | null
+          sla_hours: number | null
           status: string | null
           ticket_id: string
           title: string
@@ -1006,6 +1028,7 @@ export type Database = {
           resolution_notes?: string | null
           room_id?: string | null
           sla_due_date?: string | null
+          sla_hours?: number | null
           status?: string | null
           ticket_id: string
           title: string
@@ -1034,6 +1057,7 @@ export type Database = {
           resolution_notes?: string | null
           room_id?: string | null
           sla_due_date?: string | null
+          sla_hours?: number | null
           status?: string | null
           ticket_id?: string
           title?: string
