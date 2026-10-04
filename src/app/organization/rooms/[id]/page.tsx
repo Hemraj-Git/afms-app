@@ -362,7 +362,7 @@ export default function RoomDetailPage() {
 
                     <div>
                       <p className="text-slate-400 font-semibold text-[11px]">Room Size</p>
-                      <p className="text-sm font-bold text-slate-900 mt-0.5">{room.roomSizeSqft || 400} Sqft</p>
+                      <p className="text-sm font-bold text-slate-900 mt-0.5">{room.roomSizeSqft ? `${room.roomSizeSqft} Sqft` : '—'}</p>
                     </div>
                   </div>
                 </div>

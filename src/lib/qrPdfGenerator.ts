@@ -128,7 +128,7 @@ export async function generateRoomPlacardsPdf(
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(71, 85, 105)
-    doc.text(`Floor: ${room.floor || 'Ground'}`, infoX, y + 43)
+    doc.text(`Floor: ${room.floor || '-'}`, infoX, y + 43)
 
     doc.setFont('courier', 'normal')
     doc.setFontSize(7.5)

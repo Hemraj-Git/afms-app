@@ -217,7 +217,7 @@ export default function QrDashboardPage() {
       cell: ({ row: { original: room } }) => (
         <>
           <p className="font-bold text-slate-900">{room.name}</p>
-          <p className="text-[11px] text-slate-400">Floor: {room.floor || 'Ground'}</p>
+          <p className="text-[11px] text-slate-400">Floor: {room.floor || '—'}</p>
         </>
       ),
     },
@@ -661,7 +661,7 @@ export default function QrDashboardPage() {
                                   {room.name}
                                 </h2>
                                 <p className="text-[11px] text-slate-600">
-                                  Floor: <strong>{room.floor || 'Ground'}</strong>
+                                  Floor: <strong>{room.floor || '—'}</strong>
                                 </p>
                                 <p className="text-[10px] font-mono text-slate-400 truncate">
                                   Tag: {room.qrCodeKey}
