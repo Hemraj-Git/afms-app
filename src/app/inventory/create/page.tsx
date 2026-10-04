@@ -34,6 +34,7 @@ import { showToast } from '@/lib/toast'
 import { useFormCheck } from '@/lib/useFormCheck'
 import { inventoryItemSchema, nameSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export default function AddInventoryPage() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-slate-500 font-medium">Loading Inventory Wizard...</div>}>
@@ -64,6 +65,8 @@ function AddInventoryForm() {
     updateDocument,
     currentUser,
   } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
 
   const isEditMode = Boolean(editId)
   const existingItem = editId ? inventoryItems.find(i => i.id === editId || i.inventoryNumber === editId) : undefined
@@ -990,7 +993,7 @@ function AddInventoryForm() {
               ) : (
                 <button
                   type="button"
-                  onClick={handleFinalSubmit}
+                  onClick={submitOnce(handleFinalSubmit)}
                   className="btn btn-primary"
                 >
                   {isEditMode ? `Save & Update Spare (${inventoryId})` : `Confirm & Save to Inventory (${inventoryId})`}
@@ -1018,7 +1021,7 @@ function AddInventoryForm() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveNewVendor} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSaveNewVendor)} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Vendor / Company Name <span className="text-rose-500">*</span>
@@ -1111,7 +1114,7 @@ function AddInventoryForm() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveNewDocument} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSaveNewDocument)} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Document Title *</label>
                   <input

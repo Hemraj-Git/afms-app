@@ -6,6 +6,7 @@
 // else (e.g. embedding the file as a base64 data URL) rather than losing
 // the capture entirely.
 import { supabase } from '@/lib/supabase'
+import { generateUUID } from '@/lib/uuid'
 
 export type StorageBucket = 'asset-images' | 'documents' | 'work-order-evidence' | 'facility-documents'
 
@@ -60,8 +61,10 @@ export async function uploadToStorage(file: File, bucket: StorageBucket): Promis
       return null
     }
     const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    // Unique per upload (timestamp prefix), so never overwrite an existing file.
-    const fileName = `${Date.now()}_${cleanName}`
+    // A random folder per upload: never overwrites a file, and as the buckets
+    // are public the address must not be guessable (a timestamp plus a name
+    // like invoice.pdf was).
+    const fileName = `${generateUUID()}/${cleanName}`
     const { error } = await supabase.storage
       .from(bucket)
       .upload(fileName, file, { cacheControl: '3600', upsert: false, contentType: resolveContentType(file) })

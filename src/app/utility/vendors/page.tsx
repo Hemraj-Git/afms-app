@@ -26,8 +26,11 @@ import { Modal } from '@/components/ui/Modal'
 import { useFormCheck } from '@/lib/useFormCheck'
 import { nameSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export default function VendorsPage() {
   const { vendors, addVendor, updateVendor, deleteVendor, assets } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('')
@@ -332,7 +335,7 @@ export default function VendorsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveVendor} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSaveVendor)} className="space-y-4 text-xs">
                 {/* 1. Vendor Name */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">

@@ -17,8 +17,11 @@ import { Campus } from '@/types/afms'
 import { Modal } from '@/components/ui/Modal'
 import { showToast } from '@/lib/toast'
 import { confirmAction } from '@/lib/confirm'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export default function CampusPage() {
   const { campuses, buildings, addCampus, updateCampus, deleteCampus } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
   const [searchQuery, setSearchQuery] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingCampus, setEditingCampus] = useState<Campus | null>(null)
@@ -190,7 +193,7 @@ export default function CampusPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSubmit)} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Campus Name *</label>
                   <input

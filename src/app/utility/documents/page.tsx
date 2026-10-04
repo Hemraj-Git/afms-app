@@ -23,9 +23,12 @@ import { showToast } from '@/lib/toast'
 import { useFormCheck } from '@/lib/useFormCheck'
 import { documentUploadSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 
 export default function DocumentLibraryPage() {
   const { documents, assets, addDocument, currentUser } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL')
   const [selectedAssetFilter, setSelectedAssetFilter] = useState<string>('ALL')
@@ -320,7 +323,7 @@ export default function DocumentLibraryPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleUploadSubmit} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleUploadSubmit)} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Document Title *</label>
                   <input

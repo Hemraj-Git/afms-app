@@ -118,13 +118,22 @@ export function useServiceRequests(userId: string, enabled: boolean) {
 // Creating waits for the database: the form shows the minted ticket number, and
 // nothing is added on screen until it exists. The caller shows a failure itself
 // (it catches the rejection), so this doesn't also toast.
+//
+// Safe to retry: the form passes one clientId for the whole draft. On a slow
+// network the first try can be saved while its reply is lost; the retry then
+// hits that same id (a unique-key clash) and is answered with the request
+// already saved -- never a second copy.
 export function useAddServiceRequest(userId: string) {
-  return serviceRequests.useWrite<NewServiceRequest, ServiceRequest>(
+  return serviceRequests.useWrite<NewServiceRequest & { clientId?: string }, ServiceRequest & { alreadySaved?: boolean }>(
     userId,
     'Add service request',
-    async sr => {
-      const id = generateUUID()
+    async ({ clientId, ...sr }) => {
+      const id = clientId || generateUUID()
       const { data, error } = await db.from('service_requests').insert([serviceRequestToInsert({ ...sr, id })]).select().single()
+      if (error?.code === '23505' && clientId) {
+        const { data: existing } = await db.from('service_requests').select('id, ticket_id, created_at').eq('id', id).maybeSingle()
+        if (existing) return { ...sr, id: existing.id, ticketId: existing.ticket_id, createdAt: existing.created_at, alreadySaved: true }
+      }
       if (error || !data) throw new Error(error?.message || 'Failed to create service request.')
       // Keep the caller's own fields (e.g. their role, which has no column) and
       // take the id, ticket number and timestamp the database assigned.

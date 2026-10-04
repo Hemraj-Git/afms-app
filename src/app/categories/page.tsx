@@ -20,8 +20,11 @@ import { confirmAction } from '@/lib/confirm'
 import { useFormCheck } from '@/lib/useFormCheck'
 import { nameSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export default function CategoriesPage() {
   const { categories, subCategories, assets, addCategory, updateCategory, deleteCategory } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
   const [searchQuery, setSearchQuery] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
@@ -205,7 +208,7 @@ export default function CategoriesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSubmit)} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Category Name *</label>
                   <input

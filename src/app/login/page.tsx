@@ -98,9 +98,9 @@ function LoginFormContent() {
     }
   }
 
-  // Which room or asset was scanned, to name it in the notice. Signed-out
-  // visitors may read rooms and assets for exactly this ("Public read ... for
-  // QR scan"); if the lookup fails the notice simply leaves the name out.
+  // Which room or asset was scanned, to name it in the notice. A signed-out
+  // visitor gets only the name and code (qr_target_label, migration 0054),
+  // never the asset's row; if the lookup fails the notice leaves the name out.
   const [scannedName, setScannedName] = useState('')
   useEffect(() => {
     if (!isQrRedirect) return
@@ -109,15 +109,8 @@ function LoginFormContent() {
     const id = params.get('id')
     if (!id || (type !== 'room' && type !== 'asset')) return
     let alive = true
-    const lookup =
-      type === 'room'
-        ? supabase.from('rooms').select('name, room_number').eq('id', id).maybeSingle()
-        : supabase.from('assets').select('name, asset_id').eq('id', id).maybeSingle()
-    lookup.then(({ data }) => {
-      if (!alive || !data) return
-      const row = data as { name?: string; room_number?: string; asset_id?: string }
-      const code = row.room_number || row.asset_id
-      setScannedName(code ? `${row.name} (${code})` : row.name || '')
+    supabase.rpc('qr_target_label', { p_type: type, p_id: id }).then(({ data }) => {
+      if (alive && typeof data === 'string') setScannedName(data)
     })
     return () => {
       alive = false

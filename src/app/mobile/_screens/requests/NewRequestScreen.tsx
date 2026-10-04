@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DoorOpen, Send, Sparkles, Wrench } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
 import type { ServiceRequest } from '@/types/afms'
 import { lockedSlaPriority } from '@/lib/assetSlaPriority'
 import { newRequestProblems, requestTitle, slaDueFromNow, slaHours, type NewRequestField } from '@/lib/fieldRequests'
+import { generateUUID } from '@/lib/uuid'
 import {
   Button, Card, PhotoCapture, PriorityPill, ScreenHeader, SegmentedControl, SelectField, StickyActionBar, TextAreaField, TextButton, TextField,
 } from '@/components/field'
@@ -43,6 +44,9 @@ export function NewRequestScreen({
   const photos = usePhotoSlots({}, onToast)
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState(false)
+  const submittingRef = useRef(false)
+  // One id for this draft, reused on every retry (see useAddServiceRequest).
+  const [requestId] = useState(generateUUID)
   const [failure, setFailure] = useState<string | null>(null)
 
   const room = rooms.find(r => r.id === roomId)
@@ -59,6 +63,8 @@ export function NewRequestScreen({
   const err = (f: NewRequestField) => problems.find(p => p.field === f)?.message
 
   const submit = async () => {
+    // A ref, not state: a second tap in the same frame must see the lock.
+    if (submittingRef.current) return
     setTried(true)
     setFailure(null)
     const found = newRequestProblems(draft)
@@ -66,6 +72,7 @@ export function NewRequestScreen({
       document.getElementById(`req-${found[0].field}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
     }
+    submittingRef.current = true
     setBusy(true)
     try {
       const saved = await addServiceRequest({
@@ -80,12 +87,13 @@ export function NewRequestScreen({
         priority,
         slaDueDate: slaDueFromNow(priority, slaConfig),
         photoUrls: photos.urlOf('photo') ? [photos.urlOf('photo')] : [],
-      })
+      }, requestId)
       onDirtyChange(false)
       onSubmitted(saved.id)
     } catch (e) {
       setFailure(e instanceof Error ? e.message : 'The request could not be sent. Try again.')
       setBusy(false)
+      submittingRef.current = false
     }
   }
 

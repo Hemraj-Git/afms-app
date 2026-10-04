@@ -39,6 +39,7 @@ import { useFormCheck } from '@/lib/useFormCheck'
 import { deploySchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
 import { confirmAction } from '@/lib/confirm'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export default function InventoryDashboardPage() {
   const router = useRouter()
   const {
@@ -54,6 +55,8 @@ export default function InventoryDashboardPage() {
     vendors,
     users,
   } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('')
@@ -578,7 +581,7 @@ export default function InventoryDashboardPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleConfirmDeploy} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleConfirmDeploy)} className="space-y-4 text-xs">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 space-y-1">
                   <p className="font-bold text-slate-900">{deployItem.name}</p>
                   <p className="text-slate-500">
@@ -708,7 +711,7 @@ export default function InventoryDashboardPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveStockAdjust} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSaveStockAdjust)} className="space-y-4 text-xs">
                 <div>
                   <p className="font-semibold text-slate-800">{adjustItem.name}</p>
                   <p className="text-[11px] text-slate-400">{adjustItem.inventoryNumber} • {adjustItem.storageLocation}</p>

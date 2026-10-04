@@ -38,6 +38,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/DataTable'
 import { scheduleGaps } from '@/lib/assetSchedules'
 import { PM_AND_INSPECTIONS, ScheduleGapsPanel } from '@/components/maintenance/ScheduleGapsPanel'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 
 export default function SubCategoriesPage() {
   const {
@@ -52,6 +53,8 @@ export default function SubCategoriesPage() {
     deleteSubCategory,
     addChecklistTemplate,
   } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -972,7 +975,7 @@ export default function SubCategoriesPage() {
                   ) : (
                     <button
                       type="button"
-                      onClick={handleFinalPublish}
+                      onClick={submitOnce(handleFinalPublish)}
                       className="btn btn-primary"
                     >
                       {editingSub ? 'Update Sub-Category' : `Publish Sub-Category (${previewSubCategoryId})`}
@@ -998,7 +1001,7 @@ export default function SubCategoriesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveInlineTemplate} className="space-y-4 text-xs overflow-y-auto flex-1 pr-1">
+              <form onSubmit={submitOnce(handleSaveInlineTemplate)} className="space-y-4 text-xs overflow-y-auto flex-1 pr-1">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Template Title *</label>
                   <input

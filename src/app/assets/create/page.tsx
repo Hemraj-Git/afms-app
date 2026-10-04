@@ -45,6 +45,7 @@ import {
   scheduleConfirmLines,
   type ScheduleChoice,
 } from '@/components/maintenance/NewAssetSchedules'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export const DEFAULT_ASSET_PLACEHOLDER_IMAGE = '/images/asset-placeholder.png'
 
 export default function AddAssetPage() {
@@ -81,6 +82,8 @@ function AddAssetForm() {
     updateDocument,
     currentUser,
   } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
 
   const [currentStep, setCurrentStep] = useState(1)
 
@@ -1382,7 +1385,7 @@ function AddAssetForm() {
               ) : (
                 <button
                   type="button"
-                  onClick={handleFinalSubmit}
+                  onClick={submitOnce(handleFinalSubmit)}
                   disabled={isUploadingImage || isUploadingDoc}
                   className="btn btn-primary"
                 >
@@ -1413,7 +1416,7 @@ function AddAssetForm() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveNewVendor} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSaveNewVendor)} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Vendor / Company Name <span className="text-rose-500">*</span>
@@ -1508,7 +1511,7 @@ function AddAssetForm() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveNewDocument} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSaveNewDocument)} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Document Title *</label>
                   <input

@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { serviceRequestSchemaFor, type ServiceRequestForm } from '@/lib/validation/forms'
 import { requestTitle } from '@/lib/fieldRequests'
+import { generateUUID } from '@/lib/uuid'
 import { CameraCaptureButton } from '@/components/ui/CameraCaptureButton'
 import { FieldError, INVALID, focusFirstError, invalidProps } from '@/components/ui/FormField'
 import { showToast } from '@/lib/toast'
@@ -113,6 +114,8 @@ export default function ServiceRequestsPage() {
   const openCreateModal = () => {
     reset(blankRequest())
     setRequestPhoto('')
+    // One id for this draft, reused if Submit is pressed again after a lost reply.
+    requestIdRef.current = generateUUID()
     setShowCreateModal(true)
   }
 
@@ -173,6 +176,7 @@ export default function ServiceRequestsPage() {
   // The ref blocks a second click that lands before React re-renders with the
   // disabled button; the state is what disables it and shows "Submitting…".
   const isSubmittingRef = useRef(false)
+  const requestIdRef = useRef('')
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
 
   // Runs only once the form is valid; otherwise the errors show under the
@@ -208,7 +212,7 @@ export default function ServiceRequestsPage() {
           status: 'Open',
           priority: finalPriority,
           slaDueDate,
-        })
+        }, requestIdRef.current || undefined)
 
         setShowCreateModal(false)
         reset(blankRequest())

@@ -24,6 +24,7 @@ import { confirmAction } from '@/lib/confirm'
 import { useFormCheck } from '@/lib/useFormCheck'
 import { templateSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export default function MaintenanceTemplatesPage() {
   const {
     checklistTemplates,
@@ -34,6 +35,8 @@ export default function MaintenanceTemplatesPage() {
     updateChecklistTemplate,
     deleteChecklistTemplate,
   } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
 
   const pmTemplates = checklistTemplates.filter(t => t.type === 'Preventive Maintenance')
 
@@ -325,7 +328,7 @@ export default function MaintenanceTemplatesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4 text-xs overflow-y-auto flex-1 pr-1">
+              <form onSubmit={submitOnce(handleSubmit)} className="space-y-4 text-xs overflow-y-auto flex-1 pr-1">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Template Title *</label>
                   <input

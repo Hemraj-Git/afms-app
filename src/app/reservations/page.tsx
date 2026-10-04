@@ -37,6 +37,7 @@ import { useFormCheck } from '@/lib/useFormCheck'
 import { reservationSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
 import { confirmAction } from '@/lib/confirm'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export default function ReservationsPage() {
   const {
     rooms,
@@ -48,6 +49,8 @@ export default function ReservationsPage() {
     deleteReservation,
     currentUser,
   } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
 
   const reservableRooms = rooms.filter(r => r.isReservable)
 
@@ -708,7 +711,7 @@ export default function ReservationsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleConfirmReservation} className="space-y-5 text-xs">
+              <form onSubmit={submitOnce(handleConfirmReservation)} className="space-y-5 text-xs">
                 {/* 1. Target Room Selection */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">

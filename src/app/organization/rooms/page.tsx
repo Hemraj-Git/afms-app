@@ -29,6 +29,7 @@ import { nameSchema, roomSchema } from '@/lib/validation/forms'
 import { INVALID } from '@/components/ui/FormField'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/DataTable'
+import { useSubmitGuard } from '@/lib/useSubmitGuard'
 export default function RoomsPage() {
   const {
     rooms,
@@ -41,6 +42,8 @@ export default function RoomsPage() {
     updateRoom,
     deleteRoom,
   } = useAFMS()
+  // One save at a time: a double click or a slow network can't save twice.
+  const { guard: submitOnce } = useSubmitGuard()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [roomTypeFilter, setRoomTypeFilter] = useState('ALL')
@@ -506,7 +509,7 @@ export default function RoomsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSubmit)} className="space-y-4 text-xs">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">1. Select Campus *</label>
@@ -662,7 +665,7 @@ export default function RoomsPage() {
               </div>
 
               {/* Add Input Form */}
-              <form onSubmit={handleSaveNewRoomType} className="space-y-4 text-xs">
+              <form onSubmit={submitOnce(handleSaveNewRoomType)} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">New Room Type Name *</label>
                   <div className="flex items-center gap-2">

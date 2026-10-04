@@ -1330,6 +1330,14 @@ export type Database = {
         Args: { p_name: string; p_phone: string; p_contact_person: string; p_category: string }
         Returns: string
       }
+      qr_target_label: {
+        Args: { p_type: string; p_id: string }
+        Returns: string | null
+      }
+      is_staff: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       schedule_asset_maintenance: {
         Args: { p_asset_ids: string[]; p_template_id: string; p_mode: string; p_first_due?: string }
         Returns: { asset_id: string; due_date: string | null; status: string; reason: string | null }[]

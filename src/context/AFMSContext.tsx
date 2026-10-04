@@ -174,7 +174,8 @@ interface AFMSContextType {
   
   // Service Requests (SR-YYYY-#### automatically generated, unchangeable)
   serviceRequests: ServiceRequest[]
-  addServiceRequest: (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>) => Promise<ServiceRequest>
+  // clientId: one id per draft, so a retry after a lost reply never makes a second request.
+  addServiceRequest: (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>, clientId?: string) => Promise<ServiceRequest>
   updateServiceRequestStatus: (
     id: string,
     status: ServiceRequest['status'],
@@ -1305,7 +1306,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   // client-computed guess previously collided with existing tickets a
   // Guest/Technician's RLS-scoped view couldn't see, silently failing the
   // insert while the UI still showed a false "success".)
-  const addServiceRequest = async (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>): Promise<ServiceRequest> => {
+  const addServiceRequest = async (sr: Omit<ServiceRequest, 'id' | 'ticketId' | 'createdAt'>, clientId?: string): Promise<ServiceRequest> => {
     // Stamped from the real session, not the caller — this is what the
     // RLS "own service_requests" policies key off, so it must always be
     // the actual signed-in user regardless of what a caller passes in.
@@ -1313,13 +1314,15 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     // every login) read requests raised in a previous visit — see the
     // "Guest read same-email service_requests" RLS policy.
     // Rejects if the database refuses; the form shows the message itself.
-    const newSr = await addServiceRequestMutation.mutateAsync({
+    const { alreadySaved, ...newSr } = await addServiceRequestMutation.mutateAsync({
       ...sr,
       requestedByUserId: currentUser.id,
       requestedByEmail: currentUser.email || undefined,
+      clientId,
     })
 
-    if (sr.assetId) {
+    // A retry that found its request already saved logged it the first time.
+    if (sr.assetId && !alreadySaved) {
       addAssetLog({
         assetId: sr.assetId,
         action: 'Service Request Raised',

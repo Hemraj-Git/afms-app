@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, WifiOff } from 'lucide-react'
 import { Sidebar } from '@/components/Sidebar'
 import { Header } from '@/components/Header'
 import { PageSkeleton } from '@/components/ui/Skeleton'
 import { useAFMS } from '@/context/AFMSContext'
+import { useOnline } from '@/lib/useFieldDevice'
 
 // Auth/role gating for every route this layout wraps happens server-side in
 // proxy.ts (redirects unauthenticated requests to /login, non-Admin roles
@@ -64,6 +65,7 @@ export function AppLayout({
     setMobileMenuOpen(prev => !prev)
   }
 
+  const online = useOnline()
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 print:h-auto print:w-auto print:overflow-visible print:bg-white">
       {/* Desktop Fixed Sidebar */}
@@ -93,6 +95,14 @@ export function AppLayout({
         />
 
         {/* Scrollable Right-Side Main Content (Only this pane scrolls) */}
+        {/* No connection: nothing can be saved until it is back, so say so before
+            someone fills in a form. */}
+        {!online ? (
+          <div role="status" className="flex items-center gap-2 px-6 py-2 bg-amber-50 border-b border-amber-200 text-xs font-medium text-amber-900 print:hidden">
+            <WifiOff className="w-4 h-4 shrink-0" aria-hidden="true" />
+            You&apos;re offline. Changes can&apos;t be saved until the connection is back.
+          </div>
+        ) : null}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 scrollbar-thin print:p-0 print:overflow-visible print:h-auto">
           {isDataLoading ? (
             loadingFallback ?? <PageSkeleton />
