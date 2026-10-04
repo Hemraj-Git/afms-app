@@ -34,7 +34,7 @@ export function BottomSheet({
       initialFocusRef={initialFocusRef}
       overlayClassName={SHEET_OVERLAY}
       className={cn(
-        'flex max-h-[92dvh] w-full max-w-[480px] flex-col gap-4 overflow-y-auto rounded-t-[22px] bg-fa-surface px-4 pt-2.5 font-plex text-fa-text shadow-fa-sheet',
+        'flex max-h-[92dvh] w-full max-w-[480px] flex-col gap-4 overflow-y-auto [&>*]:shrink-0 rounded-t-[22px] bg-fa-surface px-4 pt-2.5 font-plex text-fa-text shadow-fa-sheet',
         'pb-[max(20px,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom',
         className,
       )}

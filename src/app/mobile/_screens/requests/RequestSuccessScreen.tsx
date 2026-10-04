@@ -15,7 +15,7 @@ export function RequestSuccessScreen({ requestId, onViewAll, onDone }: { request
   const room = rooms.find(r => r.id === sr?.roomId)
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col items-center gap-5 overflow-y-auto px-4 pb-6 pt-[max(48px,env(safe-area-inset-top))] text-center">
+    <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 items-center gap-5 overflow-y-auto px-4 pb-6 pt-[max(48px,env(safe-area-inset-top))] text-center">
       <span className="flex h-24 w-24 items-center justify-center rounded-full bg-fa-success-weak">
         <CircleCheck className="h-14 w-14 text-fa-success" strokeWidth={2} aria-hidden />
       </span>

@@ -220,7 +220,7 @@ function WorkOrderForm({ wo, onBack, onSaved, onToast, onDirtyChange }: WorkOrde
     <>
       {photos.input}
       <ScreenHeader kicker={`${number} · ${jobKindOf(wo)}`} title={wo.title || asset?.name || 'Work order'} onBack={onBack} />
-      <main className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 gap-3.5 overflow-y-auto p-4">
         <AssetSummary
           kind={preventive ? 'Preventive' : 'Breakdown'}
           name={asset?.name ?? 'Room equipment'}

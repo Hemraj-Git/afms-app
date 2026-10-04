@@ -126,7 +126,7 @@ function InspectionRun({ insp, onBack, onToast, onDirtyChange }: InspectionScree
     <>
       {photos.input}
       <ScreenHeader kicker={insp.inspectionNumber} title={template?.title ?? 'Inspection'} onBack={onBack} />
-      <main className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 gap-3.5 overflow-y-auto p-4">
         <AssetSummary
           kind="Inspection"
           name={asset?.name ?? 'Asset'}
@@ -300,7 +300,7 @@ function InspectionResult({ insp, onBack }: { insp: Inspection; onBack: () => vo
   return (
     <>
       <ScreenHeader kicker={`${insp.inspectionNumber} · Result`} title={asset?.name ?? template?.title ?? 'Inspection'} onBack={onBack} />
-      <main className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 gap-3.5 overflow-y-auto p-4">
         <section
           className={cn(
             'flex flex-col items-center gap-2 rounded-2xl border-2 px-4 py-6 text-center',

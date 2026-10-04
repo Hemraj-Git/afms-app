@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkOrder } from '@/types/afms'
 import {
-  assetFor, checklistProgress, cleaningCounts, cleaningFor, draftProblems, dueFact, dueText, whenText, expectedBackText, jobDateText, jobKindOf, longDate, preventiveLock, placeText, shortDate, taskCounts, tasksFor,
+  assetFor, checklistProgress, cleaningCounts, cleaningFor, draftProblems, dueFact, dueText, floorText, whenText, expectedBackText, jobDateText, jobKindOf, longDate, preventiveLock, placeText, shortDate, taskCounts, tasksFor,
   type WorkOrderDraft,
 } from './fieldTasks'
 
@@ -154,6 +154,14 @@ describe('where a job is', () => {
     expect(placeText({ name: 'DG Yard', roomNumber: 'R-0003', buildingId: 'b1' }, buildings)).toBe('DG Yard (R-0003) · Utility Block')
     expect(placeText({ name: 'DG Yard', roomNumber: '', buildingId: 'gone' }, buildings)).toBe('DG Yard')
     expect(placeText(undefined, buildings)).toBe('')
+  })
+
+  it('floorText says the floor once', () => {
+    expect(floorText('2')).toBe('Floor 2')
+    expect(floorText('3rd Floor')).toBe('3rd Floor')
+    expect(floorText('Ground')).toBe('Ground floor')
+    expect(floorText('')).toBe('')
+    expect(floorText(undefined)).toBe('')
   })
 })
 

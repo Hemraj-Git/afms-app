@@ -36,7 +36,7 @@ export function RequestScreen({ requestId, onBack }: { requestId: string; onBack
   return (
     <>
       <ScreenHeader kicker={sr.ticketId} title={sr.title} onBack={onBack} />
-      <main className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 gap-3.5 overflow-y-auto p-4">
         <Card>
           <div className="flex items-center gap-2">
             <IdText className="flex-1">{sr.ticketId}</IdText>

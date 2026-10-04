@@ -87,7 +87,7 @@ export function NotificationsScreen({
   return (
     <>
       <ScreenHeader kicker="Field Operations" title="Notifications" onBack={onBack} />
-      <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 gap-4 overflow-y-auto p-4">
         {notifications.length === 0 ? (
           <EmptyState icon={Bell} title="No notifications yet" action={<Button block={false} onClick={onBack}>{backLabel}</Button>}>
             New assignments, due inspections and updates on your requests will show up here.

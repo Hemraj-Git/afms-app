@@ -203,6 +203,15 @@ export function placeText(room: Pick<Room, 'name' | 'roomNumber' | 'buildingId'>
   return building ? `${where} · ${building}` : where
 }
 
+// A room's floor as people say it: "2" -> "Floor 2", "Ground" -> "Ground floor",
+// and a value that already says floor ("3rd Floor") as it is.
+export function floorText(floor: string | undefined | null): string {
+  const f = (floor ?? '').trim()
+  if (!f) return ''
+  if (/^\d+$/.test(f)) return `Floor ${f}`
+  return /\bfloor\b/i.test(f) ? f : `${f} floor`
+}
+
 // The "Due" fact on the job screen: "Today", "7 Oct", "Overdue by 2 days" --
 // or, once finished, "Completed" and when.
 export function dueFact(wo: Pick<WorkOrder, 'status' | 'dueDate' | 'completedAt'>, now: Date = new Date()): { label: string; value?: string; tone?: 'danger' } {

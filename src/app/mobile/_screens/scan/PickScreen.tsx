@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react'
 import { ChevronRight, Search } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
-import { placeText } from '@/lib/fieldTasks'
+import { floorText, placeText } from '@/lib/fieldTasks'
 import { FilterChips, IdText, RoomPill, ScreenHeader, SegmentedControl, TextField } from '@/components/field'
 
 const SHOWN = 60
@@ -47,7 +47,7 @@ export function PickScreen({
   return (
     <>
       <ScreenHeader kicker="Scan · Choose manually" title={what === 'room' ? 'Pick a room' : 'Pick an asset'} onBack={onBack} />
-      <main className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 gap-3.5 overflow-y-auto p-4">
         <SegmentedControl
           label="What to find"
           value={what}
@@ -90,7 +90,7 @@ export function PickScreen({
                           {r.name} <IdText>{r.roomNumber}</IdText>
                         </span>
                         <span className="text-sm text-fa-text-2">
-                          {[buildings.find(b => b.id === r.buildingId)?.name, r.floor ? `Floor ${r.floor}` : ''].filter(Boolean).join(' · ')}
+                          {[buildings.find(b => b.id === r.buildingId)?.name, floorText(r.floor)].filter(Boolean).join(' · ')}
                         </span>
                       </span>
                       <RoomPill value={r.status === 'Occupied' ? 'Occupied' : 'Available'} />

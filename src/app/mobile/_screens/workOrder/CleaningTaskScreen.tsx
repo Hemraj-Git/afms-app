@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Camera, CheckCheck, CircleCheck, ClipboardList, Save, Sparkles } from 'lucide-react'
 import { useAFMS } from '@/context/AFMSContext'
 import type { WorkOrder } from '@/types/afms'
-import { checklistProgress, draftProblems, dueFact, jobDateText, longDate, whenText, type ChecklistResponses, type DraftField, type SaveIntent } from '@/lib/fieldTasks'
+import { checklistProgress, draftProblems, dueFact, floorText, jobDateText, longDate, whenText, type ChecklistResponses, type DraftField, type SaveIntent } from '@/lib/fieldTasks'
 import { HK_CHECKLIST_ITEMS, HK_SOLUTION } from '@/lib/housekeeping'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import {
@@ -127,12 +127,12 @@ export function CleaningTaskScreen({
     <>
       {photos.input}
       <ScreenHeader kicker={`${number} · Housekeeping`} title={wo.title || room?.name || 'Cleaning task'} onBack={onBack} />
-      <main className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 gap-3.5 overflow-y-auto p-4">
         <AssetSummary
           kind="Cleaning"
           name={room?.name ?? 'Room'}
           code={room?.roomNumber}
-          place={[building, room?.floor ? (/^\d+$/.test(room.floor) ? `Floor ${room.floor}` : `${room.floor} floor`) : ''].filter(Boolean).join(' · ') || undefined}
+          place={[building, floorText(room?.floor)].filter(Boolean).join(' · ') || undefined}
           pills={
             <>
               <PriorityPill value={wo.priority ?? 'Medium'} />

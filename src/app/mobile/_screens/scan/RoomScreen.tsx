@@ -88,7 +88,7 @@ export function RoomScreen({
   return (
     <>
       <ScreenHeader kicker="Scanned room" title={label} onBack={onBack} />
-      <main className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col [&>*]:shrink-0 gap-3.5 overflow-y-auto p-4">
         <Card>
           <div className="flex items-start gap-3">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-fa-primary-weak">
