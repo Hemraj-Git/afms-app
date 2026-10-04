@@ -38,16 +38,16 @@ import { deleteRoomTypeRow, insertRoomType, roomTypesKey, useRoomTypes } from '@
 import { generateUUID } from '@/lib/uuid'
 import { allocateVendor, useAddVendor, useDeleteVendor, useUpdateVendor, useVendors, vendorKeys } from '@/lib/queries/vendors'
 import { allocateDepartment, departmentKeys, useAddDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from '@/lib/queries/departments'
-import { allocateCampus, campusKeys, useAddCampus, useCampuses, useDeleteCampus, useUpdateCampus } from '@/lib/queries/campuses'
-import { allocateBuilding, buildingKeys, useAddBuilding, useBuildings, useDeleteBuilding, useUpdateBuilding } from '@/lib/queries/buildings'
-import { allocateCategory, categoryKeys, useAddCategory, useCategories, useDeleteCategory, useUpdateCategory } from '@/lib/queries/categories'
-import { allocateSubCategory, subCategoryKeys, useAddSubCategory, useDeleteSubCategory, useSubCategories, useUpdateSubCategory } from '@/lib/queries/subCategories'
+import { allocateCampus, useAddCampus, useCampuses, useDeleteCampus, useUpdateCampus } from '@/lib/queries/campuses'
+import { allocateBuilding, useAddBuilding, useBuildings, useDeleteBuilding, useUpdateBuilding } from '@/lib/queries/buildings'
+import { allocateCategory, useAddCategory, useCategories, useDeleteCategory, useUpdateCategory } from '@/lib/queries/categories'
+import { allocateSubCategory, useAddSubCategory, useDeleteSubCategory, useSubCategories, useUpdateSubCategory } from '@/lib/queries/subCategories'
 import { allocateRoom, roomKeys, useAddRoom, useDeleteRoom, useRooms, useUpdateRoom } from '@/lib/queries/rooms'
-import { checklistTemplateKeys, newChecklistTemplate, useAddChecklistTemplate, useChecklistTemplates, useDeleteChecklistTemplate, useUpdateChecklistTemplate } from '@/lib/queries/checklistTemplates'
-import { allocateInventoryItem, inventoryKeys, useAddInventoryItem, useDeleteInventoryItem, useInventoryItems, useUpdateInventoryItem } from '@/lib/queries/inventory'
-import { documentKeys, newDocument, useAddDocument, useDocuments, useUpdateDocument, type DocumentEntity } from '@/lib/queries/documents'
+import { newChecklistTemplate, useAddChecklistTemplate, useChecklistTemplates, useDeleteChecklistTemplate, useUpdateChecklistTemplate } from '@/lib/queries/checklistTemplates'
+import { allocateInventoryItem, useAddInventoryItem, useDeleteInventoryItem, useInventoryItems, useUpdateInventoryItem } from '@/lib/queries/inventory'
+import { newDocument, useAddDocument, useDocuments, useUpdateDocument, type DocumentEntity } from '@/lib/queries/documents'
 import { allocateAssets, assetKeys, useAddAssets, useAssets, useUpdateAsset } from '@/lib/queries/assets'
-import { useAddReservations, useDeleteReservation, useReservations, useUpdateReservation, reservationKeys } from '@/lib/queries/reservations'
+import { useAddReservations, useDeleteReservation, useReservations, useUpdateReservation } from '@/lib/queries/reservations'
 import { roomAccessLogKeys, useRoomAccessLogs, withRoomNames } from '@/lib/queries/roomAccessLogs'
 import { inspectionKeys, useAddInspections, useInspections, useUpdateInspection } from '@/lib/queries/inspections'
 import { serviceRequestKeys, useAddServiceRequest, useServiceRequests, useUpdateServiceRequest, withRequesterRoles } from '@/lib/queries/serviceRequests'
@@ -218,8 +218,6 @@ interface AFMSContextType {
   updateSlaConfig: (config: SlaConfig) => Promise<boolean>
 
   // Clear data utilities
-  clearAllData: () => void
-  clearOperationalData: () => void
 
   // PWA Active Check-in status
   activeCheckIn: RoomAccessLog | null
@@ -395,22 +393,12 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   ]
   const queryLoadFailures = migratedQueries.flatMap(q => (q.isError ? [q.error.message] : []))
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (isLoggedIn && currentUser?.id) {
-        localStorage.setItem('afms_current_user_id', currentUser.id)
-      } else if (!isLoggedIn) {
-        localStorage.removeItem('afms_current_user_id')
-      }
-    }
-  }, [currentUser, isLoggedIn])
 
   const login = (user: UserProfile) => {
     setCurrentUser(user)
     setIsLoggedIn(true)
     if (typeof window !== 'undefined') {
       localStorage.setItem('afms_logged_in', 'true')
-      localStorage.setItem('afms_current_user_id', user.id)
     }
     // The actual Supabase auth session is established server-side (see
     // src/app/actions/auth.ts's Server Action), which this browser client
@@ -435,7 +423,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {}
     if (typeof window !== 'undefined') {
       localStorage.setItem('afms_logged_in', 'false')
-      localStorage.removeItem('afms_current_user_id')
     }
   }
 
@@ -555,6 +542,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
 
       // The room types list used to be kept per browser too.
       localStorage.removeItem('afms_room_types')
+      localStorage.removeItem('afms_current_user_id')
 
       // Clean up legacy mock data keys so they do not pollute pure Supabase mode
       const legacyKeys = [
@@ -637,6 +625,13 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
             })
             setIsLoggedIn(true)
           }
+        } else if (isMountedRef.current) {
+          // No session (expired, or signed out elsewhere): the browser's
+          // "signed in" hint must not linger.
+          setIsLoggedIn(false)
+          try {
+            localStorage.setItem('afms_logged_in', 'false')
+          } catch {}
         }
 
 
@@ -684,61 +679,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   })
 
 
-  const clearAllData = () => {
-    queryClient.setQueryData(campusKeys.list(currentUser.id), [])
-    queryClient.setQueryData(buildingKeys.list(currentUser.id), [])
-    queryClient.setQueryData(roomKeys.list(currentUser.id), [])
-    queryClient.setQueryData(categoryKeys.list(currentUser.id), [])
-    queryClient.setQueryData(subCategoryKeys.list(currentUser.id), [])
-    queryClient.setQueryData(vendorKeys.list(currentUser.id), [])
-    queryClient.setQueryData(checklistTemplateKeys.list(currentUser.id), [])
-    queryClient.setQueryData(assetKeys.list(currentUser.id), [])
-    queryClient.setQueryData(inventoryKeys.list(currentUser.id), [])
-    queryClient.setQueryData(reservationKeys.list(currentUser.id), [])
-    queryClient.setQueryData(serviceRequestKeys.list(currentUser.id), [])
-    queryClient.setQueryData(workOrderKeys.list(currentUser.id), [])
-    queryClient.setQueryData(inspectionKeys.list(currentUser.id), [])
-    queryClient.setQueryData(documentKeys.list(currentUser.id), [])
-    queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
-    queryClient.setQueryData(assetActivityLogKeys.list(currentUser.id), [])
-    try {
-      localStorage.removeItem('afms_campuses')
-      localStorage.removeItem('afms_buildings')
-      localStorage.removeItem('afms_rooms')
-      localStorage.removeItem('afms_categories')
-      localStorage.removeItem('afms_subcategories')
-      localStorage.removeItem('afms_vendors')
-      localStorage.removeItem('afms_templates')
-      localStorage.removeItem('afms_assets')
-      localStorage.removeItem('afms_inventory')
-      localStorage.removeItem('afms_reservations')
-      localStorage.removeItem('afms_service_requests')
-      localStorage.removeItem('afms_work_orders')
-      localStorage.removeItem('afms_inspections')
-      localStorage.removeItem('afms_documents')
-      localStorage.removeItem('afms_room_logs')
-      localStorage.removeItem('afms_asset_logs')
-    } catch (e) {
-      console.warn('Error clearing localStorage:', e)
-    }
-  }
-
-  const clearOperationalData = () => {
-    queryClient.setQueryData(serviceRequestKeys.list(currentUser.id), [])
-    queryClient.setQueryData(workOrderKeys.list(currentUser.id), [])
-    queryClient.setQueryData(inspectionKeys.list(currentUser.id), [])
-    queryClient.setQueryData(roomAccessLogKeys.list(currentUser.id), [])
-    queryClient.setQueryData(assetActivityLogKeys.list(currentUser.id), [])
-    try {
-      localStorage.removeItem('afms_service_requests')
-      localStorage.removeItem('afms_work_orders')
-      localStorage.removeItem('afms_inspections')
-      localStorage.removeItem('afms_room_logs')
-      localStorage.removeItem('afms_asset_logs')
-    } catch (e) {
-      console.warn('Error clearing operational localStorage:', e)
-    }
-  }
 
   // 1. User: USR-#### (Immutable ID)
   const addInvitedUser = (profile: UserProfile) => {
@@ -2114,8 +2054,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         addAssetLog,
         slaConfig,
         updateSlaConfig,
-        clearAllData,
-        clearOperationalData,
         activeCheckIn,
         evaluateAutoCheckouts,
         notifications,
