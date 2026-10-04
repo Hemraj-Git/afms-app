@@ -73,7 +73,14 @@ The version shown in About comes from `package.json` (now 1.0.0); raise it for e
 4. **Print the QR labels from `https://soms.assetnxg.app`.** Each QR code holds the address of the page it was printed from, so labels printed from any other address send phones there. (The in-app scanner reads either.)
 5. Staff who installed the app on their phones from the old address should install it again from the new one; push alerts are tied to the address too.
 
-Also check the **Supabase email templates** (Authentication → Emails: invite and password reset) and the sender name: change any "AFMS" there to "AssetNXG".
+**Supabase email templates** (Authentication → Emails → Templates): paste the ready-made, branded templates from the repo — the whole file into *Message body*:
+
+| Template | Subject | Body |
+|---|---|---|
+| Invite user | `You're invited to AssetNXG — School of Maritime Studies` | `supabase/templates/invite.html` |
+| Reset password | `Reset your AssetNXG password` | `supabase/templates/recovery.html` |
+
+They link to `/auth/confirm` (invite and recovery types), say links last 12 hours (as set), greet the person by name, and use the AssetNXG logo from the site (`/icons/icon-192.png`), so set the **Site URL** first. For another client, change "School of Maritime Studies, Centurion University" in both files. Sender name (SMTP settings): **AssetNXG**.
 
 ## D. Getting the code live (when you are ready)
 
