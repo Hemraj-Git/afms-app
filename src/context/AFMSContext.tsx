@@ -34,6 +34,7 @@ import { getLocalDateStr } from '@/lib/dateUtils'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_SLA_CONFIG, saveSlaSettings, slaSettingsKey, useSlaSettings } from '@/lib/queries/slaSettings'
+import { deleteRoomTypeRow, insertRoomType, roomTypesKey, useRoomTypes } from '@/lib/queries/roomTypes'
 import { generateUUID } from '@/lib/uuid'
 import { allocateVendor, useAddVendor, useDeleteVendor, useUpdateVendor, useVendors, vendorKeys } from '@/lib/queries/vendors'
 import { allocateDepartment, departmentKeys, useAddDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from '@/lib/queries/departments'
@@ -98,8 +99,10 @@ interface AFMSContextType {
   deleteRoom: (id: string) => void
   
   // Dynamic Room Types
+  // One list for everyone, in the database (0056). Both resolve true when saved.
   roomTypes: string[]
-  addRoomType: (type: string) => void
+  addRoomType: (type: string) => Promise<boolean>
+  removeRoomType: (type: string) => Promise<boolean>
   
   // Taxonomy CRUD (IDs generated automatically, unchangeable)
   categories: Category[]
@@ -463,8 +466,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     setActiveCheckIn(ownOpenLog || null)
   }, [roomAccessLogs, currentUser.id, currentUser.role])
 
-  const [isInitialized, setIsInitialized] = useState(false)
-
   // A ticket has no requester-role column, so it reads back as "Staff". Show the
   // requester's real role from their profile instead (Guest, Faculty, ...).
   const serviceRequests = React.useMemo(
@@ -526,18 +527,9 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoggedIn, currentUser?.id])
 
-  const defaultRoomTypes = [
-    'Classroom',
-    'Simulator Block',
-    'Engine Room',
-    'Workshop',
-    'Office',
-    'Common Area',
-    'Dining Area',
-    'Laboratory',
-    'Conference Hall',
-  ]
-  const [roomTypes, setRoomTypes] = useState<string[]>(defaultRoomTypes)
+  // Room types: one list for everyone, in the database (0056).
+  const roomTypesQuery = useRoomTypes(queriesEnabled)
+  const roomTypes = React.useMemo(() => roomTypesQuery.data ?? [], [roomTypesQuery.data])
 
   // SLA hours: one setting for everyone, in the database (0055).
   const slaSettingsQuery = useSlaSettings(queriesEnabled)
@@ -561,8 +553,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       // SLA hours used to be kept per browser; they live in the database now.
       localStorage.removeItem('afms_sla_config')
 
-      const savedRoomTypes = localStorage.getItem('afms_room_types')
-      if (savedRoomTypes) setRoomTypes(JSON.parse(savedRoomTypes))
+      // The room types list used to be kept per browser too.
+      localStorage.removeItem('afms_room_types')
 
       // Clean up legacy mock data keys so they do not pollute pure Supabase mode
       const legacyKeys = [
@@ -574,8 +566,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
       legacyKeys.forEach(k => localStorage.removeItem(k))
     } catch (err) {
       console.warn('AFMS initialization warning:', err)
-    } finally {
-      setIsInitialized(true)
     }
   }, [])
 
@@ -693,19 +683,6 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     },
   })
 
-  // 2. Persist the two settings that are actually read back on init (see
-  // above). Every other entity now lives in Supabase and is reloaded from
-  // there on mount — writing it to localStorage on every state change too
-  // was pure overhead with no reader, since the init effect above deleted
-  // those same keys on every mount anyway.
-  React.useEffect(() => {
-    if (!isInitialized) return
-    try {
-      localStorage.setItem('afms_room_types', JSON.stringify(roomTypes))
-    } catch (err) {
-      console.warn('Could not persist AFMS settings to local storage:', err)
-    }
-  }, [isInitialized, roomTypes])
 
   const clearAllData = () => {
     queryClient.setQueryData(campusKeys.list(currentUser.id), [])
@@ -878,10 +855,28 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   }
 
   // Room Types
-  const addRoomType = (newType: string) => {
+  const addRoomType = async (newType: string): Promise<boolean> => {
     const trimmed = newType.trim()
-    if (!trimmed) return
-    setRoomTypes(prev => (prev.includes(trimmed) ? prev : [...prev, trimmed]))
+    if (!trimmed) return false
+    try {
+      await insertRoomType(trimmed)
+      await queryClient.invalidateQueries({ queryKey: roomTypesKey })
+      return true
+    } catch (e) {
+      showToast('error', `Could not add the room type: ${e instanceof Error ? e.message : 'unknown error'}`)
+      return false
+    }
+  }
+
+  const removeRoomType = async (type: string): Promise<boolean> => {
+    try {
+      await deleteRoomTypeRow(type)
+      await queryClient.invalidateQueries({ queryKey: roomTypesKey })
+      return true
+    } catch (e) {
+      showToast('error', `Could not remove "${type}": ${e instanceof Error ? e.message : 'unknown error'}`)
+      return false
+    }
   }
 
   // 5. Category: 4-letter uppercase ID derived automatically from Name e.g. "Electrical" -> "ELEC"
@@ -2060,6 +2055,7 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
         deleteRoom,
         roomTypes,
         addRoomType,
+        removeRoomType,
         categories,
         addCategory,
         updateCategory,

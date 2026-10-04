@@ -38,6 +38,7 @@ export default function RoomsPage() {
     assets,
     roomTypes,
     addRoomType,
+    removeRoomType,
     addRoom,
     updateRoom,
     deleteRoom,
@@ -143,14 +144,21 @@ export default function RoomsPage() {
     }
   }
 
-  const handleSaveNewRoomType = (e: React.FormEvent) => {
+  const handleSaveNewRoomType = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!vType.check()) return
     const trimmed = newRoomTypeName.trim()
-    addRoomType(trimmed)
+    // Saved for everyone; stays open (with a message) if it couldn't be.
+    if (!(await addRoomType(trimmed))) return
     setType(trimmed)
     setShowTypeModal(false)
     setNewRoomTypeName('')
+  }
+
+  // Only a type no room uses can be removed (the database checks too).
+  const handleRemoveRoomType = async (rt: string) => {
+    if (!(await confirmAction(`Remove the room type "${rt}"? No room uses it.`, { confirmLabel: 'Remove' }))) return
+    if (await removeRoomType(rt)) showToast('success', `"${rt}" removed.`)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -702,6 +710,17 @@ export default function RoomsPage() {
                         <Tag className="w-3 h-3 text-blue-600" />
                         <span>{rt}</span>
                         <span className="text-[10px] text-slate-400 font-bold ml-0.5">({count})</span>
+                        {count === 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleRemoveRoomType(rt)}
+                            className="ml-0.5 p-0.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            aria-label={`Remove room type ${rt}`}
+                            title="Remove (no room uses it)"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        ) : null}
                       </span>
                     )
                   })}

@@ -1,5 +1,5 @@
 // Generated from the live Supabase schema (Supabase MCP `generate_typescript_types`,
-// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043, 0052's columns and add_field_vendor, and 0053's schedule_asset_maintenance, 0054's functions and 0055's sla_settings added by hand). Do not edit by hand -- regenerate after a
+// 20 Sep 2026, migrations up to 0034; departments.head_user_id from 0035 and asset_activity_logs.reference_id from 0037, outside_repairs from 0043, 0052's columns and add_field_vendor, and 0053's schedule_asset_maintenance, 0054's functions and 0055's sla_settings and 0056's room_types added by hand). Do not edit by hand -- regenerate after a
 // migration changes a table, e.g. `npx supabase gen types typescript --project-id <id>`.
 // Convenience aliases (Row/Insert/Update by table name) live in src/lib/supabase/typed.ts.
 
@@ -956,6 +956,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      room_types: {
+        Row: {
+          name: string
+          created_at: string
+          created_by: string | null
+        }
+        Insert: {
+          name: string
+          created_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          name?: string
+          created_at?: string
+          created_by?: string | null
+        }
+        Relationships: []
       }
       sla_settings: {
         Row: {
