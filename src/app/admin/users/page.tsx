@@ -1189,8 +1189,8 @@ export default function UsersAdminPage() {
 
                 {!editingUser && (
                   <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl text-[11px] text-blue-900">
-                    This sends a real invite email through Supabase Auth — the person sets their own password
-                    from that email before they can sign in. No password is ever set or stored here.
+                    This sends an invitation email. The person sets their own password from the link in it
+                    (valid for 12 hours) before they can sign in. You never see or set their password.
                   </div>
                 )}
 
