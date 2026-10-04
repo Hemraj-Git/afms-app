@@ -8,6 +8,7 @@ import { PageSkeleton } from '@/components/ui/Skeleton'
 import { isPendingWorkOrder } from '@/lib/idGenerator'
 import { formatDateDisplay, formatTimeDisplay } from '@/lib/dateUtils'
 import { isOutForRepair, isOverdueReturn } from '@/lib/outsideRepairState'
+import { complianceBand, complianceRate, type ComplianceBand } from '@/lib/compliance'
 import {
   Boxes,
   MessageSquare,
@@ -27,6 +28,13 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react'
+
+const COMPLIANCE_PILL: Record<ComplianceBand['tone'], string> = {
+  good: 'text-emerald-700 bg-emerald-50',
+  fair: 'text-amber-700 bg-amber-50',
+  poor: 'text-rose-700 bg-rose-50',
+  none: 'text-slate-500 bg-slate-100',
+}
 
 export default function DashboardPage() {
   const { assets, serviceRequests, workOrders, inspections, rooms, currentUser, outsideRepairs } = useAFMS()
@@ -67,15 +75,12 @@ export default function DashboardPage() {
   const reservedRooms = rooms.filter(r => r.status === 'Occupied')
   const roomReservedCount = reservedRooms.length
 
-  // Quality Compliance Rate calculation
-  const completedInspections = inspections.filter(i => i.status === 'Completed')
-  const passedInspections = completedInspections.filter(i => i.result === 'Pass')
-  const complianceRate = completedInspections.length > 0 
-    ? Math.round((passedInspections.length / completedInspections.length) * 100) 
-    : 100
+  // Passed ÷ completed inspections; null (shown as "—") until one is completed.
+  const complianceScore = complianceRate(inspections)
+  const compliance = complianceBand(complianceScore)
 
   // Asset distribution percentages
-  const operationalPct = totalAssets > 0 ? Math.round((operationalCount / totalAssets) * 100) : 100
+  const operationalPct = totalAssets > 0 ? Math.round((operationalCount / totalAssets) * 100) : 0
   const underMaintPct = totalAssets > 0 ? Math.round((underMaintenanceCount / totalAssets) * 100) : 0
   const retiredPct = totalAssets > 0 ? Math.round((retiredCount / totalAssets) * 100) : 0
 
@@ -462,18 +467,18 @@ export default function DashboardPage() {
                     strokeWidth="18"
                     strokeLinecap="round"
                     strokeDasharray={251.3}
-                    strokeDashoffset={251.3 * (1 - (complianceRate || 96) / 100)}
+                    strokeDashoffset={251.3 * (1 - (complianceScore ?? 0) / 100)}
                     className="transition-all duration-1000 ease-out"
                   />
                 </svg>
 
-                {/* Center Content: 96% and Outstanding Pill */}
+                {/* Center Content: the score and its band */}
                 <div className="absolute inset-0 flex flex-col items-center justify-end pb-1 text-center">
-                  <span className="text-4xl font-extrabold text-slate-800 tracking-tight leading-none mb-2">
-                    {complianceRate || 96}%
+                  <span className={`text-4xl font-extrabold tracking-tight leading-none mb-2 ${complianceScore === null ? 'text-slate-300' : 'text-slate-800'}`}>
+                    {complianceScore === null ? '—' : `${complianceScore}%`}
                   </span>
-                  <span className="inline-flex items-center text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">
-                    {complianceRate >= 90 ? 'Outstanding' : complianceRate >= 75 ? 'Good' : 'Needs Action'}
+                  <span className={`inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full ${COMPLIANCE_PILL[compliance.tone]}`}>
+                    {compliance.label}
                   </span>
                 </div>
               </div>

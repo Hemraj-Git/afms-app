@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { Inspection } from '@/types/afms'
 import { ScheduleGapsBanner } from '@/components/maintenance/ScheduleGapsPanel'
+import { complianceRate } from '@/lib/compliance'
 import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable, sortByOrder, timeOf } from '@/components/ui/DataTable'
@@ -47,8 +48,7 @@ export default function InspectionsPage() {
 
   const passedCount = inspections.filter(i => i.result === 'Pass').length
   const failedCount = inspections.filter(i => i.result === 'Fail').length
-  const completedTotal = inspections.filter(i => i.status === 'Completed').length
-  const compliancePercentage = completedTotal > 0 ? Math.round((passedCount / completedTotal) * 100) : 100
+  const compliancePercentage = complianceRate(inspections)
 
   // Search box (also filled when opened from the header search).
   const [searchQuery, setSearchQuery] = useState('')
@@ -305,17 +305,23 @@ export default function InspectionsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs">
             <p className="text-xs font-semibold text-slate-500">Overall Compliance Rate</p>
-            <h3 className="text-3xl font-extrabold text-blue-600 mt-1">{compliancePercentage}%</h3>
-            <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>(Passed Inspections ÷ Total Completed) × 100</span>
-            </p>
+            <h3 className={`text-3xl font-extrabold mt-1 ${compliancePercentage === null ? 'text-slate-300' : 'text-blue-600'}`}>
+              {compliancePercentage === null ? '—' : `${compliancePercentage}%`}
+            </h3>
+            {compliancePercentage === null ? (
+              <p className="text-[11px] text-slate-400 font-semibold mt-1">No completed inspections yet</p>
+            ) : (
+              <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>(Passed Inspections ÷ Total Completed) × 100</span>
+              </p>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs">
             <p className="text-xs font-semibold text-slate-500">Passed Inspections</p>
             <h3 className="text-3xl font-extrabold text-emerald-600 mt-1">{passedCount}</h3>
-            <p className="text-[11px] text-slate-400 mt-1">Zero non-conformances</p>
+            <p className="text-[11px] text-slate-400 mt-1">Completed with every checkpoint passed</p>
           </div>
 
           <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs">
