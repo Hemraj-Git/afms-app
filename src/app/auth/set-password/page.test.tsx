@@ -3,7 +3,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import SetPasswordPage from './page'
 
 const push = vi.fn()
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
+const replace = vi.fn()
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace }) }))
+
+// The server actions: clearing the "password owed" marker, and signing out.
+const finishPasswordSetup = vi.fn(async () => {})
+const signOutAction = vi.fn(async () => {})
+vi.mock('@/app/actions/auth', () => ({
+  finishPasswordSetup: () => finishPasswordSetup(),
+  signOutAction: () => signOutAction(),
+}))
+const clientSignOut = vi.fn(async () => ({ error: null }))
 
 const updateUser = vi.fn(async (v: { password: string }) => {
   void v
@@ -14,6 +24,7 @@ vi.mock('@/lib/supabase', () => ({
     auth: {
       updateUser: (v: { password: string }) => updateUser(v),
       getUser: async () => ({ data: { user: { email: 'ravi@example.com' } } }),
+      signOut: () => clientSignOut(),
     },
   },
 }))
@@ -21,7 +32,11 @@ vi.mock('@/lib/supabase', () => ({
 afterEach(() => {
   cleanup()
   push.mockClear()
+  replace.mockClear()
   updateUser.mockClear()
+  finishPasswordSetup.mockClear()
+  signOutAction.mockClear()
+  clientSignOut.mockClear()
 })
 
 const type = (password: string, confirm = password) => {
@@ -62,6 +77,26 @@ describe('Set password page', () => {
     fireEvent.click(submit())
     await waitFor(() => expect(push).toHaveBeenCalledWith('/dashboard'))
     expect(updateUser).toHaveBeenCalledWith({ password: 'Harbour#2026' })
+    // The app opens up only once the password is saved.
+    expect(finishPasswordSetup).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays on the page when the new password is the current one', async () => {
+    updateUser.mockResolvedValueOnce({ error: { message: 'New password should be different from the old password.' } })
+    render(<SetPasswordPage />)
+    type('Harbour#2026')
+    fireEvent.click(submit())
+    expect((await screen.findByRole('alert')).textContent).toMatch(/That is your current password/)
+    expect(finishPasswordSetup).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('can leave without changing anything: Cancel and sign out', async () => {
+    render(<SetPasswordPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel and sign out' }))
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
+    expect(signOutAction).toHaveBeenCalledTimes(1)
+    expect(updateUser).not.toHaveBeenCalled()
   })
 
   it('explains a refusal from Supabase in plain words', async () => {

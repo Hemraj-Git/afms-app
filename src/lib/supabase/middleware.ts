@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { desktopPathForFieldApp, FIELD_APP_PATH, isPublicPath, isRoleUnrestrictedPath } from '@/lib/routeAccess'
+import { isPasswordSetupPath, PASSWORD_SETUP_COOKIE, PASSWORD_SETUP_PATH } from '@/lib/passwordSetup'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key'
@@ -42,6 +43,12 @@ export async function updateSession(request: NextRequest) {
     const redirectUrl = new URL('/login', request.url)
     redirectUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(redirectUrl)
+  }
+
+  // Signed in by an invite or reset link and no new password yet: Set
+  // password first, before any other page (lib/passwordSetup.ts).
+  if (user && request.cookies.get(PASSWORD_SETUP_COOKIE)?.value && !isPasswordSetupPath(pathname)) {
+    return NextResponse.redirect(new URL(PASSWORD_SETUP_PATH, request.url))
   }
 
   if (user && !isPublic && !isRoleUnrestrictedPath(pathname)) {

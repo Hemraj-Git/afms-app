@@ -181,6 +181,7 @@ For each item: **create → edit → delete**, then **reload** to confirm it per
   - No "Work Orders Central Hub" button on the Preventive, Corrective and Inspections pages; no live clock under the asset title.
   - Sign-in page: the white AssetNXG hexagon beside the name, the new ship photo behind, and the client's name at the bottom (nothing there when no client name is set).
   - Installed app (phone home screen) and browser tab: the AssetNXG hexagon icon and the name *AssetNXG*. Reinstall the app on a phone to see the new icon.
+- [ ] **6.38 A reset or invite link must end in a new password** — Open a password-reset link: *Set password* opens. Type your **current** password in both fields → "That is your current password. Choose a new one, or use "Cancel and sign out" if you remember it." and you stay on the page. Type **/dashboard** or **/mobile** in the address bar → back to *Set password* (the link signed you in, but the app stays closed until a new password is saved). **Cancel and sign out** → the sign-in page; signing in there with your old password works normally, with no detour. Open a fresh link and save a new password → the app opens and every page works. The same applies to an invite link.
 
 ---
 

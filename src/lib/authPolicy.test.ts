@@ -33,7 +33,7 @@ describe('friendlyPasswordError', () => {
   it('turns Supabase refusals into plain words', () => {
     expect(friendlyPasswordError('Password should contain at least one character of each: abcdefghijklmnopqrstuvwxyz, ABCDEFGHIJKLMNOPQRSTUVWXYZ, 0123456789, !@#$')).toMatch(/at least 8 characters, with a lowercase/)
     expect(friendlyPasswordError('Password should be at least 8 characters.')).toMatch(/at least 8 characters/)
-    expect(friendlyPasswordError('New password should be different from the old password.')).toMatch(/not used for this account before/)
+    expect(friendlyPasswordError('New password should be different from the old password.')).toMatch(/That is your current password/)
     expect(friendlyPasswordError('Auth session missing!')).toMatch(/link has expired/)
   })
 

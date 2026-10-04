@@ -4,8 +4,9 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, CircleAlert, CircleCheck, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { finishPasswordSetup, signOutAction } from '@/app/actions/auth'
 import { friendlyPasswordError, passwordMeetsPolicy } from '@/lib/authPolicy'
-import { AccountFrame, Button, HelpLine, PasswordRules, ShowPasswordsCheck, TextField } from '@/components/field'
+import { AccountFrame, Button, HelpLine, PasswordRules, ShowPasswordsCheck, TextButton, TextField } from '@/components/field'
 
 // Landed on after /auth/confirm establishes a real session for an invited
 // (or password-reset) user. This is the step the invite flow was missing
@@ -56,8 +57,19 @@ export default function SetPasswordPage() {
       setError(friendlyPasswordError(updateError.message))
       return
     }
-    // proxy.ts routes non-Admin roles to /mobile automatically from here.
+    // Password saved: the app opens up (proxy.ts routes non-Admin roles to /mobile).
+    await finishPasswordSetup()
     router.push('/dashboard')
+  }
+
+  // Remembered the old password, or opened the link by mistake: leave without
+  // changing anything. The link's sign-in ends here.
+  const [leaving, setLeaving] = useState(false)
+  const cancelAndSignOut = async () => {
+    setLeaving(true)
+    await signOutAction()
+    await supabase.auth.signOut().catch(() => {})
+    router.replace('/login')
   }
 
   return (
@@ -111,6 +123,9 @@ export default function SetPasswordPage() {
         <Button type="submit" icon={ChevronRight} loading={isSubmitting} disabled={!strongEnough || !matches}>
           {isSubmitting ? 'Saving…' : 'Set password & continue'}
         </Button>
+        <TextButton type="button" onClick={() => void cancelAndSignOut()} disabled={leaving || isSubmitting}>
+          {leaving ? 'Signing out…' : 'Cancel and sign out'}
+        </TextButton>
       </form>
       <HelpLine />
     </AccountFrame>

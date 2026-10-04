@@ -32,7 +32,8 @@ export const passwordMeetsPolicy = (password: string): boolean => PASSWORD_RULES
 // abcdefghijklmnopqrstuvwxyz, ABCDEFGHIJKLMNOPQRSTUVWXYZ, ...").
 export function friendlyPasswordError(message: string): string {
   const m = message.toLowerCase()
-  if (m.includes('different from the old password')) return 'Choose a password you have not used for this account before.'
+  // Supabase compares with the current password only.
+  if (m.includes('different from the old password')) return 'That is your current password. Choose a new one, or use "Cancel and sign out" if you remember it.'
   if (m.includes('pwned') || m.includes('leaked') || m.includes('known to be weak') || m.includes('data breach')) {
     return 'This password has appeared in a data breach elsewhere, so it is not safe. Choose a different one.'
   }

@@ -1,5 +1,6 @@
 import { type EmailOtpType } from '@supabase/supabase-js'
 import { type NextRequest, NextResponse } from 'next/server'
+import { PASSWORD_SETUP_COOKIE, passwordSetupCookieOptions } from '@/lib/passwordSetup'
 import { createClient } from '@/lib/supabase/server'
 import { safeNextPath } from '@/lib/safeRedirect'
 
@@ -49,7 +50,11 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { error } = await supabase.auth.verifyOtp({ type, token_hash })
     if (!error) {
-      return NextResponse.redirect(redirectTo)
+      // Signed in by the link, but no password chosen yet: kept on Set
+      // password until one is (see lib/passwordSetup.ts).
+      const response = NextResponse.redirect(redirectTo)
+      response.cookies.set(PASSWORD_SETUP_COOKIE, '1', passwordSetupCookieOptions)
+      return response
     }
   }
 

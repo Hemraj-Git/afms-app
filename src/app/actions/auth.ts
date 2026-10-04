@@ -6,6 +6,17 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { friendlyPasswordError, PASSWORD_MIN_LENGTH, passwordMeetsPolicy } from '@/lib/authPolicy'
 import type { UserRole } from '@/types/afms'
 import { exactIlikePattern, normaliseGuestEmail, STAFF_EMAIL_FOR_GUEST } from '@/lib/guestEmail'
+import { cookies } from 'next/headers'
+import { PASSWORD_SETUP_COOKIE } from '@/lib/passwordSetup'
+
+// The "a new password is owed" marker set by /auth/confirm (lib/passwordSetup.ts).
+async function clearPasswordSetup() {
+  try {
+    ;(await cookies()).delete(PASSWORD_SETUP_COOKIE)
+  } catch {
+    // Not in a request that can set cookies (tests): nothing to clear.
+  }
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key'
@@ -41,6 +52,8 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     return { success: false, error: 'No staff profile is registered for this account. Contact your administrator.' }
   }
 
+  // Signed in with a password, so none is owed any more.
+  await clearPasswordSetup()
   return {
     success: true,
     profile: {
@@ -57,6 +70,15 @@ export async function signIn(email: string, password: string): Promise<AuthResul
 export async function signOutAction(): Promise<void> {
   const supabase = await createClient()
   await supabase.auth.signOut()
+  await clearPasswordSetup()
+}
+
+// Set password saved a new password: the person may use the app now. Only
+// for a signed-in person whose password was just accepted by Supabase.
+export async function finishPasswordSetup(): Promise<void> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) await clearPasswordSetup()
 }
 
 export type RequestPasswordResetResult = { success: true } | { success: false; error: string }
@@ -168,6 +190,7 @@ export async function guestSignIn(input: { fullName?: string; email: string; pho
     return { success: false, error: 'Guest session started, but the visitor profile could not be saved: ' + profileError.message }
   }
 
+  await clearPasswordSetup()
   return { success: true, profile: { id: data.user.id, fullName, email, phone } }
 }
 
