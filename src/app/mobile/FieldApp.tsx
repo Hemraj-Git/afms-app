@@ -74,7 +74,11 @@ export function FieldApp() {
   const isAdmin = currentUser.role === 'Admin'
   const role: FieldRole = asFieldRole(currentUser.role)
 
-  const [tab, setTab] = useState<FieldTab>(() => homeTab(role))
+  // Until a tab is chosen, the role's home tab. The role is "Guest" for a
+  // moment while the profile loads, so the home tab can't be fixed at the
+  // first render: a technician would land on Scan instead of Tasks.
+  const [chosenTab, setTab] = useState<FieldTab | null>(null)
+  const tab = chosenTab ?? homeTab(role)
   const [stack, setStack] = useState<Screen[]>([])
   const stackRef = useRef<Screen[]>([])
   useEffect(() => {
