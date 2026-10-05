@@ -52,3 +52,7 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
+
+# User manual: generated screenshots and PDFs (see docs/manual/README.md)
+/docs/manual/shots/
+/docs/manual/out/

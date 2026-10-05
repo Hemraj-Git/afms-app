@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AssetNXG Administrator Guide</title>
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<!-- ================= COVER ================= -->
+<section class="cover">
+  <div class="top">
+    <img class="product" src="../../../public/images/assetnxg-logo.svg" alt="AssetNXG">
+    <span class="version">Version 1.0 &middot; October 2026</span>
+  </div>
+  <div class="band">
+    <div class="kicker">User Manual</div>
+    <h1>Administrator Guide</h1>
+    <p class="sub">Running assets, maintenance, inspections, requests and rooms from the AssetNXG desktop.</p>
+  </div>
+  <div class="for">
+    <img src="../../../public/images/client-logo.png" alt="">
+    <div>Prepared for<strong>School of Maritime Studies, Centurion University</strong>soms.assetnxg.app</div>
+  </div>
+  <div class="makers">
+    <div><img src="../../../public/images/pmv-logo.svg" alt="">A product of Pinnacle Marine Ventures</div>
+    <div><img src="../../../public/images/hms-logo.svg" alt="">Powered by HMS - Digital Solutions</div>
+  </div>
+</section>
+
+<!-- ================= CONTENTS ================= -->
+<section class="toc">
+  <h2 style="border:0; font-size:18pt; margin-top:0">Contents</h2>
+  <ol>
+    <li><span class="n">1</span><span class="t">Welcome to AssetNXG</span><span class="d">What it does, who uses what, record numbers</span></li>
+    <li><span class="n">2</span><span class="t">Getting started</span><span class="d">Signing in, passwords, the screen, search, alerts</span></li>
+    <li><span class="n">3</span><span class="t">Setting up your organisation</span><span class="d">Campus, buildings, rooms, categories, templates, vendors, users</span></li>
+    <li><span class="n">4</span><span class="t">Assets</span><span class="d">Adding assets, schedules, the asset page, QR labels, spares</span></li>
+    <li><span class="n">5</span><span class="t">Service requests</span><span class="d">How problems are reported, SLA times, turning them into jobs</span></li>
+    <li><span class="n">6</span><span class="t">Work orders</span><span class="d">Preventive, corrective and housekeeping jobs; outside repairs</span></li>
+    <li><span class="n">7</span><span class="t">Inspections</span><span class="d">Assigning inspectors, results, the compliance score</span></li>
+    <li><span class="n">8</span><span class="t">Rooms in use</span><span class="d">Reservations, check-ins and the Room Hub</span></li>
+    <li><span class="n">9</span><span class="t">Dashboard and reports</span><span class="d">What each number means; exporting and printing</span></li>
+    <li><span class="n">10</span><span class="t">Good practice and troubleshooting</span><span class="d">Daily routine, common questions, getting help</span></li>
+  </ol>
+  <div class="box tip" style="margin-top:14mm">
+    <b>How to read this guide</b>
+    <p>Button and menu names are in <span class="ui">bold</span>. A path such as <span class="path">Maintenance → Work Orders</span> means: in the left-hand menu, under <i>Maintenance</i>, click <i>Work Orders</i>. Boxes marked <b>Why?</b> explain a rule the app enforces, so you know it is deliberate.</p>
+    <p>The screenshots show sample records (people, assets and jobs) made up for this guide. Your screens will show your own data.</p>
+  </div>
+</section>
+
+<!-- ================= 1 WELCOME ================= -->
+<h1 class="chapter"><span class="num">Chapter 1</span>Welcome to AssetNXG</h1>
+<p class="lead">AssetNXG (Asset Next Generation) keeps every asset, room and maintenance job of the School of Maritime Studies in one place, on the desktop for the office and on the phone for the people doing the work.</p>
+
+<h2>What it does</h2>
+<ul>
+  <li><b>Asset register</b>: every piece of equipment with its location, purchase and warranty details, documents, QR label and full history.</li>
+  <li><b>Planned maintenance and inspections</b>: checklists that repeat on a fixed interval (weekly to annually), with the next job created automatically each time one is finished.</li>
+  <li><b>Breakdowns and requests</b>: anyone, including visitors who scan a room's QR code, can report a problem; each report has a deadline (SLA) and becomes a job for a technician or housekeeping.</li>
+  <li><b>Rooms</b>: reservations by the hour, check-in and check-out, and live occupancy.</li>
+  <li><b>Proof of work</b>: photos before and after, every checklist answer, parts used and who did it, for audits.</li>
+</ul>
+
+<h2>Who uses what</h2>
+<table>
+  <tr><th style="width:22%">Role</th><th style="width:20%">Uses</th><th>Typical work</th></tr>
+  <tr><td><span class="pill blue">Admin</span></td><td>Desktop</td><td>Sets everything up, adds assets and users, assigns jobs and inspections, follows requests and deadlines, runs reports. <b>This guide.</b></td></tr>
+  <tr><td><span class="pill amber">Technician</span></td><td>Phone</td><td>Does preventive and breakdown jobs, sends parts out for repair, can do inspections.</td></tr>
+  <tr><td><span class="pill grey">Housekeeping</span></td><td>Phone</td><td>Cleaning jobs with before and after photos.</td></tr>
+  <tr><td><span class="pill green">Faculty</span></td><td>Phone</td><td>Inspections assigned to them, reporting problems, checking in to rooms.</td></tr>
+  <tr><td><span class="pill grey">Guest</span></td><td>Phone (no account)</td><td>Visitors who scan a room's QR code: check in, check out, report a problem.</td></tr>
+</table>
+<p>The phone screens are described in the separate <b>Field App Guide</b>. Admins work on the desktop only: an Admin who opens the phone app, for example by scanning a QR code, is taken to the same room or asset on the desktop.</p>
+
+<div class="keep">
+<h2>Record numbers</h2>
+<p>Every record gets a number you can search for and quote on the phone or in an email.</p>
+<table>
+  <tr><th style="width:28%">Number</th><th>Is</th><th style="width:34%">Given</th></tr>
+  <tr><td><code>AST-0001</code></td><td>An asset</td><td>When the asset is added</td></tr>
+  <tr><td><code>ROM-0001</code></td><td>A room or area</td><td>When the room is added</td></tr>
+  <tr><td><code>SR-2026-0001</code></td><td>A service request (a reported problem)</td><td>When it is raised</td></tr>
+  <tr><td><code>WO-PM-2026-0001</code></td><td>A preventive maintenance job</td><td>When a technician is assigned</td></tr>
+  <tr><td><code>WO-CR-2026-0001</code></td><td>A corrective (breakdown) job</td><td>When a technician is assigned</td></tr>
+  <tr><td><code>WO-HK-2026-0001</code></td><td>A housekeeping (cleaning) job</td><td>When it is created</td></tr>
+  <tr><td><code>INSP-2026-0001</code></td><td>An inspection</td><td>When it is scheduled</td></tr>
+  <tr><td><code>OSR-2026-0001</code></td><td>Something sent outside for repair</td><td>When it is sent</td></tr>
+  <tr><td><code>RSV-2026-0001</code></td><td>A room reservation</td><td>When it is booked</td></tr>
+  <tr><td><code>INV-0001</code></td><td>A spare part in the store</td><td>When the spare is added</td></tr>
+</table>
+</div>
+<div class="box why"><b>Why do some jobs say "Pending Assignment" instead of a number?</b>
+<p>A preventive or corrective job only becomes an official work order, with its WO number, when a technician is assigned. Until then it waits in the queue as <i>Pending Assignment</i>, so the numbers only count jobs that were actually given to someone.</p></div>
+
+<!-- ================= 2 GETTING STARTED ================= -->
+<h1 class="chapter"><span class="num">Chapter 2</span>Getting started</h1>
+<p class="lead">Signing in, your password, finding your way around the screen, and how the app tells you when something needs attention.</p>
+
+<h2>Signing in</h2>
+<p>Open <b>soms.assetnxg.app</b> in Chrome or Edge. Staff sign in with their email address and password.</p>
+<figure><img src="../shots/desktop-login.jpg" alt=""><figcaption>The sign-in page. Visitors use <i>Guest Access</i>; staff use their email and password.</figcaption></figure>
+
+<h3>Your first password</h3>
+<p>You never receive a password from anyone. When an Admin adds you, you get an <b>invitation email</b> from AssetNXG. Click <span class="ui">Set your password</span> in it and choose your own password. The link works <b>once, for 12 hours</b>; if it has expired, ask an Admin to send the invitation again.</p>
+<p>A password must have at least <b>8 characters</b>, with a <b>lowercase</b> letter, an <b>uppercase</b> letter, a <b>number</b> and a <b>symbol</b> such as ! @ # $ % &amp; *. The list ticks green as you type, and the button stays off until all five are met.</p>
+
+<h3>Forgotten password</h3>
+<ol class="steps">
+  <li>On the sign-in page click <span class="ui">Forgot password?</span> and enter your email.</li>
+  <li>Open the <b>Reset your password</b> email and click <span class="ui">Choose a new password</span> (valid for 12 hours).</li>
+  <li>Choose a new password. It must be different from your current one.</li>
+</ol>
+<div class="box why"><b>Why can't I use the app before setting the new password?</b>
+<p>The email link signs you in, but the app stays on <i>Set password</i> until a new one is saved. This makes sure nobody who opened the email link can skip the step. If you remember your old password after all, choose <span class="ui">Cancel and sign out</span> and sign in normally.</p></div>
+
+<div class="two">
+<div>
+<h3>Changing your password</h3>
+<p>Click your initials at the top right, then <span class="ui">Change password</span>. Enter your current password and the new one twice. You stay signed in, here and on your phone.</p>
+<p>A wrong current password, or a new one that is the same as now, is refused with the reason under the field.</p>
+<figure><img src="../shots/desktop-account-menu.jpg" alt=""><figcaption>The account menu.</figcaption></figure>
+</div>
+<figure style="margin-top:0"><img src="../shots/desktop-change-password.jpg" alt=""><figcaption>Change password.</figcaption></figure>
+</div>
+
+<h2>The screen</h2>
+<figure><img src="../shots/desktop-layout.jpg" alt=""><figcaption>The dashboard, with the menu on the left and the header across the top.</figcaption></figure>
+<table>
+  <tr><th style="width:26%">Part</th><th>What it is for</th></tr>
+  <tr><td><b>Left menu</b></td><td>Every page, grouped: Main, Organization, Asset Management, Operation, Maintenance, Reports, Utility and Admin. The ☰ button in the header folds it to icons. At the bottom: the AssetNXG logo, the version, and <span class="ui">About</span>.</td></tr>
+  <tr><td><b>Search</b> (Ctrl + K)</td><td>Finds anything by number or name: an asset (also by serial number), a WO, SR, INSP or OSR number, a room, a spare, a vendor or a person. Press <b>Ctrl + K</b> from any page, type, then use ↑ ↓ and Enter.</td></tr>
+  <tr><td><b>Help</b> (lifebuoy)</td><td><span class="ui">Contact support</span> (support@assetnxg.app, with a copy button) and <span class="ui">About AssetNXG</span>.</td></tr>
+  <tr><td><b>Bell</b></td><td>Alerts addressed to you: new service requests, jobs handed to a vendor, items sent out for repair, overdue returns. The number is how many are unread.</td></tr>
+  <tr><td><b>Your initials</b></td><td>Your name, email and role, <span class="ui">Change password</span> and <span class="ui">Sign Out</span>.</td></tr>
+</table>
+<figure><img src="../shots/desktop-search.jpg" alt=""><figcaption>Search (Ctrl + K): type a number or a name; the matching asset, its jobs and inspections are listed.</figcaption></figure>
+
+<h2>Working with lists</h2>
+<ul>
+  <li><b>Sort</b>: click a column heading with a ⇅ arrow. Click again to reverse, a third time to go back. Priority sorts Critical → Low and status in workflow order.</li>
+  <li><b>Search box</b> above each list narrows it as you type; most pages also have filters or tabs.</li>
+  <li><b>Pages</b>: below each list, <i>Rows per page</i> (10, 25, 50 or 100) is remembered for that list on your computer.</li>
+  <li><b>Deleting</b> always asks <i>Please confirm</i>, with <span class="ui">Cancel</span> selected; only the red button deletes. Things still in use (a room with assets, a template with open jobs, a vendor linked to an asset) can't be deleted, and the message says why.</li>
+  <li>Everything updates <b>live</b>: when a technician finishes a job on the phone, your screen changes within a few seconds without refreshing.</li>
+</ul>
+
+<h2>Alerts</h2>
+<figure class="half"><img src="../shots/desktop-notifications.jpg" alt=""><figcaption>The bell: unread alerts at the top; click one to open what it is about.</figcaption></figure>
+<p>A short chime plays when a new alert arrives (browsers only allow sound after you have clicked once on the page). In the bell panel you can:</p>
+<ul>
+  <li>turn the <b>sound</b> on or off for this computer;</li>
+  <li>switch on <b>Alerts when the app is closed</b>: Windows then shows a notification for a new service request even when AssetNXG isn't open. Allow notifications when the browser asks.</li>
+</ul>
+<p>If the panel says notifications are <i>blocked for this site</i> (as above), click the padlock left of the web address, set <b>Notifications</b> to <b>Allow</b>, and reload the page.</p>
+
+<!-- ================= 3 SET-UP ================= -->
+<h1 class="chapter"><span class="num">Chapter 3</span>Setting up your organisation</h1>
+<p class="lead">Before assets can be added, AssetNXG needs to know your locations, how equipment is classified, the checklists you use and who works with you. For SoMS most of this was loaded from your master data workbook; this chapter shows how to keep it up to date.</p>
+
+<div class="box tip"><b>The order matters</b>
+<p>Campus → Buildings → Rooms → Categories → Sub-categories (with templates) → Vendors → Users → Assets. Each step uses what the previous one created.</p></div>
+
+<h2>Campus, buildings and rooms</h2>
+<p><span class="path">Organization → Campus</span> and <span class="path">Organization → Building/Block</span> list your campuses and the buildings in each. Use <span class="ui">Add</span> to create one and the pencil to edit. A campus with buildings, or a building with rooms, can't be deleted.</p>
+<p><span class="path">Organization → Rooms/Areas</span> lists every room, lab, office, corridor and outdoor area, each with its own <code>ROM</code> number and QR code.</p>
+<figure><img src="../shots/desktop-rooms.jpg" alt=""><figcaption>Rooms/Areas: building, floor, number of assets, whether it can be reserved, and live status (Available, or Occupied with the person's name).</figcaption></figure>
+<ol class="steps">
+  <li>Click <span class="ui">Add Room/Area</span>.</li>
+  <li>Choose the building, then enter the name, floor, size in sq ft and room type, and whether it can be <b>reserved</b>.</li>
+  <li>Save. The room gets the next <code>ROM</code> number and a QR code.</li>
+</ol>
+<p><span class="ui">Manage Room Types</span> keeps the list of types (Classroom, Laboratory, Simulator Block and so on). A type that rooms still use can't be removed.</p>
+<p>Click <span class="ui">Room Hub</span> on a row to see one room: its assets, who is in it now, its reservations and its check-in history.</p>
+
+<h2>Categories and sub-categories</h2>
+<p><b>Categories</b> are the broad groups (Electrical, IT, Furniture, Plumbing, Safety, Civil, Mechanical). <b>Sub-categories</b> are the kinds of equipment inside them (AC, Projector, Fire Fighting Equipment…). Each sub-category has a short code, for example <code>ELEC-AC00</code>.</p>
+<figure><img src="../shots/desktop-sub-categories.jpg" alt=""><figcaption>Sub-Categories: custom fields, how many PM and inspection templates are attached, and how many assets use it.</figcaption></figure>
+<p>A sub-category holds three things that every asset in it inherits:</p>
+<ul>
+  <li><b>Custom fields</b> (called Metadata Fields): the extra details to record for that kind of equipment, for example <i>Cooling Capacity (Ton)</i> and <i>AC Type</i> for an AC.</li>
+  <li><b>PM templates</b>: the preventive maintenance checklists offered when an asset is added.</li>
+  <li><b>Inspection templates</b>: the inspection checklists offered when an asset is added.</li>
+</ul>
+<figure class="half"><img src="../shots/desktop-sub-category-add.jpg" alt=""><figcaption>Add Sub-Category: five steps, from basic information to review.</figcaption></figure>
+<div class="box why"><b>Adding templates to a sub-category that already has assets</b>
+<p>When you publish templates onto a sub-category that already has assets, AssetNXG asks <i>Schedule existing assets?</i>. <span class="ui">Schedule now</span> lists those assets so you can start their schedules at once, from today or from a date you pick. <span class="ui">Later</span> leaves them under an amber <b>Not scheduled</b> banner on the Preventive and Inspections pages, where you can schedule them at any time.</p></div>
+
+<h2>Maintenance and inspection templates</h2>
+<p>A template is a checklist with an interval. <span class="path">Utility → Maintenance Templates</span> holds the preventive maintenance checklists (each step is a tick-box); <span class="path">Utility → Inspection Templates</span> holds the inspection checklists (each step is Pass or Fail).</p>
+<figure><img src="../shots/desktop-pm-templates.jpg" alt=""><figcaption>A PM template: interval (Monthly), its steps, which steps need a photo, and where it is used.</figcaption></figure>
+<ol class="steps">
+  <li>Click <span class="ui">Create PM Template</span> (or <span class="ui">Create Inspection Template</span>).</li>
+  <li>Give it a title and description and choose the <b>interval</b>: Weekly, Monthly, Quarterly, Half-Yearly or Annually.</li>
+  <li>Add the steps in order. Mark a step <b>Mandatory</b> if it must be done, and <b>Photo</b> if the technician must photograph it.</li>
+  <li>Save, then attach the template to the right sub-categories.</li>
+</ol>
+<div class="box rule"><b>Rules</b>
+<ul>
+  <li>A template with no steps can't be scheduled.</li>
+  <li>A template still used by a scheduled job can't be deleted.</li>
+  <li>Editing a template changes future jobs only; jobs already created keep the checklist they were created with. A PM schedule keeps the interval it started with; an inspection schedule picks up a new interval from its next completion.</li>
+</ul></div>
+
+<h2>Vendors</h2>
+<p><span class="path">Utility → Vendor List</span> holds the suppliers and service companies: contact person, phone, email, what they supply, and AMC (annual maintenance contract) number and dates. Assets name the vendor they were bought from and, if a vendor maintains them, the AMC vendor. Technicians can also add a vendor from the phone when sending something out for repair.</p>
+
+<h2>Users and departments</h2>
+<p><span class="path">Admin → Users</span> lists everyone who can sign in (<b>Registered</b>) and every visitor who used Guest Access (<b>Guests</b>). Click a person to see the assets assigned to them, their room check-ins and the requests they raised.</p>
+<figure><img src="../shots/desktop-users.jpg" alt=""><figcaption>Personnel & Departments: role, department, phone and assigned assets.</figcaption></figure>
+
+<h3>Adding a person</h3>
+<div class="two">
+<div>
+<ol class="steps">
+  <li>Click <span class="ui">Add User</span>.</li>
+  <li>Enter the full name and email address, and choose the <b>role</b> (Admin, Technician, Housekeeping or Faculty) and department.</li>
+  <li>Click <span class="ui">Send Invite</span>. The person receives the invitation email and sets their own password.</li>
+</ol>
+<p>Until they do, the list shows an amber <b>Invite pending</b> badge and a <span class="ui">Resend invite</span> button. In the "assign to" lists they appear last, marked <i>invite not accepted yet</i>, and can't be chosen.</p>
+</div>
+<figure style="margin-top:0"><img src="../shots/desktop-user-add.jpg" alt=""></figure>
+</div>
+<div class="box rule"><b>Rules that protect your data</b>
+<ul>
+  <li>You can't delete yourself, remove your own Admin role, or remove the last Admin.</li>
+  <li>A person who has raised service requests can't be deleted (their requests would lose their author). Change their role or leave them instead.</li>
+  <li>A visitor can't use Guest Access with a staff member's email; they are told to sign in with their password.</li>
+</ul></div>
+<p>The <span class="ui">Departments</span> tab lists departments with a code and an optional head of department (chosen from registered users). A department with people in it can't be deleted.</p>
+
+<!-- ================= 4 ASSETS ================= -->
+<h1 class="chapter"><span class="num">Chapter 4</span>Assets</h1>
+<p class="lead">An asset is any equipment you want to track and maintain. Each has an AST number, a home room, its specifications, and its own PM and inspection schedules.</p>
+
+<figure><img src="../shots/desktop-assets.jpg" alt=""><figcaption>Assets: search by name, ID or serial number; filter by status, category or SLA priority.</figcaption></figure>
+<p>An asset's <b>status</b> is <span class="pill green">Operational</span>, <span class="pill amber">Under Maintenance</span> (a breakdown job is open on it) or <span class="pill grey">Retired</span>. The status changes by itself as jobs are opened and finished.</p>
+
+<h2>Adding an asset</h2>
+<p>Click <span class="ui">Add Asset</span> (on the Assets page or the dashboard). The form has five steps.</p>
+<figure><img src="../shots/desktop-asset-create.jpg" alt=""><figcaption>Step 1, Basic Information. The AST number is given automatically.</figcaption></figure>
+<table>
+  <tr><th style="width:24%">Step</th><th>What you enter</th></tr>
+  <tr><td><b>1. Basic Information</b></td><td>Name; category and sub-category; <b>SLA priority</b>; manufacturer, model and serial number; price; purchase, installation and warranty dates; <b>Maintenance By</b> (In House, or a Vendor with AMC dates) and the vendor it was bought from (<span class="ui">+ Add New Vendor</span> if it is new).</td></tr>
+  <tr><td><b>2. Location</b></td><td>Campus, building and room, and optionally the person it is assigned to.</td></tr>
+  <tr><td><b>3. Specification</b></td><td>The custom fields of its sub-category, and a photo.</td></tr>
+  <tr><td><b>4. Documents</b></td><td>Invoices, warranty cards, manuals or certificates (PDF or images).</td></tr>
+  <tr><td><b>5. Review</b></td><td>Everything once more, and the <b>PM &amp; inspection schedule</b> (below).</td></tr>
+</table>
+<div class="box why"><b>Why does the asset have an SLA priority?</b>
+<p>It decides how urgent a breakdown of this asset is. When anyone reports a problem with it, the request's priority is fixed to the asset's priority (Critical, High, Medium or Low), so a broken fire alarm is never filed as Low. The resolution hours for each priority are set in <i>Configure SLA Rules</i> (chapter 5).</p></div>
+
+<h3>The PM and inspection schedule</h3>
+<p>On the Review step, each template of the sub-category is listed with its <b>first date</b>, the date of the first job:</p>
+<ul>
+  <li><b>From the installation date</b>: installation date + one interval. Not offered when the asset was installed too long ago.</li>
+  <li><b>From today</b>: today + one interval.</li>
+  <li><b>Pick the date</b>: any date from today up to two years ahead, and not before installation.</li>
+</ul>
+<p>Untick a template to skip it, or use <span class="ui">+ Add PM</span> / <span class="ui">+ Add inspection</span> to add another (for example a Monthly <i>and</i> a Quarterly PM on the same AC).</p>
+<div class="box warn"><b>First dates can't be changed after they are set</b>
+<p>The confirmation lists each first date. After that, every later date follows the template's interval from each completion, so the schedule runs by itself. If you set a wrong first date, ask support for help rather than adding a second schedule.</p></div>
+
+<h3>Many assets at once</h3>
+<p>For a large list, use <span class="ui">Bulk Upload</span> on the Assets page: download the template, fill one row per asset, and upload it. For the first load of SoMS equipment, the HMS team loads your returned Assets workbook directly.</p>
+
+<h2>The asset page</h2>
+<p>Click an asset to open its page.</p>
+<figure><img src="../shots/desktop-asset-detail.jpg" alt=""><figcaption>The asset page: next maintenance, last inspection, age, the schedule card, and the details in tabs.</figcaption></figure>
+<ul>
+  <li><b>PM &amp; inspection schedule</b> shows each running schedule with its next date, and the sub-category's templates not yet scheduled. <span class="ui">Add a schedule</span> starts another one; a template already running on the asset can't be added twice.</li>
+  <li>Tabs: <b>Basic Information</b>, <b>Maintenance History</b> (every job, including outside repairs), <b>Inspection Log</b>, <b>Documents</b> and <b>Activity Timeline</b> (every event, newest first, with its reference number).</li>
+  <li>An orange <b>Off site for repair</b> banner appears while the whole asset is away at a workshop.</li>
+  <li>Use <span class="ui">Edit</span> to change details or the status. Retiring an asset cancels its jobs that haven't started and stops new ones being scheduled.</li>
+</ul>
+<figure class="half"><img src="../shots/desktop-asset-schedule-add.jpg" alt=""><figcaption>Add a schedule: choose PM or inspection, the template and the first date.</figcaption></figure>
+
+<h2>QR codes</h2>
+<p><span class="path">Utility → QR Codes</span> prints the codes that people scan with the phone app.</p>
+<ul>
+  <li><b>Room &amp; Facility QR Codes</b>: placards for doors and walls, four per landscape A4 sheet, headed with the School's name. Scanning one lets staff and visitors check in or report a problem in that room.</li>
+  <li><b>Asset &amp; Equipment QR Codes</b>: 5 cm × 5 cm stickers for the equipment. Scanning one opens the asset and its open work.</li>
+</ul>
+<p>Tick the ones you need (or <span class="ui">Select All</span>) and click <span class="ui">Print</span>. <i>Print Status</i> shows which have been printed.</p>
+
+<h2>Spares and documents</h2>
+<p><span class="path">Asset Management → Inventory Hub / Spares</span> lists spare parts and stock: quantity, minimum level (low stock is flagged), store location, unit cost and vendor. A spare unit can be <span class="ui">Deploy</span>ed as an asset when it is installed; its documents move with it.</p>
+<p><span class="path">Utility → Document Library</span> holds all uploaded files (invoices, manuals, certificates) and lets you link them to assets or spares. Files up to 25 MB; photos up to 5 MB on assets.</p>
+
+<!-- ================= 5 SERVICE REQUESTS ================= -->
+<h1 class="chapter"><span class="num">Chapter 5</span>Service requests</h1>
+<p class="lead">A service request is a problem someone reported: a breakdown (Maintenance) or something to clean (Housekeeping). Your job is to turn each one into work, quickly enough to meet its deadline.</p>
+
+<h2>Where requests come from</h2>
+<ul>
+  <li>Staff on the phone app (<span class="ui">New request</span>, or <span class="ui">Report a problem here</span> in a room).</li>
+  <li>Visitors who scan a room's QR code and use Guest Access.</li>
+  <li>Admins, with <span class="ui">Create Service Request</span> on the desktop.</li>
+</ul>
+<p>When a new request arrives, Admins get a bell alert with a chime, and the dashboard shows it in the amber <b>new service requests waiting to be assigned</b> panel.</p>
+
+<h2>The Service Request Desk</h2>
+<figure><img src="../shots/desktop-service-requests.jpg" alt=""><figcaption><span class="path">Operation → Service Requests</span>: counts by status, then each request with its asset, room, requester, priority and SLA.</figcaption></figure>
+<table>
+  <tr><th style="width:24%">Status</th><th>Means</th></tr>
+  <tr><td><span class="pill blue">Open</span></td><td>New; nobody is working on it yet.</td></tr>
+  <tr><td><span class="pill amber">In Progress</span></td><td>A work order has been made from it and assigned.</td></tr>
+  <tr><td><span class="pill green">Resolved</span></td><td>Its work order was completed (set automatically).</td></tr>
+  <tr><td><span class="pill grey">Closed</span></td><td>Dismissed without work, with a reason.</td></tr>
+  <tr><td><span class="pill red">Escalated</span></td><td>Flagged for urgent attention.</td></tr>
+</table>
+<p>The person who raised the request is told on their phone when it is escalated, resolved (with your resolution note) or closed.</p>
+
+<h2>Turning a request into a job</h2>
+<div class="two">
+<div>
+<ol class="steps">
+  <li>Click <span class="ui">Action</span> on the request (or <span class="ui">Assign</span> on the dashboard).</li>
+  <li>Read the description, the asset and the deadline.</li>
+  <li>Click <span class="ui">Create Corrective Maintenance</span> for a breakdown, or <span class="ui">Create Housekeeping Work Order</span> for cleaning. Choose the technician or housekeeping person and add any instructions; they appear on that person's phone under <b>From the office</b>.</li>
+  <li>The request becomes <i>In Progress</i> and shows the work order number. When the job is completed on the phone, the request becomes <i>Resolved</i> by itself.</li>
+</ol>
+<p>If no work is needed (a duplicate, or already fixed), click <span class="ui">Dismiss</span> and give the reason; the request is closed.</p>
+</div>
+<figure style="margin-top:0"><img src="../shots/desktop-sr-action.jpg" alt=""><figcaption>A request's actions.</figcaption></figure>
+</div>
+
+<h2>SLA: resolution deadlines</h2>
+<p>Each priority has a number of hours to resolve a request. A request's deadline is its time of reporting plus those hours; past it, the request counts as <b>Overdue SLA</b>.</p>
+<div class="two">
+<div>
+<p>To change the hours, click <span class="ui">Configure SLA Rules</span> (on Service Requests or Work Orders), edit and save. The defaults are Critical 4 h, High 12 h, Medium 24 h and Low 48 h.</p>
+<div class="box why"><b>Why didn't the existing requests change?</b>
+<p>New hours apply to requests raised <b>from now on</b>. Requests already raised keep the deadline they were given, so a change of rules never makes yesterday's work late or on time after the fact.</p></div>
+</div>
+<figure style="margin-top:0"><img src="../shots/desktop-sla-rules.jpg" alt=""></figure>
+</div>
+
+<!-- ================= 6 WORK ORDERS ================= -->
+<h1 class="chapter"><span class="num">Chapter 6</span>Work orders</h1>
+<p class="lead">A work order is a job given to someone. There are three kinds: <b>Preventive</b> (planned maintenance from a schedule), <b>Corrective</b> (a breakdown or defect) and <b>Housekeeping</b> (cleaning).</p>
+
+<h2>The Work Orders hub</h2>
+<figure><img src="../shots/desktop-work-orders.jpg" alt=""><figcaption><span class="path">Maintenance → Work Orders</span>: all jobs in one list, with tabs for each kind and a status filter.</figcaption></figure>
+<p>Tags beside a job show extra state: <span class="pill amber">Part out for repair</span>, <span class="pill amber">With vendor</span>, or a window note (see below). <span class="ui">View Details</span> opens the full job.</p>
+<p><span class="ui">Create Work Order</span> makes a one-off job: choose the kind, title, asset, room, the person, the priority and the due date, and add the scope. A one-off preventive job does not repeat.</p>
+<figure class="half"><img src="../shots/desktop-wo-create.jpg" alt=""><figcaption>Create Work Order.</figcaption></figure>
+
+<h2>Preventive maintenance</h2>
+<p><span class="path">Maintenance → Preventive</span> shows the next job of every PM schedule.</p>
+<figure><img src="../shots/desktop-preventive.jpg" alt=""><figcaption>Preventive: each schedule's next job, when its window opens, and who has it.</figcaption></figure>
+<ol class="steps">
+  <li>A job arrives as <span class="pill amber">Pending Assignment</span>. Click <span class="ui">Assign Technician</span>; it then gets its WO-PM number and appears on the technician's phone.</li>
+  <li>The technician does it on the phone: an on-site photo first, then each checklist step, then a completion photo.</li>
+  <li>When it is completed, the <b>next job is created automatically</b>, one interval after the completion date, waiting for assignment.</li>
+</ol>
+<div class="box why"><b>Why can't a job be started early? (the "window")</b>
+<p>A planned job can be started only from a set time before its due date, so a monthly service isn't done twice in a few days. The window opens <b>1 day</b> before for weekly jobs, <b>7 days</b> for monthly, <b>15 days</b> for quarterly, <b>1 month</b> for half-yearly and <b>2 months</b> for annual. The list shows <i>Window Open</i> or <i>Opens &lt;date&gt;</i>.</p></div>
+<p>Every morning at 08:00 each technician and inspector with jobs due that day gets one <i>Due today</i> alert listing them.</p>
+
+<h2>Corrective maintenance (breakdowns)</h2>
+<p><span class="path">Maintenance → Corrective</span> lists breakdown jobs. Each comes from a <b>service request</b> or from a <b>failed inspection</b> (created automatically, with what failed in its issue).</p>
+<figure><img src="../shots/desktop-corrective.jpg" alt=""><figcaption>Corrective: the trigger (service request or failed inspection) with its number, the issue, and the technician.</figcaption></figure>
+<p>Assigning a technician gives the job its WO-CR number and sets the asset to <i>Under Maintenance</i>. On the phone the technician records the problem found, the solution and parts used, with photos; or hands the job to a <b>vendor</b> (their ticket number, technician and cost are recorded). Completing it sets the asset back to <i>Operational</i> and the request to <i>Resolved</i>. You get a bell alert when a job is handed to a vendor.</p>
+
+<h2>Housekeeping</h2>
+<p><span class="path">Maintenance → Housekeeping</span> lists cleaning jobs: routine cleaning of a room (a 5-step room checklist with before and after photos), or cleaning raised from a request (the request and its photos are shown instead of the checklist).</p>
+
+<h2>Job details: the technician's record</h2>
+<p><span class="ui">View Details</span> shows everything recorded on a job: who has it, where, why, the outside repair box, the office's instructions, and what the technician recorded (photos, each checklist step with its note and photo, problem found, solution, parts and notes). Anything not filled in reads <i>Not recorded</i>.</p>
+<figure class="half"><img src="../shots/desktop-wo-details.jpg" alt=""><figcaption>A breakdown job with a part out for repair.</figcaption></figure>
+
+<h2>Outside repairs</h2>
+<p>When a part, or the whole asset, has to go to an outside workshop during a breakdown job, the technician records it on the phone (or you do, in the job details): what is going, to which vendor, the expected return date (ETD), gate pass and estimated cost. It gets an <code>OSR</code> number.</p>
+<figure><img src="../shots/desktop-outside-repairs.jpg" alt=""><figcaption><span class="path">Maintenance → Outside Repairs</span>: tabs Out, Overdue, Returned and All.</figcaption></figure>
+<ul>
+  <li>The job can't be completed while anything is still out: record the return first (date, outcome, actual cost and the job sheet).</li>
+  <li>Past its ETD an item shows <span class="pill red">Overdue return</span>, and at 09:00 the next morning the Admins and the technician get one alert. Use <span class="ui">Change ETD</span> if the vendor gives a new date.</li>
+  <li>The dashboard's <b>Out for Repair</b> tile counts everything currently away.</li>
+</ul>
+
+<!-- ================= 7 INSPECTIONS ================= -->
+<h1 class="chapter"><span class="num">Chapter 7</span>Inspections</h1>
+<p class="lead">Inspections are scheduled Pass/Fail checks of an asset, for safety and compliance. They are created from inspection templates, just like PM jobs, and can be done by technicians or faculty.</p>
+
+<figure><img src="../shots/desktop-inspections.jpg" alt=""><figcaption><span class="path">Operation → Inspection</span>: the compliance rate, then each inspection with its inspector, due date and result.</figcaption></figure>
+
+<h2>Assigning an inspector</h2>
+<div class="two">
+<div>
+<ol class="steps">
+  <li>Click <span class="ui">Assign Inspector</span> on a <i>Pending Assignment</i> inspection.</li>
+  <li>Choose the person and add any instructions for the field.</li>
+  <li>Click <span class="ui">Confirm Inspector Assignment</span>. It appears on their phone; <span class="ui">Change</span> reassigns it later.</li>
+</ol>
+<p>The same window rule as preventive maintenance applies: an inspection can be performed only once its window is open.</p>
+</div>
+<figure style="margin-top:0"><img src="../shots/desktop-inspection-assign.jpg" alt=""></figure>
+</div>
+
+<h2>Results</h2>
+<ul>
+  <li><span class="pill green">PASS</span>: every checkpoint passed. The next inspection is scheduled one interval later, and the asset stays Operational.</li>
+  <li><span class="pill red">FAIL (Corrective Created)</span>: at least one checkpoint failed. A corrective work order <i>Defect from INSP-…</i> is created automatically, describing what failed, and waits on the Corrective page for a technician. The next inspection is also scheduled.</li>
+</ul>
+<p><span class="ui">View Details</span> shows the photos (at the start and at the end), each checkpoint's answer, what was wrong for each failed one, and <i>Not answered</i> for any left blank.</p>
+
+<h2>The compliance score</h2>
+<p><b>Compliance = inspections passed ÷ inspections completed × 100.</b> Until the first inspection is completed there is nothing to score, and it shows "—". The dashboard labels the score <span class="pill green">Outstanding</span> at 90% and above, <span class="pill amber">Good</span> from 75%, and <span class="pill red">Needs Action</span> below that.</p>
+
+<!-- ================= 8 ROOMS IN USE ================= -->
+<h1 class="chapter"><span class="num">Chapter 8</span>Rooms in use</h1>
+<p class="lead">Rooms can be booked in advance, and people check in when they arrive, so the office always knows which rooms are in use and by whom.</p>
+
+<h2>Reservations</h2>
+<figure><img src="../shots/desktop-reservations.jpg" alt=""><figcaption><span class="path">Operation → Reservations</span>: the schedule grid for one day, hour by hour. Click a free slot to book it, or a booked one to see it.</figcaption></figure>
+<ol class="steps">
+  <li>Click <span class="ui">Book Reservation</span> (or a free slot in the grid).</li>
+  <li>Choose the room, the start and end date, and any weekdays to skip (for example Saturday and Sunday for a term-long booking).</li>
+  <li>Choose one or more hourly slots, the person it is for (their department is filled in), and the purpose.</li>
+  <li>Save. Every slot is checked for clashes first; slots already taken are skipped and you are told which.</li>
+</ol>
+<p><span class="ui">All Bookings</span> lists every reservation, with search and cancel. Only rooms marked <i>reservable</i> can be booked.</p>
+
+<h2>Check-ins and occupancy</h2>
+<p>People check in to a room from the phone (by scanning the room's QR code, or picking the room) and check out when they leave. The room then shows <span class="pill amber">Occupied</span> with the person's name on the Rooms page, in its Room Hub and on the dashboard's <b>Occupied Rooms</b> tile, and changes back to <span class="pill green">Available</span> when the last person checks out. Anyone still checked in at midnight is checked out automatically.</p>
+<p>Each room's Room Hub, and the <i>Room Access &amp; Activity</i> report, keep the full check-in history (who, when, purpose).</p>
+<figure><img src="../shots/desktop-room-hub.jpg" alt=""><figcaption>A room's Room Hub (<span class="path">Rooms/Areas</span> → <span class="ui">Room Hub</span>): its details and QR code, its assets, today's reservations, and the access log.</figcaption></figure>
+
+<!-- ================= 9 DASHBOARD & REPORTS ================= -->
+<h1 class="chapter"><span class="num">Chapter 9</span>Dashboard and reports</h1>
+
+<h2>The dashboard</h2>
+<figure><img src="../shots/desktop-dashboard.jpg" alt=""><figcaption>The dashboard.</figcaption></figure>
+<table>
+  <tr><th style="width:28%">Part</th><th>Shows</th></tr>
+  <tr><td><b>Waiting to be assigned</b></td><td>New service requests nobody has acted on yet, each with <span class="ui">Assign</span>.</td></tr>
+  <tr><td><b>Total Assets</b></td><td>All assets, and how many are operational.</td></tr>
+  <tr><td><b>Service Requests</b></td><td>Requests not yet resolved or closed, and how many are open.</td></tr>
+  <tr><td><b>Preventive Due</b></td><td>Scheduled PM jobs not yet completed.</td></tr>
+  <tr><td><b>Pending Inspections</b></td><td>Inspections not yet completed.</td></tr>
+  <tr><td><b>Occupied Rooms</b></td><td>Rooms with someone checked in now.</td></tr>
+  <tr><td><b>Out for Repair</b></td><td>Parts or assets currently at outside workshops.</td></tr>
+  <tr><td><b>Charts</b></td><td>Assets by status, the overall compliance score, upcoming preventive maintenance and open service requests.</td></tr>
+</table>
+
+<h2>Reports</h2>
+<figure><img src="../shots/desktop-reports.jpg" alt=""><figcaption><span class="path">Reports → Reports &amp; Analytics</span>: choose a report, then filter.</figcaption></figure>
+<p>Eleven reports are available: Asset Master, Location-Wise Summary, Room-Wise Assets, Room Access &amp; Activity, Asset Warranty &amp; AMC, Preventive Maintenance, Corrective Maintenance, Inspection &amp; Checklist, Service Requests &amp; SLA, Technician Workload and Inventory &amp; Spares.</p>
+<ul>
+  <li>Filter by date range (quick presets: Today, Last 30 Days, Last 90 Days, This Year, <b>All Records</b>), campus, status, a single asset or a person.</li>
+  <li><span class="ui">Export Excel (.csv)</span> downloads every filtered row; <span class="ui">Print / PDF</span> prints every row in the order you sorted.</li>
+  <li><span class="ui">Refresh</span> re-reads that report; <i>Updated HH:MM</i> shows when.</li>
+</ul>
+<div class="box tip"><b>No records found?</b>
+<p>Reports open on <i>Last 90 Days</i>. For the Asset Master that means assets <b>purchased</b> in the last 90 days, so older equipment is not listed. Click <span class="ui">All Records</span> to see everything.</p></div>
+
+<!-- ================= 10 GOOD PRACTICE ================= -->
+<h1 class="chapter"><span class="num">Chapter 10</span>Good practice and troubleshooting</h1>
+
+<h2>A daily routine for the facility office</h2>
+<ol class="steps">
+  <li><b>Morning</b>: open the dashboard. Assign every request in the amber panel, and every <i>Pending Assignment</i> job on the Preventive, Corrective and Inspections pages.</li>
+  <li>Check <b>Overdue SLA</b> on Service Requests and the <b>Overdue</b> tab of Outside Repairs; chase or escalate.</li>
+  <li><b>During the day</b>: answer bell alerts (vendor handovers, items sent out).</li>
+  <li><b>Weekly</b>: look at the <i>Not scheduled</i> banners on Preventive and Inspections, low-stock spares, and the Technician Workload report.</li>
+  <li><b>Monthly</b>: export the Preventive, Corrective, Inspection and SLA reports for your records.</li>
+</ol>
+
+<h2>Common questions</h2>
+<table>
+  <tr><th style="width:38%">Question</th><th>Answer</th></tr>
+  <tr><td>A new person never received the invitation.</td><td>Check the spam folder. In <i>Users</i>, click <span class="ui">Resend invite</span>; the new link is valid for 12 hours.</td></tr>
+  <tr><td>Someone can't sign in.</td><td>Ask them to use <span class="ui">Forgot password?</span>. Their role decides where they land: Admins on the desktop, everyone else in the phone app.</td></tr>
+  <tr><td>I can't find a person in the "assign to" list.</td><td>They haven't accepted their invitation yet (shown last, greyed), or they have a different role (cleaning jobs list Housekeeping staff only).</td></tr>
+  <tr><td>A job can't be started on the phone.</td><td>Its window hasn't opened yet (chapter 6), or the on-site photo hasn't been taken.</td></tr>
+  <tr><td>A breakdown job can't be completed.</td><td>Something is still out for repair; record its return first. In-house jobs also need the solution and the after-repair photo.</td></tr>
+  <tr><td>I can't delete a room, template, vendor or user.</td><td>It is still in use; the message names what uses it. Move or finish that first.</td></tr>
+  <tr><td>An asset has no PM jobs.</td><td>Its sub-category had no templates when it was added. Use <span class="ui">Add a schedule</span> on the asset page, or the <i>Not scheduled</i> banner.</td></tr>
+  <tr><td>The screen says "You're offline".</td><td>The connection dropped. Nothing you saved is lost; the page catches up when you are back online.</td></tr>
+</table>
+
+<h2>Getting help</h2>
+<p>Email <b>support@assetnxg.app</b> (also under the lifebuoy icon in the header). Please include your name, the page, the record number (AST, SR, WO…) and, if possible, a screenshot.</p>
+<p style="margin-top:14mm; color:var(--muted); font-size:9pt">AssetNXG is a product of Pinnacle Marine Ventures, powered by HMS - Digital Solutions. This guide describes version 1.0.</p>
+
+</body>
+</html>

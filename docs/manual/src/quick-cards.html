@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AssetNXG Quick Reference Cards</title>
+<link rel="stylesheet" href="manual.css">
+<style>
+  .card ol.steps > li { padding-bottom: 4px; }
+  .card p, .card li, .card td { font-size: 11.5pt; line-height: 1.6; }
+  .card h3 { font-size: 13pt; margin-top: 14px; }
+  .card header .who { font-size: 22pt; }
+  .card .cols figure img { border-radius: 14px; }
+  .card .poster { text-align: center; }
+  .card .poster h2 { border: 0; font-size: 26pt; margin: 6mm 0 2mm; }
+  .card .poster p.big { font-size: 14pt; color: var(--text); }
+  .card .poster .qr { margin: 8mm auto; width: 70mm; height: 70mm; border: 3px dashed #94a3b8; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11pt; }
+  .card .poster ol.steps { text-align: left; max-width: 140mm; margin: 0 auto; }
+  .card .poster ol.steps > li { font-size: 13pt; padding-left: 40px; margin-bottom: 6px; }
+  .card .poster ol.steps > li::before { width: 28px; height: 28px; font-size: 12pt; }
+</style>
+</head>
+<body>
+
+<!-- ================= ADMIN ================= -->
+<section class="card">
+  <header><div class="who"><small>Quick reference</small>Admin (desktop)</div><img src="../../../public/images/assetnxg-logo.svg" alt=""></header>
+  <div class="cols">
+    <div>
+      <h3>Every morning</h3>
+      <ol class="steps">
+        <li><b>Dashboard</b>: assign every request in the amber <i>waiting to be assigned</i> panel.</li>
+        <li><b>Preventive</b>, <b>Corrective</b>, <b>Inspection</b>: assign every <i>Pending Assignment</i> job.</li>
+        <li><b>Service Requests</b>: check <i>Overdue SLA</i>.</li>
+        <li><b>Outside Repairs → Overdue</b>: chase vendors.</li>
+      </ol>
+      <h3>A problem is reported</h3>
+      <p><span class="path">Service Requests</span> → <span class="ui">Action</span> → <span class="ui">Create Corrective Maintenance</span> (repair) or <span class="ui">Create Housekeeping Work Order</span> (cleaning) → choose the person. Not needed? <span class="ui">Dismiss</span> with a reason.</p>
+      <h3>Add an asset</h3>
+      <p><span class="path">Assets</span> → <span class="ui">Add Asset</span> → 5 steps → on <b>Review</b> choose each schedule's first date. <b>First dates can't be changed.</b></p>
+      <h3>Add a person</h3>
+      <p><span class="path">Admin → Users</span> → <span class="ui">Add User</span> → name, email, role → <span class="ui">Send Invite</span>. Not received? <span class="ui">Resend invite</span>.</p>
+      <h3>Print QR codes</h3>
+      <p><span class="path">Utility → QR Codes</span> → tick rooms or assets → <span class="ui">Print</span>. Rooms: 4 per A4; assets: 5 cm stickers.</p>
+    </div>
+    <div>
+      <h3>Numbers</h3>
+      <table>
+        <tr><td><code>AST-</code></td><td>Asset</td></tr>
+        <tr><td><code>ROM-</code></td><td>Room</td></tr>
+        <tr><td><code>SR-</code></td><td>Service request</td></tr>
+        <tr><td><code>WO-PM-</code></td><td>Preventive job</td></tr>
+        <tr><td><code>WO-CR-</code></td><td>Breakdown job</td></tr>
+        <tr><td><code>WO-HK-</code></td><td>Cleaning job</td></tr>
+        <tr><td><code>INSP-</code></td><td>Inspection</td></tr>
+        <tr><td><code>OSR-</code></td><td>Outside repair</td></tr>
+      </table>
+      <h3>Shortcuts</h3>
+      <p><b>Ctrl + K</b>: search anything by number or name.<br>
+      <b>Initials</b> (top right): change password, sign out.<br>
+      <b>Lifebuoy</b>: contact support.</p>
+      <h3>Rules to remember</h3>
+      <ul>
+        <li>Job numbers are given when someone is assigned.</li>
+        <li>A job can be started only once its window opens (7 days before for monthly).</li>
+        <li>New SLA hours apply to new requests only.</li>
+        <li>A failed inspection creates a repair job by itself.</li>
+        <li>A job with a part still out can't be completed.</li>
+      </ul>
+    </div>
+  </div>
+  <footer><span>AssetNXG &middot; soms.assetnxg.app</span><span>Help: support@assetnxg.app</span></footer>
+</section>
+
+<!-- ================= TECHNICIAN ================= -->
+<section class="card">
+  <header><div class="who"><small>Quick reference</small>Technician (phone)</div><img src="../../../public/images/assetnxg-logo.svg" alt=""></header>
+  <div class="cols">
+    <div>
+      <h3>Preventive job</h3>
+      <ol class="steps">
+        <li><b>Tasks</b> → <span class="ui">Start</span> (or <span class="ui">Continue</span>).</li>
+        <li>Read <b>From the office</b>.</li>
+        <li>Take the <b>on-site photo</b>: the checklist unlocks.</li>
+        <li>Tick every step; photo where the camera icon shows.</li>
+        <li><span class="ui">Add part</span> for parts fitted.</li>
+        <li>Notes + <b>completion photo</b> → <span class="ui">Complete &amp; close</span>.</li>
+      </ol>
+      <h3>Breakdown</h3>
+      <ol class="steps">
+        <li>Read the <b>reported issue</b> and its deadline.</li>
+        <li><b>In-house</b>: on-site photo → problem found → <b>solution taken</b> → parts → <b>after-repair photo</b> → <span class="ui">Complete &amp; close</span>.</li>
+        <li><b>Vendor</b>: choose the vendor, record their visit; complete once their <b>ticket number</b> is in.</li>
+      </ol>
+      <h3>Part or asset to a workshop</h3>
+      <p><span class="ui">Send a part or the asset out</span> → part or whole asset, vendor, expected return → <span class="ui">Send out</span>. When back: <span class="ui">Mark received back</span>. <b>The job can't be completed while anything is out.</b></p>
+    </div>
+    <div>
+      <h3>Inspections</h3>
+      <p><b>Inspections</b> → <span class="ui">Start inspection</span> → photo at the asset → PASS / FAIL each checkpoint (say what is wrong on a FAIL) → photo at the end → <span class="ui">Submit &amp; complete</span>.</p>
+      <h3>Scan</h3>
+      <p>Round <b>Scan</b> button → <span class="ui">Tap to scan</span> → point at a room or asset QR code. Or <span class="ui">Pick a room</span> / <span class="ui">Pick an asset</span>.</p>
+      <h3>Report a problem</h3>
+      <p><b>Requests</b> → <span class="ui">New request</span> → type, room, equipment, description, photo → <span class="ui">Submit request</span>.</p>
+      <h3>"Opens on …"</h3>
+      <p>Planned jobs can be started from: 1 day before (weekly), 7 days (monthly), 15 days (quarterly), 1 month (half-yearly), 2 months (annual).</p>
+      <h3>Tips</h3>
+      <ul>
+        <li><span class="ui">Save as in progress</span> often on long jobs.</li>
+        <li>Switch on alerts: bell → <i>Alerts when the app is closed</i>.</li>
+        <li>08:00 every day: one <i>Due today</i> alert.</li>
+      </ul>
+    </div>
+  </div>
+  <footer><span>AssetNXG &middot; soms.assetnxg.app</span><span>Problems with the app: tell the facility office</span></footer>
+</section>
+
+<!-- ================= HOUSEKEEPING ================= -->
+<section class="card">
+  <header><div class="who"><small>Quick reference</small>Housekeeping (phone)</div><img src="../../../public/images/assetnxg-logo.svg" alt=""></header>
+  <div class="cols">
+    <div>
+      <h3>Routine cleaning</h3>
+      <ol class="steps">
+        <li><b>Cleaning</b> tab → <span class="ui">Start</span> on the job.</li>
+        <li><b>Before cleaning</b> photo (optional).</li>
+        <li>Tick each of the <b>5 checklist steps</b> as you finish it. <span class="ui">Note</span> or <span class="ui">Photo</span> on a step to report something.</li>
+        <li><b>After cleaning photo</b> (required) and notes: damage, missing supplies, a leak.</li>
+        <li><span class="ui">Complete sanitisation</span>.</li>
+      </ol>
+      <h3>Cleaning someone asked for</h3>
+      <p>The job shows their request and photos instead of the checklist. Clean, take the after photo, complete. They are told it is done.</p>
+      <h3>Not finished?</h3>
+      <p><span class="ui">Save as in progress</span> and come back to it from the Cleaning tab.</p>
+    </div>
+    <div>
+      <h3>Inspections</h3>
+      <p>If the office gives you one: <b>Inspections</b> → <span class="ui">Start inspection</span> → photo at the asset → PASS / FAIL each checkpoint → photo at the end → <span class="ui">Submit &amp; complete</span>.</p>
+      <h3>Something broken?</h3>
+      <p><b>Requests</b> → <span class="ui">New request</span> → <span class="ui">Maintenance</span> → room, equipment, description, photo → <span class="ui">Submit request</span>.</p>
+      <h3>Rooms</h3>
+      <p>Round <b>Scan</b> button → scan the code on the door → check in or report a problem there.</p>
+      <h3>Alerts</h3>
+      <p>Bell → <i>Alerts when the app is closed</i> → allow. You get an alert when a cleaning job is given to you.</p>
+    </div>
+  </div>
+  <footer><span>AssetNXG &middot; soms.assetnxg.app</span><span>Problems with the app: tell the facility office</span></footer>
+</section>
+
+<!-- ================= FACULTY ================= -->
+<section class="card">
+  <header><div class="who"><small>Quick reference</small>Faculty (phone)</div><img src="../../../public/images/assetnxg-logo.svg" alt=""></header>
+  <div class="cols">
+    <div>
+      <h3>An inspection is assigned to you</h3>
+      <ol class="steps">
+        <li><b>Inspections</b> tab → <span class="ui">Start inspection</span>.</li>
+        <li><b>Photo at the asset</b>: the checkpoints unlock.</li>
+        <li><span class="ui">PASS</span> or <span class="ui">FAIL</span> each checkpoint; a photo where it says <i>Photo required</i>.</li>
+        <li>On a FAIL, say what is wrong. A repair job is raised for you.</li>
+        <li>Observations + <b>photo at the end</b> → <span class="ui">Submit &amp; complete</span>.</li>
+      </ol>
+      <h3>Report a problem</h3>
+      <ol class="steps">
+        <li><b>Requests</b> → <span class="ui">New request</span> (or <span class="ui">Report a problem here</span> in a room).</li>
+        <li><span class="ui">Maintenance</span> or <span class="ui">Housekeeping</span> → room → equipment.</li>
+        <li>What is wrong, where, since when; add a photo.</li>
+        <li><span class="ui">Submit request</span>: you get an SR number and a deadline.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Follow your requests</h3>
+      <p><b>Requests</b> tab: status and time left. The bell tells you when one is resolved or closed.</p>
+      <h3>Using a room</h3>
+      <ol class="steps">
+        <li>Scan the code on the door (round <b>Scan</b> button).</li>
+        <li>Choose the purpose → <span class="ui">Confirm check-in</span>.</li>
+        <li>Leaving: <span class="ui">Check out</span> in the blue bar at the top.</li>
+      </ol>
+      <h3>Booking a room</h3>
+      <p>Ask the facility office; reservations are made on the desktop.</p>
+      <h3>Your account</h3>
+      <p><b>Profile</b> → <span class="ui">Change password</span>. Forgot it? <span class="ui">Forgot password?</span> on the sign-in page.</p>
+    </div>
+  </div>
+  <footer><span>AssetNXG &middot; soms.assetnxg.app</span><span>Problems with the app: tell the facility office</span></footer>
+</section>
+
+<!-- ================= VISITOR NOTICE ================= -->
+<section class="card">
+  <header><div class="who"><small>Notice for rooms</small>Visitors</div><img src="../../../public/images/client-logo.png" alt=""></header>
+  <div class="poster">
+    <h2>Something not working in this room?</h2>
+    <p class="big">Scan the QR code on the door with your phone camera.</p>
+    <ol class="steps">
+      <li>Open the link and choose <b>Guest access</b>.</li>
+      <li>Enter your name, email and mobile number → <b>Continue as guest</b>.</li>
+      <li><b>Report a problem here</b>: describe it and add a photo. You get a ticket number.</li>
+      <li>Using the room? <b>Check in</b> when you arrive and <b>Check out</b> when you leave.</li>
+    </ol>
+  </div>
+  <footer><span>School of Maritime Studies, Centurion University</span><span>AssetNXG &middot; soms.assetnxg.app</span></footer>
+</section>
+
+</body>
+</html>

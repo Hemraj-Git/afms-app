@@ -1,0 +1,150 @@
+/* Print styles for the AssetNXG user manuals (rendered to PDF by
+   scripts/manual/build.ts with Chromium; A4, margins set there). */
+
+:root {
+  --ink: #0f172a;
+  --text: #334155;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --brand: #1d4ed8;
+  --brand-2: #0275fe;
+  --tint: #eff4ff;
+  --ok: #047857;
+  --ok-tint: #ecfdf5;
+  --warn: #b45309;
+  --warn-tint: #fffbeb;
+  --bad: #be123c;
+  --bad-tint: #fff1f2;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+/* ---------- cover ---------- */
+.cover {
+  height: 255mm;                  /* one page inside the margins */
+  display: flex;
+  flex-direction: column;
+  page-break-after: always;
+}
+.cover .top { display: flex; align-items: center; justify-content: space-between; }
+.cover .top img.product { height: 34px; }
+.cover .top .version { font-size: 9pt; color: var(--muted); }
+.cover .band {
+  margin-top: 38mm;
+  padding: 16mm 14mm;
+  border-radius: 14px;
+  background: linear-gradient(140deg, #0b1f4d 0%, #1d4ed8 65%, #0275fe 100%);
+  color: #fff;
+}
+.cover .kicker { font-size: 10pt; letter-spacing: 2.5px; text-transform: uppercase; color: #bfdbfe; font-weight: 700; }
+.cover h1 { margin: 6px 0 10px; font-size: 32pt; line-height: 1.1; color: #fff; }
+.cover .sub { font-size: 12.5pt; color: #dbeafe; margin: 0; }
+.cover .for { margin-top: 18mm; display: flex; align-items: center; gap: 12px; }
+.cover .for img { height: 54px; }
+.cover .for div { font-size: 10pt; color: var(--muted); }
+.cover .for strong { display: block; font-size: 13pt; color: var(--ink); }
+.cover .makers { margin-top: auto; padding-top: 8mm; border-top: 1px solid var(--line); display: flex; gap: 14mm; align-items: center; font-size: 8.5pt; color: var(--muted); }
+.cover .makers div { display: flex; align-items: center; gap: 8px; }
+.cover .makers img { height: 26px; }
+
+/* ---------- contents ---------- */
+.toc { page-break-after: always; }
+.toc ol { list-style: none; padding: 0; margin: 0; counter-reset: ch; }
+.toc li { display: flex; align-items: baseline; gap: 8px; padding: 7px 0; border-bottom: 1px dotted var(--line); }
+.toc li .n { width: 26px; font-weight: 700; color: var(--brand); }
+.toc li .t { flex: 1; color: var(--ink); font-weight: 600; }
+.toc li .d { color: var(--muted); font-size: 9.5pt; }
+
+/* ---------- text ---------- */
+h1, h2, h3, h4 { color: var(--ink); line-height: 1.25; }
+h1.chapter {
+  font-size: 22pt;
+  margin: 0 0 4px;
+  padding-top: 2mm;
+  page-break-before: always;
+}
+h1.chapter .num { display: block; font-size: 10pt; letter-spacing: 2px; text-transform: uppercase; color: var(--brand); margin-bottom: 4px; }
+p.lead { font-size: 11.5pt; color: var(--muted); margin: 0 0 16px; }
+h2 { font-size: 14pt; margin: 22px 0 6px; padding-bottom: 4px; border-bottom: 2px solid var(--tint); page-break-after: avoid; }
+h3 { font-size: 11.5pt; margin: 16px 0 4px; page-break-after: avoid; }
+p { margin: 0 0 8px; }
+ul, ol { margin: 0 0 10px; padding-left: 20px; }
+li { margin-bottom: 3px; }
+b, strong { color: var(--ink); }
+.ui { font-weight: 700; color: var(--ink); }          /* a button or menu name */
+.path { font-weight: 600; color: var(--brand); }        /* Menu → Page */
+code, .code { font-family: 'Consolas', monospace; font-size: 9.5pt; background: #f1f5f9; padding: 1px 4px; border-radius: 4px; color: var(--ink); }
+
+/* numbered steps */
+ol.steps { list-style: none; padding: 0; counter-reset: step; }
+ol.steps > li { counter-increment: step; position: relative; padding: 2px 0 6px 34px; }
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 1px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--brand); color: #fff; font-weight: 700; font-size: 9pt;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ---------- figures ---------- */
+figure { margin: 10px 0 16px; page-break-inside: avoid; }
+figure img { display: block; width: 100%; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); }
+figure.phone img { width: 62mm; margin: 0 auto; border-radius: 14px; }
+figure.phones { display: flex; gap: 8mm; justify-content: center; }
+figure.phones > div { width: 58mm; }
+figure.phones img { width: 100%; border-radius: 14px; }
+figure.phones figcaption { text-align: center; }
+figure.half img { width: 72%; margin: 0 auto; }
+figcaption { margin-top: 5px; font-size: 9pt; color: var(--muted); text-align: center; }
+
+/* ---------- boxes ---------- */
+.box { border-radius: 8px; padding: 10px 12px; margin: 10px 0 14px; page-break-inside: avoid; border-left: 4px solid; }
+.box > b:first-child, .box > strong:first-child { display: block; margin-bottom: 2px; }
+.box p:last-child, .box ul:last-child { margin-bottom: 0; }
+.box.tip { background: var(--tint); border-color: var(--brand); }
+.box.why { background: #f8fafc; border-color: #94a3b8; }
+.box.warn { background: var(--warn-tint); border-color: var(--warn); }
+.box.rule { background: var(--bad-tint); border-color: var(--bad); }
+
+/* ---------- tables ---------- */
+table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 9.5pt; page-break-inside: avoid; }
+th { text-align: left; background: var(--tint); color: var(--ink); font-weight: 700; padding: 6px 8px; border-bottom: 2px solid #c7d7fe; }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+.pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 8.5pt; font-weight: 700; }
+.pill.blue { background: #dbeafe; color: #1e40af; }
+.pill.amber { background: #fef3c7; color: #92400e; }
+.pill.green { background: #d1fae5; color: #065f46; }
+.pill.red { background: #ffe4e6; color: #9f1239; }
+.pill.grey { background: #e2e8f0; color: #334155; }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.keep { page-break-inside: avoid; }
+.break { page-break-before: always; }
+
+/* ---------- quick cards (one A4 page each) ---------- */
+.card { height: 252mm; display: flex; flex-direction: column; page-break-after: always; }
+.card:last-child { page-break-after: auto; }
+.card header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 3px solid var(--brand); margin-bottom: 12px; }
+.card header .who { font-size: 20pt; font-weight: 800; color: var(--ink); }
+.card header .who small { display: block; font-size: 10pt; font-weight: 600; color: var(--brand); letter-spacing: 1.5px; text-transform: uppercase; }
+.card header img { height: 34px; }
+.card .cols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 10mm; flex: 1; }
+.card h3 { margin-top: 10px; color: var(--brand); }
+.card footer { margin-top: auto; padding-top: 6px; border-top: 1px solid var(--line); font-size: 8.5pt; color: var(--muted); display: flex; justify-content: space-between; }
+
+/* Keep every screenshot within part of a page, so text flows around them
+   instead of a tall image pushing everything to the next page. */
+figure img { width: auto; max-width: 100%; max-height: 118mm; margin: 0 auto; }
+figure.half img { max-width: 62%; max-height: 105mm; }
+figure.phone img { width: auto; max-width: 62mm; max-height: 128mm; }
+figure.phones img { max-height: 200mm; }
+.two figure img { max-height: 100mm; }
