@@ -54,4 +54,9 @@ export default withSentryConfig(nextConfig, {
   telemetry: false,
   widenClientFileUpload: true,
   sourcemaps: { deleteSourcemapsAfterUpload: true },
+  // A failed upload (wrong token, Sentry down) must never stop a deploy: warn
+  // and build anyway; that build's errors then show minified stack traces.
+  errorHandler: err => {
+    console.warn(`Sentry source map upload failed: ${err.message}`);
+  },
 });

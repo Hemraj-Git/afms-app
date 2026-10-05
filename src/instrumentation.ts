@@ -5,7 +5,11 @@ import { sentryOptions } from '@/lib/sentry'
 
 export function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs' || process.env.NEXT_RUNTIME === 'edge') {
-    Sentry.init(sentryOptions)
+    try {
+      Sentry.init(sentryOptions)
+    } catch {
+      // Monitoring must never stop the server from starting.
+    }
   }
 }
 
