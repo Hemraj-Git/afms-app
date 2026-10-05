@@ -47,9 +47,12 @@ body {
 .cover .kicker { font-size: 10pt; letter-spacing: 2.5px; text-transform: uppercase; color: #bfdbfe; font-weight: 700; }
 .cover h1 { margin: 6px 0 10px; font-size: 32pt; line-height: 1.1; color: #fff; }
 .cover .sub { font-size: 12.5pt; color: #dbeafe; margin: 0; }
-.cover .for { margin-top: 18mm; display: flex; align-items: center; gap: 12px; }
+/* "Prepared for" above; the client's logo with its name beside it. */
+.cover .for { margin-top: 18mm; }
+.cover .for .label { font-size: 10pt; color: var(--muted); margin-bottom: 8px; }
+.cover .for .row { display: flex; align-items: center; gap: 12px; }
 .cover .for img { height: 54px; }
-.cover .for div { font-size: 10pt; color: var(--muted); }
+.cover .for .row div { font-size: 10pt; color: var(--muted); }
 .cover .for strong { display: block; font-size: 13pt; color: var(--ink); }
 .cover .makers { margin-top: auto; padding-top: 8mm; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 14mm; align-items: center; font-size: 8.5pt; color: var(--muted); }
 .cover .makers div { display: flex; align-items: center; gap: 8px; }
