@@ -51,7 +51,7 @@ body {
 .cover .for img { height: 54px; }
 .cover .for div { font-size: 10pt; color: var(--muted); }
 .cover .for strong { display: block; font-size: 13pt; color: var(--ink); }
-.cover .makers { margin-top: auto; padding-top: 8mm; border-top: 1px solid var(--line); display: flex; gap: 14mm; align-items: center; font-size: 8.5pt; color: var(--muted); }
+.cover .makers { margin-top: auto; padding-top: 8mm; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 14mm; align-items: center; font-size: 8.5pt; color: var(--muted); }
 .cover .makers div { display: flex; align-items: center; gap: 8px; }
 .cover .makers img { height: 26px; }
 
