@@ -65,6 +65,12 @@ const scrollTo = (text: string | RegExp): Step => async page => { await page.get
 const hidePage: Step = async p => { await p.addStyleTag({ content: 'main { visibility: hidden !important; }' }); await p.waitForTimeout(300) }
 const dropdown = (text: string) => (p: Page) => p.locator('header div.absolute').filter({ hasText: text }).first()
 
+// Our own support login (any @assetnxg.app account) is never shown to the client.
+const hideSupportAccounts: Step = async p => {
+  await p.evaluate(() => document.querySelectorAll('tr').forEach(tr => { if (tr.textContent?.includes('@assetnxg.app')) (tr as HTMLElement).style.display = 'none' }))
+  await p.waitForTimeout(300)
+}
+
 const DESKTOP: Shot[] = [
   { name: 'login', path: '/login', target: 'window' },
   { name: 'layout', path: '/dashboard', target: 'window' },
@@ -89,7 +95,7 @@ const DESKTOP: Shot[] = [
   { name: 'pm-template-add', path: '/utility/maintenance-templates', target: 'dialog', steps: [click(/Create PM Template/)] },
   { name: 'inspection-templates', path: '/utility/inspection-templates' },
   { name: 'vendors', path: '/utility/vendors' },
-  { name: 'users', path: '/admin/users' },
+  { name: 'users', path: '/admin/users', steps: [hideSupportAccounts] },
   { name: 'user-add', path: '/admin/users', target: 'dialog', steps: [click(/Add User/)] },
   { name: 'departments', path: '/admin/users', steps: [click(/^Departments/)] },
 
