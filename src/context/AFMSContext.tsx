@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import {
   UserProfile,
   UserRole,
@@ -284,6 +285,14 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
     }
     return false
   })
+
+  // Errors reported to Sentry say whose session it was by id and role only
+  // (never name or email), so an affected person can be found in Users.
+  useEffect(() => {
+    const signedIn = isLoggedIn && currentUser.id !== 'guest'
+    Sentry.setUser(signedIn ? { id: currentUser.id } : null)
+    Sentry.setTag('role', signedIn ? currentUser.role : undefined)
+  }, [isLoggedIn, currentUser.id, currentUser.role])
 
   // Entities migrated to TanStack Query (see src/lib/queries). They start once a
   // real profile is known -- the pre-load placeholder user has id 'guest' -- and

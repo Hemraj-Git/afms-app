@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import pkg from "./package.json";
 
 const nextConfig: NextConfig = {
@@ -6,6 +7,8 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
     NEXT_PUBLIC_BUILD_DATE: new Date().toISOString().slice(0, 10),
+    // Error monitoring: which deployment an error came from (src/lib/sentry.ts).
+    NEXT_PUBLIC_DEPLOY_ENV: process.env.VERCEL_ENV ?? "local",
   },
   // The service worker must never be served stale from a cache, or a fix to it
   // would not reach phones that already installed it.
@@ -39,4 +42,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Error monitoring (Sentry). With SENTRY_AUTH_TOKEN, SENTRY_ORG and
+// SENTRY_PROJECT set (Vercel), each build uploads its source maps, so errors
+// point at the real line of code, then deletes them from the published files.
+// Without them (a local build) nothing is uploaded and the build is unchanged.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  telemetry: false,
+  widenClientFileUpload: true,
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
+});
