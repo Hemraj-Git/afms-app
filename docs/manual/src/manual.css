@@ -54,7 +54,7 @@ body {
 .cover .for .row { display: flex; align-items: stretch; gap: 14px; }
 .cover .for img { height: 54px; display: block; }
 .cover .for .row div { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; font-size: 10.5pt; line-height: 1.2; color: var(--muted); }
-.cover .for strong { font-size: 13pt; line-height: 1.2; white-space: nowrap; color: var(--ink); }
+.cover .for strong { font-size: 14pt; line-height: 1.2; white-space: nowrap; color: var(--ink); }
 .cover .makers { margin-top: auto; padding-top: 8mm; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 14mm; align-items: center; font-size: 8.5pt; color: var(--muted); }
 .cover .makers div { display: flex; align-items: center; gap: 8px; }
 .cover .makers img { height: 26px; }
