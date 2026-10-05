@@ -13,7 +13,7 @@ export const PRODUCT_LOGO_URL = '/images/assetnxg-logo.svg'
 export const PRODUCT_MARK_URL = '/images/assetnxg-mark.svg'
 
 // Shown in the About dialog: who makes AssetNXG and who runs it.
-export const MAKER_NAME = 'Pinnacle Marine Ventures'
+export const MAKER_NAME = 'PMV'
 export const MAKER_LOGO_URL = '/images/pmv-logo.svg'
 export const POWERED_BY_NAME = 'HMS - Digital Solutions'
 export const POWERED_BY_LOGO_URL = '/images/hms-logo.svg'
