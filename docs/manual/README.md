@@ -2,7 +2,7 @@
 
 Four PDFs for the client, written in HTML and printed with Chromium:
 
-| Source (`src/`) | PDF (`out/`) | For |
+| Source (`src/`) | PDF (`out/<client>/`) | For |
 |---|---|---|
 | `admin-guide.html` | AssetNXG-Administrator-Guide.pdf | The facility office (desktop) |
 | `field-guide.html` | AssetNXG-Field-App-Guide.pdf | Technicians, housekeeping, faculty, guests (phone) |
@@ -10,6 +10,11 @@ Four PDFs for the client, written in HTML and printed with Chromium:
 | `getting-started.html` | AssetNXG-Getting-Started.pdf | The client's administrator, for going live |
 
 `shots/` (screenshots) and `out/` (PDFs) are generated and not kept in git.
+
+The client's name, web address, logo and first administrator are `%%PLACEHOLDERS%%` in the
+source, filled from `clients/<id>.json` when the PDFs are built (`--client <id>`, SoMS by default).
+The screenshots show whichever app they were taken from, so for another client take them from
+that client's app (its env file in place of `.env.local`) before building.
 
 ## Rebuilding after a change to the app
 
@@ -20,7 +25,7 @@ and removed afterwards; if that is the live client database, agree a time with t
 npx tsx scripts/manual/demo.ts seed          # sample people, assets, jobs (ids saved in data-loads/)
 npm run build && npx next start -p 3100      # in a second terminal
 npx tsx scripts/manual/capture.ts all        # or: desktop | phone, optionally followed by shot names
-npx tsx scripts/manual/build.ts              # or: admin-guide | field-guide | quick-cards | getting-started
+npx tsx scripts/manual/build.ts              # or: [--client <id>] admin-guide | field-guide | quick-cards | getting-started
 npx tsx scripts/manual/demo.ts clean         # removes exactly what seed added
 ```
 

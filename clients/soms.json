@@ -1,0 +1,11 @@
+{
+  "id": "soms",
+  "name": "School of Maritime Studies, Centurion University",
+  "orgName": "School of Maritime Studies",
+  "shortName": "SoMS",
+  "domain": "soms.assetnxg.app",
+  "logo": "/images/client-logo.png",
+  "logoMark": "/images/client-logo-mark.png",
+  "firstAdmin": "maintenance.soms@cutm.ac.in",
+  "supabaseRef": "rtastehzscrbfvnffrct"
+}
