@@ -120,12 +120,26 @@ prints QR codes **from `https://abc.assetnxg.app`**.
 
 ## 9. Guides
 
-Take the screenshots from the client's app with sample data, build, and clean up
-(`docs/manual/README.md`), with `.env.abc` in place of `.env.local` and `--client abc`:
+Best done while the client's database is still empty. The sample records
+(`scripts/manual/demo.ts`) expect the SoMS masters, so load a copy of the SoMS Masters workbook
+with the SoMS names taken out (for PMS: `data-loads/pms-sample-masters.xlsx`) for the time
+being, and remove it afterwards. Run every step with the client's values in place of `.env.local`
+(the env file plus the four `NEXT_PUBLIC_CLIENT_*` values; in Git Bash also
+`MSYS_NO_PATHCONV=1 MSYS2_ENV_CONV_EXCL='*'`, or the logo path is turned into a Windows path):
 
 ```bash
+npm run data:load -- --stage masters --file <sample masters> --env .env.abc --commit --target <ref>
+npx tsx scripts/manual/demo.ts seed
+npm run build && npx next start -p 3100
+npx tsx scripts/manual/capture.ts all
 npx tsx scripts/manual/build.ts --client abc        # → docs/manual/out/abc/
+npx tsx scripts/manual/demo.ts clean
+npm run data:undo -- --manifest data-loads/<masters manifest>.json --target <ref> --env .env.abc
 ```
+
+Then reset the number counters (`docs/manual/README.md`) and rebuild `.next` with the SoMS
+values before using the local app again. The guides' "Master data" row and edition date come
+from `clients/abc.json` (`masterDataLabel`, `masterData`, `guidesDate`), else defaults.
 
 ## 10. Check before handover
 
