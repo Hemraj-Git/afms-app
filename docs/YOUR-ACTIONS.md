@@ -39,7 +39,7 @@ Things only you can do (dashboards, accounts, decisions). Code and database work
 
 **Phone alerts (Edge Function `send-push`):** already deployed on this project, with **no secret to set**: it creates its own push keys on first use and keeps them in the database (table `push_config`, readable only by the server). For the **client's production project** it must be deployed once there too (I do it with the migrations; it runs with *Verify JWT* **off**, because the database calls it, and it only ever sends a fresh alert once to its real recipient). No Vercel variable is needed for it.
 
-## C. Vercel (the `afms-prod` project)
+## C. Vercel (SoMS: the `afms-demo` project, built from `afms-app` main; see docs/NEW-CLIENT.md for other clients)
 
 Confirm these **environment variables** exist for Production (Settings → Environment Variables):
 
@@ -73,14 +73,14 @@ The version shown in About comes from `package.json` (now 1.0.0); raise it for e
 4. **Print the QR labels from `https://soms.assetnxg.app`.** Each QR code holds the address of the page it was printed from, so labels printed from any other address send phones there. (The in-app scanner reads either.)
 5. Staff who installed the app on their phones from the old address should install it again from the new one; push alerts are tied to the address too.
 
-**Supabase email templates** (Authentication → Emails → Templates): paste the ready-made, branded templates from the repo — the whole file into *Message body*:
+**Supabase email templates** (Authentication → Emails → Templates): run `npm run client:kit -- --client soms` and paste the files it writes to `clients/out/soms/` — the whole file into *Message body* (the templates in `supabase/templates/` have `%%CLIENT_NAME%%` placeholders and are not pasted as they are):
 
 | Template | Subject | Body |
 |---|---|---|
-| Invite user | `You're invited to AssetNXG — School of Maritime Studies` | `supabase/templates/invite.html` |
-| Reset password | `Reset your AssetNXG password` | `supabase/templates/recovery.html` |
+| Invite user | `You're invited to AssetNXG — School of Maritime Studies` | `clients/out/soms/invite.html` |
+| Reset password | `Reset your AssetNXG password` | `clients/out/soms/recovery.html` |
 
-They link to `/auth/confirm` (invite and recovery types), say links last 12 hours (as set), greet the person by name, and use the AssetNXG logo from the site (`/icons/icon-192.png`), so set the **Site URL** first. For another client, change "School of Maritime Studies, Centurion University" in both files. Sender name (SMTP settings): **AssetNXG**.
+They link to `/auth/confirm` (invite and recovery types), say links last 12 hours (as set), greet the person by name, and use the AssetNXG logo from the site (`/icons/icon-192.png`), so set the **Site URL** first. For another client, see `docs/NEW-CLIENT.md`. Sender name (SMTP settings): **AssetNXG**.
 
 ## D. Getting the code live (when you are ready)
 

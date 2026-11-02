@@ -15,7 +15,10 @@
     "data:undo": "tsx scripts/data/cli.ts undo",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "e2e:cleanup": "tsx e2e/support/cleanup-cli.ts"
+    "e2e:cleanup": "tsx e2e/support/cleanup-cli.ts",
+    "client:db": "tsx scripts/client-setup/cli.ts db",
+    "client:fingerprint": "tsx scripts/client-setup/cli.ts fingerprint",
+    "client:kit": "tsx scripts/client-setup/cli.ts kit"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -60,6 +63,7 @@
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^24.13.6",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
@@ -67,6 +71,7 @@
     "eslint-config-next": "16.3.8",
     "hyperformula": "^3.4.0",
     "jsdom": "^30.1.0",
+    "pg": "^8.23.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
