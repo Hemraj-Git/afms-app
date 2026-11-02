@@ -39,7 +39,7 @@ Things only you can do (dashboards, accounts, decisions). Code and database work
 
 **Phone alerts (Edge Function `send-push`):** already deployed on this project, with **no secret to set**: it creates its own push keys on first use and keeps them in the database (table `push_config`, readable only by the server). For the **client's production project** it must be deployed once there too (I do it with the migrations; it runs with *Verify JWT* **off**, because the database calls it, and it only ever sends a fresh alert once to its real recipient). No Vercel variable is needed for it.
 
-## C. Vercel (the `afms-prod` project)
+## C. Vercel (SoMS: the `afms-demo` project, built from `afms-app` main; see docs/NEW-CLIENT.md for other clients)
 
 Confirm these **environment variables** exist for Production (Settings → Environment Variables):
 

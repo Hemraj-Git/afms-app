@@ -16,12 +16,14 @@ export type ClientConfig = {
 }
 
 const FIELDS: (keyof ClientConfig)[] = ['id', 'name', 'orgName', 'shortName', 'domain', 'logo', 'logoMark', 'firstAdmin', 'supabaseRef']
+// May stay "" until known; whatever needs them says so.
+const LATER: (keyof ClientConfig)[] = ['firstAdmin', 'supabaseRef']
 
 export function loadClient(id: string): ClientConfig {
   const file = `clients/${id}.json`
   if (!existsSync(file)) throw new Error(`No client file ${file}. Copy clients/soms.json and fill it in.`)
   const client = JSON.parse(readFileSync(file, 'utf8')) as Partial<ClientConfig>
-  const missing = FIELDS.filter(f => typeof client[f] !== 'string' || !client[f]!.trim())
+  const missing = FIELDS.filter(f => typeof client[f] !== 'string' || (!LATER.includes(f) && !client[f]!.trim()))
   if (missing.length) throw new Error(`${file} is missing: ${missing.join(', ')}`)
   if (client.id !== id) throw new Error(`${file} has id "${client.id}", expected "${id}".`)
   return client as ClientConfig
@@ -48,6 +50,7 @@ export function fillClient(html: string, c: ClientConfig, logoPrefix = ''): stri
   }
   return html.replace(/%%([A-Z_]+)%%/g, (m, key: string) => {
     if (!(key in values)) throw new Error(`Unknown placeholder ${m}`)
+    if (!values[key].trim()) throw new Error(`${m} is needed here: fill it in clients/${c.id}.json`)
     return escapeHtml(values[key])
   })
 }

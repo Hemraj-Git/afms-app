@@ -91,9 +91,10 @@ function kit(id: string): void {
     writeFileSync(path.join(dir, `${name}.html`), fillClient(read(`supabase/templates/${name}.html`), c))
   }
   const site = `https://${c.domain}`
+  const ref = c.supabaseRef || '<project-ref>'
   writeFileSync(path.join(dir, 'settings.md'), `# ${c.name}: settings
 
-## Supabase (project ${c.supabaseRef})
+## Supabase (project ${ref})
 
 Authentication → URL Configuration
 - Site URL: ${site}
@@ -110,7 +111,7 @@ NEXT_PUBLIC_CLIENT_NAME=${c.name}
 NEXT_PUBLIC_CLIENT_SHORT_NAME=${c.shortName}
 NEXT_PUBLIC_CLIENT_LOGO_URL=${c.logo}
 NEXT_PUBLIC_CLIENT_LOGO_MARK_URL=${c.logoMark}
-NEXT_PUBLIC_SUPABASE_URL=https://${c.supabaseRef}.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://${ref}.supabase.co
 \`\`\`
 Plus, from the client's Supabase project (never in git or chat): NEXT_PUBLIC_SUPABASE_ANON_KEY,
 SUPABASE_SERVICE_ROLE_KEY. And the same four Sentry variables as SoMS.

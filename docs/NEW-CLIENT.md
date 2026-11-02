@@ -1,9 +1,21 @@
 # Setting up AssetNXG for a new client
 
 Each client gets its own Supabase project (database, sign-in, emails, files) and its own
-Vercel project, both from this one repository, at `<id>.assetnxg.app`. Nothing here touches
-another client: every command takes the new client's env file and refuses a database that
-already has the app.
+Vercel project, at `<id>.assetnxg.app`. All code lives in this repository (`afms-app`).
+Nothing here touches another client: every command takes the new client's env file and
+refuses a database that already has the app.
+
+## How releases reach each client
+
+| Client | Vercel project builds from | A release is |
+|---|---|---|
+| SoMS (soms.assetnxg.app) | `afms-app`, branch `main` | merging into `main` |
+| PMS (pms.assetnxg.app) | `afms-pms`, branch `main` (a release copy) | `git push pms main` |
+
+`afms-pms` is never edited: it only receives `afms-app`'s `main` when that client is to be
+upgraded, so both clients run the same code, each on its own schedule. A new client gets
+its own empty private repository `afms-<id>` the same way (`git remote add <id> …`).
+Before pushing a release to a client, apply any new migrations to that client's database.
 
 Below, `abc` stands for the new client's id (its subdomain).
 
@@ -40,8 +52,8 @@ jobs, default SLA hours and room types), then every later migration, then compar
 with the SoMS fingerprint (`supabase/baseline/expected-fingerprint.json`). All parts should say
 `same`. If anything fails, nothing is kept.
 
-**Later migrations** go to every client: apply each new file to SoMS and to every client
-project before deploying the code that needs it.
+**Later migrations** go to every client: apply each new file to a client's database before
+releasing the code that needs it to that client.
 
 ## 4. Phone alerts function
 
@@ -74,7 +86,9 @@ have no daily backups.
 
 ## 6. Vercel and the address
 
-1. New Vercel project from this repository (the same branch SoMS deploys from).
+1. New Vercel project importing the client's release repository (`afms-<id>`, branch `main`).
+   If Vercel doesn't list it, give the Vercel GitHub app access to it (GitHub → Settings →
+   Applications → Vercel → Configure).
 2. Environment variables (Production and Preview): the block in `settings.md`, the anon key and
    service-role key from `.env.abc`, and the four Sentry variables as on SoMS
    (`NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`). Errors are

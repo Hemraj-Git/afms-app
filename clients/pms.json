@@ -1,0 +1,11 @@
+{
+  "id": "pms",
+  "name": "Pragyamatic Marine Solutions",
+  "orgName": "Pragyamatic Marine Solutions",
+  "shortName": "PMS",
+  "domain": "pms.assetnxg.app",
+  "logo": "/images/clients/pms/logo.png",
+  "logoMark": "/images/clients/pms/logo-mark.png",
+  "firstAdmin": "",
+  "supabaseRef": ""
+}
