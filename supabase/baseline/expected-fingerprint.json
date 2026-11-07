@@ -1,12 +1,12 @@
 {
-  "source": "SoMS (rtastehzscrbfvnffrct), schema at migration 0056, taken 2026-11-01 with fingerprint.sql",
+  "source": "SoMS (rtastehzscrbfvnffrct), schema at migration 0057, taken 2026-11-07 with fingerprint.sql",
   "parts": {
     "buckets": { "items": 4, "hash": "0d6473adb8235376f4227aed34f74f95" },
     "columns": { "items": 315, "hash": "62945298d6a90b1ce21599c9d7527d64" },
     "constraints": { "items": 101, "hash": "d5cc3c05086dbdd9aa50a999d7966e98" },
     "cron": { "items": 3, "hash": "7df0645bf600866186ff31c9b7150c78" },
     "function_grants": { "items": 119, "hash": "433767be7150be13cb3a6d6a29f772aa" },
-    "functions": { "items": 47, "hash": "92468c0b96581ef7611bbe16257eb518" },
+    "functions": { "items": 47, "hash": "2094eaa3408f4f054585f005d7c03941" },
     "indexes": { "items": 48, "hash": "1a0f9f625746c994000d193a1d46f907" },
     "policies": { "items": 62, "hash": "4b5a36ce77614d51612476d93007a4d5" },
     "realtime": { "items": 9, "hash": "3aa8b8ecc9578a405d83266819d7e23a" },

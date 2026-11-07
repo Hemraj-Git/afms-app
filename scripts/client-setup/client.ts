@@ -13,7 +13,16 @@ export type ClientConfig = {
   logoMark: string
   firstAdmin: string
   supabaseRef: string
+  // The Getting Started row on master data. Optional: until the client's own
+  // masters are loaded it says they will be.
+  masterDataLabel?: string
+  masterData?: string
+  // The edition date on the guide covers, e.g. "October 2026"; else the month they are built.
+  guidesDate?: string
 }
+
+const MASTER_DATA_LABEL = 'Master data'
+const MASTER_DATA = 'Loaded by HMS - Digital Solutions from your master data workbook before you go live: your campus, buildings, rooms, categories and sub-categories with their custom fields, room types, departments and SLA hours'
 
 const FIELDS: (keyof ClientConfig)[] = ['id', 'name', 'orgName', 'shortName', 'domain', 'logo', 'logoMark', 'firstAdmin', 'supabaseRef']
 // May stay "" until known; whatever needs them says so.
@@ -47,6 +56,9 @@ export function fillClient(html: string, c: ClientConfig, logoPrefix = ''): stri
     CLIENT_DOMAIN: c.domain,
     CLIENT_LOGO: logoPrefix + c.logo,
     FIRST_ADMIN: c.firstAdmin,
+    MASTER_DATA_LABEL: c.masterDataLabel || MASTER_DATA_LABEL,
+    MASTER_DATA: c.masterData || MASTER_DATA,
+    GUIDES_DATE: c.guidesDate || new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' }),
   }
   return html.replace(/%%([A-Z_]+)%%/g, (m, key: string) => {
     if (!(key in values)) throw new Error(`Unknown placeholder ${m}`)

@@ -212,7 +212,7 @@ export default function ReportsHubPage() {
     inventoryItems,
     users,
     sources,
-  } = useReportData(currentUser.id, isLoggedIn && currentUser.id !== 'guest')
+  } = useReportData(currentUser.id, isLoggedIn && currentUser.id !== 'guest', currentUser.email)
 
   const [activeReportKey, setActiveReportKey] = useState<ReportTypeKey>('asset_master')
 
@@ -690,9 +690,13 @@ export default function ReportsHubPage() {
 
   // 10. Technician Workload Report
   const technicianWorkloadData = useMemo(() => {
-    const techUsers = users.filter(u => u.role === 'Technician' || u.role === 'Admin')
+    const jobsOf = (t: (typeof users)[number]) =>
+      workOrders.filter(w => w.assignedTechnicianId === t.id || w.assignedTechnicianName === t.fullName)
+    // Technicians, and an Admin only when jobs were assigned to them (the
+    // Preventive and Corrective pages allow it), so no assigned work drops out.
+    const techUsers = users.filter(u => u.role === 'Technician' || (u.role === 'Admin' && jobsOf(u).length > 0))
     return techUsers.map(t => {
-      const assignedWOs = workOrders.filter(w => w.assignedTechnicianId === t.id || w.assignedTechnicianName === t.fullName)
+      const assignedWOs = jobsOf(t)
       const completedPMs = assignedWOs.filter(w => w.type === 'Preventive' && w.status === 'Completed').length
       const completedCorrective = assignedWOs.filter(w => w.type === 'Corrective' && w.status === 'Completed').length
       const inProgress = assignedWOs.filter(w => w.status === 'In Progress').length
@@ -701,7 +705,7 @@ export default function ReportsHubPage() {
       return {
         techId: t.id,
         name: t.fullName,
-        department: t.department || 'Engineering',
+        department: t.department || '—',
         totalAssigned: assignedWOs.length,
         completedPMs,
         completedCorrective,

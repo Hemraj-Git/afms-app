@@ -32,6 +32,7 @@ import { getAttemptWindowStatus } from '@/lib/attemptWindow'
 import { subCategoryTemplateIds, type AssetScheduleRequest, type ScheduleResult } from '@/lib/assetSchedules'
 import type { FirstScheduleMode } from '@/lib/firstSchedule'
 import { getLocalDateStr } from '@/lib/dateUtils'
+import { visibleUsers } from '@/lib/brand'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_SLA_CONFIG, saveSlaSettings, slaSettingsKey, useSlaSettings } from '@/lib/queries/slaSettings'
@@ -378,7 +379,8 @@ export function AFMSProvider({ children }: { children: React.ReactNode }) {
   const addWorkOrdersMutation = useAddWorkOrders(currentUser.id)
   const updateWorkOrderMutation = useUpdateWorkOrder(currentUser.id)
   const usersQuery = useUsers(currentUser.id, queriesEnabled)
-  const users = usersQuery.users
+  // Our support logins stay out of every list unless one of them is signed in.
+  const users = React.useMemo(() => visibleUsers(usersQuery.users, currentUser.email), [usersQuery.users, currentUser.email])
   // A department stores its head as a user id; show that person's name.
   const departments = React.useMemo(() => {
     const nameById = new Map(users.map(u => [u.id, u.fullName]))

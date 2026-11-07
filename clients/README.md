@@ -15,6 +15,8 @@ keys and passwords stay in the client's `.env.<id>` file, outside git.
 | `logo`, `logoMark` | /images/client-logo.png | Wide logo and square mark, files under `public/` |
 | `firstAdmin` | maintenance.soms@cutm.ac.in | The client's first administrator (Getting Started guide) |
 | `supabaseRef` | rtastehzscrbfvnffrct | The client's Supabase project |
+| `masterDataLabel`, `masterData` | Already loaded / Your campus, 9 buildings… | Optional. The Getting Started row on master data; without them it says the HMS team loads it before go-live |
+| `guidesDate` | October 2026 | Optional. The edition date on the guide covers; without it, the month they are built |
 
 `npm run client:kit -- --client <id>` writes the client's ready-to-paste emails and settings
 to `clients/out/<id>/` (not kept in git). See `docs/NEW-CLIENT.md`.

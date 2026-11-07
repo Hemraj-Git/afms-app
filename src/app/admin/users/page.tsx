@@ -413,8 +413,9 @@ export default function UsersAdminPage() {
     {
       id: 'department',
       header: 'Department',
-      accessorFn: u => u.department || 'General',
-      cell: ({ getValue }) => <span className="font-semibold text-slate-800">{getValue() as string}</span>,
+      accessorFn: u => u.department || undefined,
+      sortUndefined: 'last',
+      cell: ({ getValue }) => <span className="font-semibold text-slate-800">{(getValue() as string | undefined) || '—'}</span>,
     },
     {
       id: 'phone',
