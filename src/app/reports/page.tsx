@@ -703,7 +703,6 @@ export default function ReportsHubPage() {
       const overdue = assignedWOs.filter(w => w.status !== 'Completed' && w.dueDate < getLocalDateStr()).length
 
       return {
-        techId: t.id,
         name: t.fullName,
         department: t.department || '—',
         totalAssigned: assignedWOs.length,
@@ -1216,8 +1215,7 @@ export default function ReportsHubPage() {
   ]
 
   const workloadColumns: ColumnDef<WorkloadRow>[] = [
-    { accessorKey: 'techId', header: 'Technician ID', meta: { thClassName: FIRST_TH, tdClassName: ID_CELL } },
-    { accessorKey: 'name', header: 'Technician Name', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
+    { accessorKey: 'name', header: 'Technician Name', meta: { thClassName: FIRST_TH, tdClassName: 'py-3.5 px-6 font-bold text-slate-900' } },
     { accessorKey: 'department', header: 'Department', meta: { tdClassName: 'py-3.5 px-4 text-slate-600' } },
     { accessorKey: 'totalAssigned', header: 'Total Assigned Tasks', meta: { tdClassName: 'py-3.5 px-4 font-bold text-slate-900' } },
     { accessorKey: 'completedPMs', header: 'Completed PMs', meta: { tdClassName: 'py-3.5 px-4 font-bold text-emerald-600' } },
