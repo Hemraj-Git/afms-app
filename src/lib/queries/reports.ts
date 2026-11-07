@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { visibleUsers } from '@/lib/brand'
 import { useAssets } from './assets'
 import { useBuildings } from './buildings'
 import { useCampuses } from './campuses'
@@ -40,7 +41,8 @@ interface SourceStatus {
   refetch: () => Promise<{ isError: boolean }>
 }
 
-export function useReportData(userId: string, enabled: boolean) {
+// `viewerEmail`: our support logins are left out of the people listed unless the viewer is one.
+export function useReportData(userId: string, enabled: boolean, viewerEmail?: string) {
   const assets = useAssets(userId, enabled)
   const campuses = useCampuses(userId, enabled)
   const buildings = useBuildings(userId, enabled)
@@ -94,7 +96,7 @@ export function useReportData(userId: string, enabled: boolean) {
     serviceRequests: requestsWithRoles,
     roomAccessLogs: logsWithRooms,
     inventoryItems: inventoryItems.inventoryItems,
-    users: users.users,
+    users: visibleUsers(users.users, viewerEmail),
     sources,
   }
 }

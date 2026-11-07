@@ -906,7 +906,7 @@ function AddAssetForm() {
                                 <div>
                                   <p className="font-semibold">{u.fullName}</p>
                                   <p className="text-[10px] text-slate-400">
-                                    {u.role} • {u.department || 'General'} • {u.email}
+                                    {[u.role, u.department, u.email].filter(Boolean).join(' • ')}
                                   </p>
                                 </div>
                                 {assignedToUserId === u.id && <Check className="w-3.5 h-3.5 text-blue-600" />}

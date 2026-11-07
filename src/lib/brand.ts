@@ -20,6 +20,17 @@ export const POWERED_BY_LOGO_URL = '/images/hms-logo.svg'
 
 export const SUPPORT_EMAIL = 'support@assetnxg.app'
 
+/**
+ * Our own support logins (any @assetnxg.app account) work on every client's
+ * site but are never shown to the client: not in Users, reports or the
+ * "assign to" lists. Only a support login sees them.
+ */
+export const isSupportAccount = (email: string | null | undefined) => /@assetnxg\.app$/i.test((email ?? '').trim())
+
+/** The people a viewer may see: everyone for a support login, else everyone but the support logins. */
+export const visibleUsers = <U extends { email: string }>(users: U[], viewerEmail: string | null | undefined): U[] =>
+  isSupportAccount(viewerEmail) ? users : users.filter(u => !isSupportAccount(u.email))
+
 // Set at build time from package.json (see next.config.ts).
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? ''
 export const BUILD_DATE = process.env.NEXT_PUBLIC_BUILD_DATE ?? ''
